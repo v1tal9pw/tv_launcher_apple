@@ -1,4 +1,4 @@
-﻿name: Personal TV release
+name: Personal TV release
 
 on:
   push:
@@ -31,6 +31,7 @@ jobs:
           mkdir -p "$HOME/.android"
           printf '%s' "$TVHOME_DEBUG_KEYSTORE_B64" | base64 --decode > "$HOME/.android/debug.keystore"
           chmod 600 "$HOME/.android/debug.keystore"
+          keytool -list -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey | grep 'SHA256:'
       - name: Test, lint, build
         working-directory: launcher
         run: |
@@ -42,6 +43,7 @@ jobs:
           size=$(stat -c %s "$apk")
           test "$size" -lt 1835008 || { echo 'APK exceeds size gate'; exit 1; }
           digest=$("$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs "$apk" | sed -n 's/Signer #1 certificate SHA-256 digest: //p')
+          echo "Release APK certificate: $digest"
           test "$digest" = c40564873b8385a6fa3ba3e3cd2d767d1475d4cf3003a24fad411378ec5bff1f || { echo 'Wrong signing certificate'; exit 1; }
           cp "$apk" "tvhome-${GITHUB_REF_NAME#v}.apk"
       - name: Publish GitHub Release

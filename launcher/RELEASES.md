@@ -20,8 +20,9 @@ asks for approval to install from this app and to confirm each update.
    on the TCL C6K.
 4. Make sure GitHub Actions is enabled and the default `GITHUB_TOKEN` can write
    repository contents (**Settings → Actions → General → Workflow permissions**).
-5. Push the first release tag `v43`. The release job will run tests, lint and
-   the size gate, then publish `tvhome-43.apk` as a GitHub Release asset.
+5. Push the first successful release tag matching `versionCode`. The release
+   job will run tests, lint and the size gate, then publish an APK named for
+   that version code as a GitHub Release asset.
 
 For each later release, increase `versionCode` in `app/build.gradle`, commit
 and push the source, then push the matching `v<versionCode>` tag. Tag the
