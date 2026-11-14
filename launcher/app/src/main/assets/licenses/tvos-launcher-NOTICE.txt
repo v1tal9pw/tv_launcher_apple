@@ -1,9 +1,11 @@
-RemoteButtonMapper adapts the remote-button workflow and tap dispatcher from
-ButtonMapper.java in https://github.com/techgenius1/tvOS-Launcher,
+RemoteButtonMapper and LocalAdbClient adapt the remote-button workflow,
+tap dispatcher and local ADB transport from ButtonMapper.java and LocalAdb.java
+in https://github.com/techgenius1/tvOS-Launcher,
 Copyright 2026 techgenius, distributed under Apache License 2.0.
 The complete license is in tvos-launcher-LICENSE.txt beside this file.
 
 Modified for this project: preference storage, launcher actions, existing
 accessibility service integration, Russian UI, and separate reporting of the
-system Home assignment and optional Home-key interception. Local ADB and
-stock-launcher disabling were not imported.
+system Home assignment and optional Home-key interception. The local ADB
+transport was reduced to on-demand loopback commands for the guarded cleanup
+flow. Stock-launcher candidates were adapted from CleanYourTv.java.

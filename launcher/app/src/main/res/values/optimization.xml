@@ -1,6 +1,13 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
     <string name="optimize_title">TV optimization</string>
-    <string name="optimize_help">Manage storage, freeze supported stock launchers and recommendations, or restore them. Freezing requires Shizuku started with ADB.</string>
+    <string name="optimize_help">Manage storage, disable supported stock launchers and recommendations, or restore them. Use Easy Setup with local ADB, or connect Shizuku.</string>
+    <string name="optimize_local_connect">Easy Setup (Local ADB)</string>
+    <string name="optimize_local_connected">Local ADB connected</string>
+    <string name="optimize_local_setup">Enable Network debugging on the TV (port 5555), then connect here. Accept this launcher\'s ADB key on the TV. Local ADB connects only to this TV, via loopback or its own network address. If the firmware offers only Wireless debugging with a changing port, use Shizuku instead. Turn debugging off after cleanup.</string>
+    <string name="optimize_open_settings">Open developer settings</string>
+    <string name="optimize_local_grant">Grant launcher system settings permission</string>
+    <string name="optimize_local_home">Set this launcher as Home via ADB</string>
+    <string name="optimize_local_close">Close local ADB port 5555</string>
     <string name="optimize_connect">Connect Shizuku</string>
     <string name="optimize_connected">Shizuku connected</string>
     <string name="optimize_adb_only">Start Shizuku with ADB. Root and secondary users are not supported.</string>

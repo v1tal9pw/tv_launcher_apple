@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Ported from Gathin23/cleanyourtv: window events are requested at runtime only when redirects need them. -->
-<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-    android:accessibilityFeedbackType="feedbackGeneric"
-    android:accessibilityFlags="flagRequestFilterKeyEvents"
-    android:canRequestFilterKeyEvents="true"
-    android:description="@string/home_key_description" />

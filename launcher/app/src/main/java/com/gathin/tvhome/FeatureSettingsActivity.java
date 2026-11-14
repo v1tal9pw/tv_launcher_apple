@@ -458,11 +458,6 @@ public final class FeatureSettingsActivity extends Activity {
         int status = InputKeyService.connected ? R.string.on : enabled ? R.string.remote_helper_not_running : R.string.off;
         row("remote_access", R.string.feature_remote_access, getString(status), R.drawable.ic_settings, 0xFF737989,
                 this::openOrEnableAccessibility);
-        boolean homeEnabled = accessibilityEnabled(HomeKeyService.class);
-        int homeStatus = HomeKeyService.connected ? R.string.on
-                : homeEnabled ? R.string.remote_helper_not_running : R.string.off;
-        row("remote_home_access", R.string.home_key_name, getString(homeStatus), R.drawable.ic_home_settings,
-                0xFF30B85A, this::openOrEnableAccessibility);
         int panelKey = features.getInt(RemotePanelKeys.PANEL_KEY, 0);
         int selectedPanel = 0;
         for (int i = 1; i < RemotePanelKeys.PANEL_CHOICES.length; i++)
@@ -487,7 +482,7 @@ public final class FeatureSettingsActivity extends Activity {
                 R.drawable.ic_home_settings, 0xFF30B85A, () -> {
                     features.edit().putBoolean(RemoteButtonMapper.HOME_FIX, !features.getBoolean(RemoteButtonMapper.HOME_FIX, false)).apply();
                     render();
-                    if (features.getBoolean(RemoteButtonMapper.HOME_FIX, false) && !HomeKeyService.connected)
+                    if (features.getBoolean(RemoteButtonMapper.HOME_FIX, false) && !InputKeyService.connected)
                         message(R.string.remote_helper_required);
                 });
         for (String button : RemoteButtonMapper.buttons(this)) {

@@ -1,6 +1,13 @@
 <resources>
     <string name="optimize_title">Оптимизация телевизора</string>
-    <string name="optimize_help">Хранилище, заморозка поддерживаемых родных лаунчеров и рекомендаций, восстановление. Для заморозки нужен Shizuku, запущенный через ADB.</string>
+    <string name="optimize_help">Хранилище, отключение поддерживаемых родных лаунчеров и рекомендаций, восстановление. Доступ через локальный ADB или Shizuku.</string>
+    <string name="optimize_local_connect">Простая настройка (локальный ADB)</string>
+    <string name="optimize_local_connected">Локальный ADB подключён</string>
+    <string name="optimize_local_setup">Включите на ТВ сетевую отладку (порт 5555), подключитесь здесь и подтвердите ключ этого лаунчера на экране ТВ. Подключение только к этому телевизору: через 127.0.0.1 или его сетевой адрес. Если прошивка даёт только беспроводную отладку со сменным портом, используйте Shizuku. После очистки выключите отладку.</string>
+    <string name="optimize_open_settings">Открыть настройки разработчика</string>
+    <string name="optimize_local_grant">Выдать лаунчеру системное разрешение</string>
+    <string name="optimize_local_home">Назначить лаунчер главным экраном через ADB</string>
+    <string name="optimize_local_close">Закрыть локальный порт ADB 5555</string>
     <string name="optimize_connect">Подключить Shizuku</string>
     <string name="optimize_connected">Shizuku подключён</string>
     <string name="optimize_adb_only">Запустите Shizuku через ADB. Root и дополнительные пользователи не поддерживаются.</string>
