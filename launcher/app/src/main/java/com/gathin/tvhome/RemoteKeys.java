@@ -353,7 +353,7 @@ final class RemoteKeys {
         int global = globalAction(target, Build.VERSION.SDK_INT);
         if (global != 0) {
             AccessibilityService service = ctx instanceof AccessibilityService ? (AccessibilityService) ctx
-                    : HomeKeyService.running != null ? HomeKeyService.running : InputKeyService.running;
+                    : InputKeyService.running;
             if (service != null) service.performGlobalAction(global);
             return true;
         }

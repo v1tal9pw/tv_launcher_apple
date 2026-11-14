@@ -35,6 +35,8 @@ final class ServiceRepair {
     }
 
     static void restore(Context context) {
+        // v53 recorded the now-unregistered Home service; never restore that stale entry.
+        prefs(context).edit().remove(HomeKeyService.class.getName()).apply();
         if (context.checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS)
                 != PackageManager.PERMISSION_GRANTED) return;
         try {

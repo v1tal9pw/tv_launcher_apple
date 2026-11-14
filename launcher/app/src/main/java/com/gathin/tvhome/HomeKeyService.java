@@ -60,6 +60,7 @@ public class HomeKeyService extends AccessibilityService {
     /** Remote buttons that should open Settings (config.xml, settings_key_scancodes and settings_key_keycodes). */
     private int[] settingsScancodes = new int[0];
     private int[] settingsKeycodes = new int[0];
+    private int[] inputKeycodes = new int[0];
     private boolean settingsPanel;
     /** consume_volume_keys: Volume Up/Down go to VolumeKeys instead of on to the firmware. */
     private boolean consumeVolumeKeys;
@@ -196,6 +197,7 @@ public class HomeKeyService extends AccessibilityService {
         repairRecord = config.restoreKeyServices;
         if (repairRecord) ServiceRepair.connected(this, getClass());
         settingsKeycodes = config.settingsKeycodes;
+        inputKeycodes = config.inputKeycodes;
         settingsPanel = config.settingsKeyPanel;
         consumeVolumeKeys = config.consumeVolumeKeys;
         appKeys = RemoteKeys.parseAppKeys(config.appKeys);
@@ -321,6 +323,17 @@ public class HomeKeyService extends AccessibilityService {
         }
         if (RemoteKeys.handle(this, event, inFront(appKeys, frontAppKeys, event.getKeyCode()),
                 holdAppKeys.get(event.getKeyCode()))) return true;
+        if (isInputKey(event.getKeyCode())) {
+            if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
+                try {
+                    startActivity(new Intent("com.android.tv.action.VIEW_INPUTS")
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                } catch (ActivityNotFoundException | SecurityException unavailable) {
+                    Log.w(TAG, "No TV input activity", unavailable);
+                }
+            }
+            return true;
+        }
         // home_long_press_home: Android never sees the Home key, so a held press cannot turn into ALL_APPS.
         if (homeLongPressHome && event.getKeyCode() == KeyEvent.KEYCODE_HOME) {
             if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) openHome();
@@ -333,6 +346,12 @@ public class HomeKeyService extends AccessibilityService {
         if (event.getKeyCode() != KeyEvent.KEYCODE_ALL_APPS) return false;
         if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) openHome();
         return true;
+    }
+
+    private boolean isInputKey(int code) {
+        if (code == KeyEvent.KEYCODE_TV || code == KeyEvent.KEYCODE_TV_INPUT) return true;
+        for (int candidate : inputKeycodes) if (candidate == code) return true;
+        return false;
     }
 
     /** Unbound by Android: the user turned the helper off, so Home doesn't put it back (ServiceRepair). */

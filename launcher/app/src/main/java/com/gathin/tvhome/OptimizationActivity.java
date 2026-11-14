@@ -27,8 +27,9 @@ import rikka.shizuku.Shizuku;
 /** Opt-in shell access; one package per confirmation, private backup before every change. */
 public final class OptimizationActivity extends Activity {
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
-    private IOptimizationService remote;
+    private volatile IOptimizationService remote;
     private boolean binding, busy;
+    private volatile boolean preferLocal;
     private volatile boolean closed;
     private LinearLayout rows;
     private SharedPreferences journal;
@@ -39,11 +40,12 @@ public final class OptimizationActivity extends Activity {
     };
     private final ServiceConnection connection = new ServiceConnection() {
         public void onServiceConnected(ComponentName name, IBinder binder) {
-            if (closed) return;
+            if (closed || preferLocal) return;
             remote = IOptimizationService.Stub.asInterface(binder); refresh();
         }
         public void onServiceDisconnected(ComponentName name) {
-            remote = null; binding = false;
+            if (!preferLocal) remote = null;
+            binding = false;
             if (!closed) render();
         }
     };
@@ -64,6 +66,7 @@ public final class OptimizationActivity extends Activity {
         if (remote != null) refresh(); else connect();
     }
     private void connect() {
+        if (preferLocal) return;
         try {
             if (Shizuku.pingBinder() && Shizuku.getUid() == 2000
                     && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED && !binding) {
@@ -73,6 +76,11 @@ public final class OptimizationActivity extends Activity {
         render();
     }
     private void authorize() {
+        preferLocal = false;
+        if (binding && remote == null) {
+            try { Shizuku.unbindUserService(args, connection, true); } catch (RuntimeException ignored) { }
+            binding = false;
+        }
         try {
             if (!Shizuku.pingBinder()) { setup(); return; }
             if (Shizuku.getUid() != 2000) { message(getString(R.string.optimize_adb_only)); return; }
@@ -88,11 +96,55 @@ public final class OptimizationActivity extends Activity {
                     launch(open);
                 }).setNegativeButton(android.R.string.cancel, null).show();
     }
+    private void localSetup() {
+        new AlertDialog.Builder(this).setTitle(R.string.optimize_local_connect)
+                .setMessage(R.string.optimize_local_setup)
+                .setPositiveButton(R.string.optimize_local_connect, (d, w) -> run(() -> {
+                    if (!"2000".equals(LocalAdbClient.run(this, "id -u")))
+                        throw new IllegalStateException("ADB_USER_REQUIRED");
+                    preferLocal = true;
+                    remote = new LocalOptimizationService(this);
+                    packages = new JSONArray(remote.inventory());
+                }))
+                .setNeutralButton(R.string.optimize_open_settings, (d, w) ->
+                        launch(new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)))
+                .setNegativeButton(android.R.string.cancel, null).show();
+    }
+    private void grantLocalPermission() {
+        run(() -> LocalAdbClient.run(this, "pm grant " + getPackageName()
+                + " android.permission.WRITE_SECURE_SETTINGS"));
+    }
+    private void setLocalHome() {
+        run(() -> {
+            try { LocalAdbClient.run(this, "cmd role add-role-holder --user 0 android.app.role.HOME "
+                    + getPackageName()); } catch (Exception ignored) { /* Some TV builds lack RoleManager. */ }
+            LocalAdbClient.run(this, "cmd package set-home-activity --user 0 "
+                    + getPackageName() + "/.MainActivity");
+            String resolved = LocalAdbClient.run(this, "cmd package resolve-activity --brief --user 0"
+                    + " -a android.intent.action.MAIN -c android.intent.category.HOME");
+            if (!resolved.contains(getPackageName() + "/"))
+                throw new IllegalStateException("SET_DEFAULT_HOME_FAILED");
+        });
+    }
+    private void closeLocalAdb() {
+        run(() -> {
+            try { LocalAdbClient.run(this, "settings put global adb_enabled 0"); }
+            catch (Exception ignored) { /* adbd may close its socket before replying. */ }
+            Thread.sleep(600);
+            if (LocalAdbClient.portOpen()) throw new IllegalStateException("ADB_PORT_STILL_OPEN");
+            preferLocal = false; remote = null; packages = new JSONArray();
+        });
+    }
     private void render() {
         if (closed || rows == null) return;
         rows.removeAllViews(); text(getString(R.string.optimize_title), 26);
         text(getString(R.string.optimize_help), 16);
-        button(getString(remote == null ? R.string.optimize_connect : R.string.optimize_connected), this::authorize);
+        button(getString(preferLocal ? R.string.optimize_local_connected : R.string.optimize_local_connect), this::localSetup);
+        if (preferLocal) {
+            button(getString(R.string.optimize_local_grant), this::grantLocalPermission);
+            button(getString(R.string.optimize_local_home), this::setLocalHome);
+            button(getString(R.string.optimize_local_close), this::closeLocalAdb);
+        } else button(getString(remote == null ? R.string.optimize_connect : R.string.optimize_connected), this::authorize);
         button(getString(R.string.optimize_cache), () -> launch(new Intent(Settings.ACTION_INTERNAL_STORAGE_SETTINGS)));
         button(getString(R.string.optimize_default_home), () -> launch(new Intent(this, LauncherSettingsActivity.class)));
         button(getString(R.string.optimize_refresh), this::refresh);
@@ -121,11 +173,11 @@ public final class OptimizationActivity extends Activity {
         b.setOnClickListener(v -> action.run()); rows.addView(b);
     }
     private void refresh() {
-        if (remote == null) { setup(); return; }
+        if (remote == null) { localSetup(); return; }
         run(() -> packages = new JSONArray(remote.inventory()));
     }
     private void confirm(String pkg, boolean restore) {
-        if (remote == null) { setup(); return; }
+        if (remote == null) { localSetup(); return; }
         new AlertDialog.Builder(this).setTitle(restore ? R.string.optimize_restore : R.string.optimize_freeze)
                 .setMessage(pkg + "\n\n" + getString(restore ? R.string.optimize_restore_help
                         : OptimizationPolicy.launcher(pkg) ? R.string.optimize_home_warning : R.string.optimize_recommendations_warning))
