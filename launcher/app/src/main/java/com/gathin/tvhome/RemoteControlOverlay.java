@@ -45,26 +45,9 @@ final class RemoteControlOverlay {
             if (event.getAction() == KeyEvent.ACTION_UP) close();
             return true;
         });
-        LinearLayout column = new LinearLayout(service);
-        column.setOrientation(LinearLayout.VERTICAL);
-        int space = dp(service, 18);
-        column.setPadding(space, space, space, space);
-        GradientDrawable background = new GradientDrawable();
-        background.setColor(0xF2343840);
-        background.setCornerRadius(dp(service, 25));
-        column.setBackground(background);
-        FrameLayout.LayoutParams position = new FrameLayout.LayoutParams(dp(service, 360),
-                FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER);
-        panelRoot.addView(column, position);
-        add(service, column, R.string.quick_settings, 0, false);
-        add(service, column, R.string.settings_preview_home, 0, true);
-        add(service, column, R.string.quick_bluetooth, R.id.quickBluetooth, false);
-        add(service, column, R.string.quick_audio_output, R.id.quickAudioOutput, false);
-        add(service, column, R.string.quick_picture, R.id.quickPicture, false);
-        add(service, column, R.string.quick_sound, R.id.quickSound, false);
-        add(service, column, R.string.quick_apps, R.id.quickApps, false);
-        add(service, column, R.string.quick_all_settings, R.id.quickAllSettings, false);
-        add(service, column, R.string.quick_close, -1, false);
+        View shortcuts = new View(service);
+        shortcuts.setId(R.id.topButtons);
+        panelRoot.addView(shortcuts, new FrameLayout.LayoutParams(1, 1));
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(-1, -1,
                 WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN, PixelFormat.TRANSLUCENT);
@@ -73,7 +56,22 @@ final class RemoteControlOverlay {
             windows = manager;
             root = panelRoot;
             owner = service;
-            column.getChildAt(1).requestFocus();
+            panelRoot.post(new Runnable() { public void run() {
+                if (root != panelRoot) return;
+                if (panelRoot.getWidth() == 0) { panelRoot.postDelayed(this, 16); return; }
+                Config config = Config.load(service);
+                QuickSettingsPanel panel = new QuickSettingsPanel(LauncherLocale.wrap(service), panelRoot,
+                        config.reducedMotion, config.animations, config.navigationSounds, new QuickSettingsPanel.Listener() {
+                    public void onAction(int control) {
+                        close();
+                        Intent action = control == R.id.quickLauncherSettings
+                                ? new Intent(service, LauncherSettingsActivity.class) : QuickSettingsActions.intent(service, control);
+                        open(service, action);
+                    }
+                    public void onClosed(boolean restoreFocus) { close(); }
+                });
+                panel.open(R.id.quickAllSettings);
+            }});
         } catch (RuntimeException unavailable) {
             // Some firmware refuses accessibility overlays; open the launcher's panel instead.
             open(service, new Intent(service, MainActivity.class).setAction(MainActivity.ACTION_QUICK_SETTINGS));

@@ -360,7 +360,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         if (icon == null && (banner == null || "com.spotify.tv.android".equals(pkg) && !appBanners.containsKey(pkg))) icon = ri.loadIcon(pm);
         if (artwork == null || "icon".equals(artwork) || "banner_ios_settings".equals(artwork)) {
             Drawable settingsIcon = AppArtwork.settingsIcon(ctx, ri);
-            if (settingsIcon != null) { banner = null; icon = settingsIcon; }
+            if (settingsIcon != null) { banner = settingsIcon; icon = null; }
         }
         if (card != null) return new Entry(Entry.CARD, card.label, component, banner, icon, card.caption, card.accent);
         // Same cleaner as the card prompt: an app label with a bidi override or line separator must not

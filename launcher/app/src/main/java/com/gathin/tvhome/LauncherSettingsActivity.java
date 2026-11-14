@@ -150,6 +150,7 @@ public final class LauncherSettingsActivity extends Activity {
         featureRow(R.id.appCustomizationChoice, FeatureSettingsActivity.APPS, R.drawable.ic_apps, 0xFF5E5CE6);
         featureRow(R.id.remoteButtonsChoice, FeatureSettingsActivity.REMOTE, R.drawable.ic_quick_apps, 0xFF30D158);
         followThemeChoice = findViewById(R.id.followThemeChoice);
+        followThemeChoice.setVisibility(View.GONE);
         followThemeChoice.setOnClickListener(v -> {
             if (!hasOnTvChoices()) return;
             choices.edit().remove("columns").remove("animations").remove("advanced_effects")
@@ -198,7 +199,7 @@ public final class LauncherSettingsActivity extends Activity {
         checkUpdatesChoice = findViewById(R.id.checkUpdatesChoice);
         checkUpdatesChoice.setIcon(R.drawable.ic_settings_update, 0xFF30D158);
         checkUpdatesChoice.setValue("", true);
-        checkUpdatesChoice.setOnClickListener(v -> checkForUpdates());
+        checkUpdatesChoice.setOnClickListener(v -> showUpdateCenter());
         SettingsRowView github = findViewById(R.id.githubChoice);
         github.setIcon(R.drawable.ic_settings_link, 0xFF5E5CE6);
         github.setValue("v1tal9pw", true);
@@ -343,6 +344,16 @@ public final class LauncherSettingsActivity extends Activity {
         } catch (android.content.pm.PackageManager.NameNotFoundException ignored) {
             return "?";
         }
+    }
+
+    private void showUpdateCenter() {
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle(R.string.check_for_updates)
+                .setMessage(getString(R.string.about_launcher_message, installedVersion())
+                        + "\n\n" + getString(R.string.update_changes) + "\n" + getString(R.string.installed_changes))
+                .setPositiveButton(R.string.update_check_button, (d, which) -> checkForUpdates())
+                .setNegativeButton(android.R.string.cancel, null).show();
+        glass(dialog);
     }
 
     private void checkForUpdates() {

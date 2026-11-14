@@ -33,8 +33,13 @@
     <string name="feature_true_color_help">Smoother gradients with less banding. Uses more memory than standard wallpaper color.</string>
     <string name="feature_dim">Wallpaper dimming</string>
     <string name="feature_minutes">%1$d minutes</string>
-    <string name="feature_sky_races">Sky &amp; race weekends</string>
-    <string name="feature_sky_help">The sky follows your city’s sunrise and sunset. Race information appears near a race weekend. City search uses Open-Meteo; calendar updates use Jolpica.</string>
+    <string name="feature_sky_races">Sky backdrop</string>
+    <string name="installed_changes">Updated Settings artwork. Removed theme reset and races. The same Quick Settings panel opens over apps. Weather controls: city, details and text size.</string>
+    <string name="update_check_button">Check for updates</string>
+    <string name="weather_show_city">Show city name</string>
+    <string name="weather_show_details">Show feels-like temperature and wind</string>
+    <string name="weather_text_size">Weather text size</string>
+    <string name="feature_sky_help">Adjust the sky brightness and choose a city for local sunrise and sunset.</string>
     <string name="feature_sky">Sky backdrop</string>
     <string name="feature_weather">Weather widget</string>
     <string name="feature_weather_help">Show current weather under the clock. Choose a city to get its forecast from Open-Meteo.</string>

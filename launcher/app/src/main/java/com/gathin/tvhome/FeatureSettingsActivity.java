@@ -220,17 +220,6 @@ public final class FeatureSettingsActivity extends Activity {
         integerChoice("sky_intensity", R.string.feature_sky, config.skyIntensity, new int[]{0, 25, 50, 75, 100},
                 new String[]{getString(R.string.off), "25%", "50%", "75%", "100%"}, R.drawable.ic_quick_picture);
         cityChoice();
-        section(R.string.feature_races);
-        boolean racesEnabled = features.getBoolean("races_enabled", !config.raceCalendar.isEmpty());
-        row("races_enabled", R.string.feature_races, "", R.drawable.ic_settings_stats, 0xFFFF375F, () -> {
-            boolean enabled = !racesEnabled;
-            features.edit().putBoolean("races_enabled", enabled).apply(); markChanged(); render();
-            if (enabled) updateCalendar();
-        }).setToggle(racesEnabled);
-        JSONArray races = RaceCalendarStore.load(this).optJSONArray("races");
-        row("calendar_refresh", R.string.feature_refresh_calendar,
-                races == null ? getString(R.string.feature_no_calendar) : getString(R.string.feature_calendar_count, races.length()),
-                R.drawable.ic_settings_motion, 0xFF0A84FF, this::updateCalendar);
     }
 
     private void weather() {
@@ -238,6 +227,10 @@ public final class FeatureSettingsActivity extends Activity {
         toggle("weather_enabled", R.string.feature_weather_enabled,
                 features.getBoolean("weather_enabled", true), R.drawable.ic_quick_picture, 0xFF64D2FF, 0);
         cityChoice();
+        toggle("weather_city", R.string.weather_show_city, features.getBoolean("weather_city", true), R.drawable.ic_quick_picture, 0xFF64D2FF, 0);
+        toggle("weather_details", R.string.weather_show_details, features.getBoolean("weather_details", true), R.drawable.ic_quick_picture, 0xFF64D2FF, 0);
+        integerChoice("weather_size", R.string.weather_text_size, features.getInt("weather_size", 16),
+                new int[]{14, 16, 20, 24}, new String[]{"14", "16", "20", "24"}, R.drawable.ic_settings_motion);
     }
 
     private void cityChoice() {

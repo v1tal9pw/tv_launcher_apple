@@ -33,8 +33,13 @@
     <string name="feature_true_color_help">Более плавные градиенты с меньшим количеством полос. Использует больше памяти, чем обычный режим.</string>
     <string name="feature_dim">Затемнение обоев</string>
     <string name="feature_minutes">Минут: %1$d</string>
-    <string name="feature_sky_races">Небо и гоночные выходные</string>
-    <string name="feature_sky_help">Небо меняется с учётом восхода и заката в вашем городе. Информация о гонках появляется в преддверии гоночных выходных. Поиск городов использует Open-Meteo, обновление календаря — Jolpica.</string>
+    <string name="feature_sky_races">Небо на фоне</string>
+    <string name="installed_changes">• Новая плитка настроек по образцу.\n• Убраны «Как в теме» и гонки.\n• Панель рабочего стола открывается поверх приложений.\n• Настройки погоды: город, подробности и размер текста.\n• Журнал установленной версии доступен в обновлениях.</string>
+    <string name="update_check_button">Проверить обновления</string>
+    <string name="weather_show_city">Показывать название города</string>
+    <string name="weather_show_details">Показывать ощущаемую температуру и ветер</string>
+    <string name="weather_text_size">Размер текста погоды</string>
+    <string name="feature_sky_help">Настройте яркость неба и выберите город для местного времени восхода и заката.</string>
     <string name="feature_sky">Небо на фоне</string>
     <string name="feature_weather">Виджет погоды</string>
     <string name="feature_weather_help">Показывать погоду под часами. Выберите город для прогноза Open-Meteo.</string>
