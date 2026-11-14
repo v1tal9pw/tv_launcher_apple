@@ -698,7 +698,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             if (paused || isFinishing() || isDestroyed()) return;
             new AlertDialog.Builder(this)
                     .setTitle(R.string.update_available)
-                    .setMessage(getString(R.string.update_prompt, release.code))
+                    .setMessage(ReleaseUpdater.prompt(this, release))
                     .setPositiveButton(R.string.update_install, (dialog, which) ->
                             startActivity(UpdateActivity.intent(this, release)))
                     .setNegativeButton(android.R.string.cancel, null)

@@ -358,6 +358,10 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         // Spotify's custom glyph still needs its icon even if the app supplies a banner.
         Drawable icon = linkedIcon ? AppArtwork.otherAppIcon(ctx, artwork) : null;
         if (icon == null && (banner == null || "com.spotify.tv.android".equals(pkg) && !appBanners.containsKey(pkg))) icon = ri.loadIcon(pm);
+        if (artwork == null || "icon".equals(artwork) || "banner_ios_settings".equals(artwork)) {
+            Drawable settingsIcon = AppArtwork.settingsIcon(ctx, ri);
+            if (settingsIcon != null) { banner = null; icon = settingsIcon; }
+        }
         if (card != null) return new Entry(Entry.CARD, card.label, component, banner, icon, card.caption, card.accent);
         // Same cleaner as the card prompt: an app label with a bidi override or line separator must not
         // redraw the tile name as something else (#117).

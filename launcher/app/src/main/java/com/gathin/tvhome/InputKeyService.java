@@ -3,7 +3,10 @@ package com.gathin.tvhome;
 import android.accessibilityservice.AccessibilityService;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.KeyEvent;
+import android.view.ViewConfiguration;
 import android.view.accessibility.AccessibilityEvent;
 import java.util.Collections;
 import java.util.Map;
@@ -33,6 +36,12 @@ public class InputKeyService extends AccessibilityService {
     /** Stops key filtering while a game controller is connected; null unless gamepad_passthrough and key_filter. */
     private GamepadPassthrough gamepads;
     private android.content.SharedPreferences featureChoices;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private boolean longHomeOpenedPanel;
+    private final Runnable longHomePanel = () -> {
+        longHomeOpenedPanel = true;
+        RemoteControlOverlay.toggle(this);
+    };
     private final android.content.SharedPreferences.OnSharedPreferenceChangeListener mappingChanges = (prefs, key) -> {
         if (key == null || "remote_mappings".equals(key)) reloadAppKeys();
     };
@@ -80,6 +89,25 @@ public class InputKeyService extends AccessibilityService {
     protected boolean onKeyEvent(KeyEvent event) {
         if (RemoteLearning.handle(event)) return true;
         if (RemotePanelKeys.handle(this, event)) return true;
+        if (event.getKeyCode() == KeyEvent.KEYCODE_HOME
+                && featureChoices.getBoolean(RemotePanelKeys.LONG_HOME, false)
+                && !HomeKeyService.canOpenPowerMenu()) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                longHomeOpenedPanel = false;
+                handler.removeCallbacks(longHomePanel);
+                handler.postDelayed(longHomePanel, ViewConfiguration.getLongPressTimeout());
+            } else if (event.getAction() == KeyEvent.ACTION_UP) {
+                handler.removeCallbacks(longHomePanel);
+                if (!event.isCanceled() && !longHomeOpenedPanel) {
+                    try {
+                        startActivity(new Intent(this, MainActivity.class)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP));
+                    } catch (ActivityNotFoundException | SecurityException ignored) { }
+                }
+                longHomeOpenedPanel = false;
+            }
+            return true;
+        }
         if (!(event.getKeyCode() == KeyEvent.KEYCODE_HOME
                 && featureChoices.getBoolean(RemotePanelKeys.LONG_HOME, false))
                 && RemoteButtonMapper.handle(this, event)) return true;
@@ -102,6 +130,7 @@ public class InputKeyService extends AccessibilityService {
     /** Unbound by Android: the user turned the helper off, so Home doesn't put it back (ServiceRepair). */
     @Override
     public boolean onUnbind(Intent intent) {
+        handler.removeCallbacks(longHomePanel);
         RemoteControlOverlay.closeFor(this);
         connected = false;
         RemoteButtonMapper.cancelPending();
@@ -111,6 +140,7 @@ public class InputKeyService extends AccessibilityService {
 
     @Override
     public void onDestroy() {
+        handler.removeCallbacks(longHomePanel);
         RemoteControlOverlay.closeFor(this);
         connected = false;
         RemoteButtonMapper.cancelPending();

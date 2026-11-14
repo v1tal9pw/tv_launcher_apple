@@ -40,7 +40,7 @@ public final class FeatureSettingsActivity extends Activity {
     }
 
     static final String PAGE = "feature_page";
-    static final String WALLPAPER = "wallpaper", SKY = "sky", APPS = "apps", REMOTE = "remote", CLOCK = "clock";
+    static final String WALLPAPER = "wallpaper", SKY = "sky", WEATHER = "weather", APPS = "apps", REMOTE = "remote", CLOCK = "clock";
     private SharedPreferences features, choices;
     private LinearLayout rows, group;
     private TextView title, summary;
@@ -104,6 +104,7 @@ public final class FeatureSettingsActivity extends Activity {
         rows.removeAllViews(); group = null;
         switch (page) {
             case SKY: sky(); break;
+            case WEATHER: weather(); break;
             case APPS: apps(); break;
             case REMOTE: remote(); break;
             case CLOCK: clock(); break;
@@ -218,11 +219,7 @@ public final class FeatureSettingsActivity extends Activity {
         heading(R.string.feature_sky_races, R.string.feature_sky_help); section(R.string.feature_sky);
         integerChoice("sky_intensity", R.string.feature_sky, config.skyIntensity, new int[]{0, 25, 50, 75, 100},
                 new String[]{getString(R.string.off), "25%", "50%", "75%", "100%"}, R.drawable.ic_quick_picture);
-        row("location", R.string.feature_city, features.getString("city", getString(R.string.feature_not_set)), R.drawable.ic_settings, 0xFF30D158,
-                () -> textInput(getString(R.string.feature_city_prompt), "", getString(R.string.feature_city_hint), R.string.feature_search, value -> {
-                    if (value.trim().length() < 2) throw new IllegalArgumentException(getString(R.string.feature_no_cities));
-                    searchCity(value.trim());
-                }));
+        cityChoice();
         section(R.string.feature_races);
         boolean racesEnabled = features.getBoolean("races_enabled", !config.raceCalendar.isEmpty());
         row("races_enabled", R.string.feature_races, "", R.drawable.ic_settings_stats, 0xFFFF375F, () -> {
@@ -234,6 +231,21 @@ public final class FeatureSettingsActivity extends Activity {
         row("calendar_refresh", R.string.feature_refresh_calendar,
                 races == null ? getString(R.string.feature_no_calendar) : getString(R.string.feature_calendar_count, races.length()),
                 R.drawable.ic_settings_motion, 0xFF0A84FF, this::updateCalendar);
+    }
+
+    private void weather() {
+        heading(R.string.feature_weather, R.string.feature_weather_help); section(R.string.feature_weather);
+        toggle("weather_enabled", R.string.feature_weather_enabled,
+                features.getBoolean("weather_enabled", true), R.drawable.ic_quick_picture, 0xFF64D2FF, 0);
+        cityChoice();
+    }
+
+    private void cityChoice() {
+        row("location", R.string.feature_city, features.getString("city", getString(R.string.feature_not_set)), R.drawable.ic_settings, 0xFF30D158,
+                () -> textInput(getString(R.string.feature_city_prompt), "", getString(R.string.feature_city_hint), R.string.feature_search, value -> {
+                    if (value.trim().length() < 2) throw new IllegalArgumentException(getString(R.string.feature_no_cities));
+                    searchCity(value.trim());
+                }));
     }
 
     private void searchCity(String query) {

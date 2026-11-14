@@ -145,6 +145,7 @@ public final class LauncherSettingsActivity extends Activity {
         wallpaperChoice = findViewById(R.id.wallpaperChoice);
         wallpaperChoice.setOnClickListener(v -> openFeature(FeatureSettingsActivity.WALLPAPER));
         featureRow(R.id.skyChoice, FeatureSettingsActivity.SKY, R.drawable.ic_quick_picture, 0xFF0A84FF);
+        featureRow(R.id.weatherChoice, FeatureSettingsActivity.WEATHER, R.drawable.ic_quick_picture, 0xFF64D2FF);
         featureRow(R.id.idleClockChoice, FeatureSettingsActivity.CLOCK, R.drawable.ic_quick_screensaver, 0xFFBF5AF2);
         featureRow(R.id.appCustomizationChoice, FeatureSettingsActivity.APPS, R.drawable.ic_apps, 0xFF5E5CE6);
         featureRow(R.id.remoteButtonsChoice, FeatureSettingsActivity.REMOTE, R.drawable.ic_quick_apps, 0xFF30D158);
@@ -206,7 +207,7 @@ public final class LauncherSettingsActivity extends Activity {
         for (int id : new int[]{R.id.columns4, R.id.columns5, R.id.columns6, R.id.columns7, R.id.animationsChoice,
                 R.id.advancedChoice, R.id.soundsChoice, R.id.libraryChoice, R.id.statsChoice,
                 R.id.continueWatchingChoice,
-                R.id.wallpaperChoice, R.id.rowsChoice, R.id.skyChoice, R.id.idleClockChoice,
+                R.id.wallpaperChoice, R.id.rowsChoice, R.id.skyChoice, R.id.weatherChoice, R.id.idleClockChoice,
                 R.id.appCustomizationChoice, R.id.remoteButtonsChoice, R.id.followThemeChoice,
                 R.id.defaultHomeChoice, R.id.tvSettingsChoice, R.id.aboutLauncherChoice,
                 R.id.checkUpdatesChoice, R.id.githubChoice}) {
@@ -218,7 +219,7 @@ public final class LauncherSettingsActivity extends Activity {
         }
         for (TextView column : columnChoices) column.setNextFocusDownId(R.id.wallpaperChoice);
         refresh();
-        columnChoices[Math.max(0, Math.min(columns - 4, 3))].requestFocus();
+        aboutLauncher.requestFocus();
     }
 
     /** The confirmation in Home's frosted dialog colours: dark rounded panel, white glass buttons. */
@@ -289,6 +290,8 @@ public final class LauncherSettingsActivity extends Activity {
             title = R.string.rows_below_dock_label; hint = R.string.settings_rows_hint;
         } else if (id == R.id.skyChoice) {
             title = R.string.feature_sky_races; hint = R.string.feature_sky_help;
+        } else if (id == R.id.weatherChoice) {
+            title = R.string.feature_weather; hint = R.string.feature_weather_help;
         } else if (id == R.id.idleClockChoice) {
             title = R.string.feature_idle_clock; hint = R.string.feature_idle_help;
         } else if (id == R.id.appCustomizationChoice) {
@@ -361,7 +364,7 @@ public final class LauncherSettingsActivity extends Activity {
             } else {
                 AlertDialog dialog = new AlertDialog.Builder(this)
                         .setTitle(R.string.update_available)
-                        .setMessage(getString(R.string.update_prompt, release.code))
+                        .setMessage(ReleaseUpdater.prompt(this, release))
                         .setPositiveButton(R.string.update_install, (d, which) ->
                                 startActivity(UpdateActivity.intent(this, release)))
                         .setNegativeButton(android.R.string.cancel, null).show();

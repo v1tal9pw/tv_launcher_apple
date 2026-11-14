@@ -5,7 +5,7 @@
     <string name="about_launcher">About this launcher</string>
     <string name="about_launcher_hint">See the installed version and information about the launcher.</string>
     <string name="about_launcher_message">Apple TV OS Launcher\nVersion %1$s\n\nA tvOS-inspired home screen for Android TV. Updates are published on GitHub.</string>
-    <string name="check_for_updates">Check for updates</string>
+    <string name="check_for_updates">System update</string>
     <string name="check_updates_hint">Check GitHub for the latest stable release now.</string>
     <string name="update_checking">Checking…</string>
     <string name="update_current_title">Up to date</string>
@@ -16,6 +16,7 @@
     <string name="github_open_failed">No browser is available. Open this address on another device:\n%1$s</string>
     <string name="update_available">Launcher update available</string>
     <string name="update_prompt">Version %1$d is ready. Download it from GitHub and confirm installation?</string>
+    <string name="update_changes">What changed:</string>
     <string name="update_install">Update</string>
     <string name="update_downloading">Downloading and checking the update…</string>
     <string name="update_allow_installs">Allow this app to install updates, then return here.</string>

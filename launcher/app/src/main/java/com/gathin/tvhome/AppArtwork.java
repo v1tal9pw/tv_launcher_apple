@@ -1,11 +1,15 @@
 package com.gathin.tvhome;
 
 import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
+import android.provider.Settings;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -13,6 +17,17 @@ import java.io.InputStream;
 
 /** Bounded, private copies of user-picked app banners; no lasting document-provider permission is needed. */
 final class AppArtwork {
+    static Drawable settingsIcon(Context context, ResolveInfo app) {
+        String pkg = app.activityInfo.packageName;
+        ResolveInfo settings = context.getPackageManager().resolveActivity(
+                new Intent(Settings.ACTION_SETTINGS), PackageManager.MATCH_DEFAULT_ONLY);
+        if (settings != null && settings.activityInfo != null
+                && pkg.equals(settings.activityInfo.packageName)) return context.getDrawable(R.drawable.settings_ios);
+        if (pkg.equals("com.android.settings") || pkg.equals("com.android.tv.settings")
+                || pkg.equals("com.google.android.tv.settings") || pkg.equals("com.tcl.settings")
+                || pkg.equals("com.tcl.tv.settings")) return context.getDrawable(R.drawable.settings_ios);
+        return null;
+    }
     static final String APP_ICON_PREFIX = "app_icon:";
     static boolean isAppIcon(String artwork) { return artwork != null && artwork.startsWith(APP_ICON_PREFIX); }
     static Drawable otherAppIcon(Context context, String artwork) {

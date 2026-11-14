@@ -280,7 +280,10 @@ final class AppLibraryDialog {
         PackageManager pm = activity.getPackageManager();
         LOADER.execute(() -> {
             Drawable loaded;
-            try { loaded = app.loadIcon(pm); }
+            try {
+                loaded = AppArtwork.settingsIcon(activity, app);
+                if (loaded == null) loaded = app.loadIcon(pm);
+            }
             catch (RuntimeException unavailable) { loaded = null; }
             Drawable result = loaded;
             main.post(() -> {

@@ -16,4 +16,10 @@ public class ReleaseUpdaterTest {
         assertFalse(ReleaseUpdater.shouldCheck(now - 1000, now, false));
         assertTrue(ReleaseUpdater.shouldCheck(now - 1000, now, true));
     }
+
+    @Test public void releaseNotesAreBoundedForTheTvDialog() {
+        assertEquals("", ReleaseUpdater.limitedNotes(null));
+        assertEquals("Changed weather", ReleaseUpdater.limitedNotes("  Changed weather  "));
+        assertEquals(3001, ReleaseUpdater.limitedNotes("x".repeat(4000)).length());
+    }
 }

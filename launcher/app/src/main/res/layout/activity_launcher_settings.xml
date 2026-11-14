@@ -98,7 +98,16 @@
             android:clipChildren="false"
             android:clipToPadding="false">
 
-            <TextView style="@style/SettingsSection" android:text="@string/settings_appearance" />
+            <TextView style="@style/SettingsSection" android:text="@string/about_launcher_section" />
+            <LinearLayout style="@style/SettingsGroup">
+                <com.gathin.tvhome.SettingsRowView android:id="@+id/aboutLauncherChoice" style="@style/SettingsRow" android:text="@string/about_launcher" />
+                <View style="@style/SettingsDivider" />
+                <com.gathin.tvhome.SettingsRowView android:id="@+id/checkUpdatesChoice" style="@style/SettingsRow" android:text="@string/check_for_updates" />
+                <View style="@style/SettingsDivider" />
+                <com.gathin.tvhome.SettingsRowView android:id="@+id/githubChoice" style="@style/SettingsRow" android:text="@string/github_repository" />
+            </LinearLayout>
+
+            <TextView style="@style/SettingsSection" android:layout_marginTop="22dp" android:text="@string/settings_appearance" />
 
             <LinearLayout style="@style/SettingsGroup">
                 <LinearLayout
@@ -138,6 +147,8 @@
                 <com.gathin.tvhome.SettingsRowView android:id="@+id/rowsChoice" style="@style/SettingsRow" android:text="@string/rows_below_dock_label" />
                 <View style="@style/SettingsDivider" />
                 <com.gathin.tvhome.SettingsRowView android:id="@+id/skyChoice" style="@style/SettingsRow" android:text="@string/feature_sky_races" />
+                <View style="@style/SettingsDivider" />
+                <com.gathin.tvhome.SettingsRowView android:id="@+id/weatherChoice" style="@style/SettingsRow" android:text="@string/feature_weather" />
             </LinearLayout>
 
             <TextView style="@style/SettingsSection" android:layout_marginTop="22dp" android:text="@string/settings_experience" />
@@ -170,14 +181,6 @@
                 <com.gathin.tvhome.SettingsRowView android:id="@+id/tvSettingsChoice" style="@style/SettingsRow" android:text="@string/tv_settings" />
             </LinearLayout>
 
-            <TextView style="@style/SettingsSection" android:layout_marginTop="22dp" android:text="@string/about_launcher_section" />
-            <LinearLayout style="@style/SettingsGroup">
-                <com.gathin.tvhome.SettingsRowView android:id="@+id/aboutLauncherChoice" style="@style/SettingsRow" android:text="@string/about_launcher" />
-                <View style="@style/SettingsDivider" />
-                <com.gathin.tvhome.SettingsRowView android:id="@+id/checkUpdatesChoice" style="@style/SettingsRow" android:text="@string/check_for_updates" />
-                <View style="@style/SettingsDivider" />
-                <com.gathin.tvhome.SettingsRowView android:id="@+id/githubChoice" style="@style/SettingsRow" android:text="@string/github_repository" />
-            </LinearLayout>
         </LinearLayout>
     </ScrollView>
 </LinearLayout>
