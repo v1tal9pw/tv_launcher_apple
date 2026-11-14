@@ -11,7 +11,7 @@ import java.util.Map;
 import java.util.Set;
 import org.json.JSONObject;
 
-/** Adapted from ButtonMapper in tvOS-Launcher-2.1.5-ru-desktop1 (Apache-2.0).
+/** Adapted from ButtonMapper in techgenius1/tvOS-Launcher (Apache-2.0).
  * Changes: existing launcher preferences/actions, no ADB or permission changes.
  * Attribution and license: assets/licenses/tvos-launcher-NOTICE.txt and tvos-launcher-LICENSE.txt. */
 final class RemoteButtonMapper {
