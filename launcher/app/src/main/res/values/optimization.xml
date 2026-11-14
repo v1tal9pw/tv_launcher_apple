@@ -6,6 +6,7 @@
     <string name="optimize_local_setup">Enable Network debugging on the TV (port 5555), then connect here. Accept this launcher\'s ADB key on the TV. Local ADB connects only to this TV, via loopback or its own network address. If the firmware offers only Wireless debugging with a changing port, use Shizuku instead. Turn debugging off after cleanup.</string>
     <string name="optimize_open_settings">Open developer settings</string>
     <string name="optimize_local_grant">Grant launcher system settings permission</string>
+    <string name="optimize_local_granted">System settings permission granted</string>
     <string name="optimize_local_home">Set this launcher as Home via ADB</string>
     <string name="optimize_local_close">Close local ADB port 5555</string>
     <string name="optimize_connect">Connect Shizuku</string>

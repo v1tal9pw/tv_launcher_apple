@@ -102,6 +102,9 @@ public final class OptimizationActivity extends Activity {
                 .setPositiveButton(R.string.optimize_local_connect, (d, w) -> run(() -> {
                     if (!"2000".equals(LocalAdbClient.run(this, "id -u")))
                         throw new IllegalStateException("ADB_USER_REQUIRED");
+                    try { LocalAdbClient.run(this, "pm grant " + getPackageName()
+                            + " android.permission.WRITE_SECURE_SETTINGS"); }
+                    catch (Exception ignored) { /* The manual grant action remains available on restrictive firmware. */ }
                     preferLocal = true;
                     remote = new LocalOptimizationService(this);
                     packages = new JSONArray(remote.inventory());
@@ -141,7 +144,9 @@ public final class OptimizationActivity extends Activity {
         text(getString(R.string.optimize_help), 16);
         button(getString(preferLocal ? R.string.optimize_local_connected : R.string.optimize_local_connect), this::localSetup);
         if (preferLocal) {
-            button(getString(R.string.optimize_local_grant), this::grantLocalPermission);
+            if (checkSelfPermission(android.Manifest.permission.WRITE_SECURE_SETTINGS)
+                    == PackageManager.PERMISSION_GRANTED) text(getString(R.string.optimize_local_granted), 14);
+            else button(getString(R.string.optimize_local_grant), this::grantLocalPermission);
             button(getString(R.string.optimize_local_home), this::setLocalHome);
             button(getString(R.string.optimize_local_close), this::closeLocalAdb);
         } else button(getString(remote == null ? R.string.optimize_connect : R.string.optimize_connected), this::authorize);
