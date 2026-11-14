@@ -402,10 +402,14 @@ public final class FeatureSettingsActivity extends Activity {
     }
 
     private boolean remoteAccessibilityEnabled() {
+        return accessibilityEnabled(InputKeyService.class);
+    }
+
+    private boolean accessibilityEnabled(Class<?> service) {
         android.view.accessibility.AccessibilityManager manager =
                 (android.view.accessibility.AccessibilityManager) getSystemService(ACCESSIBILITY_SERVICE);
         if (manager == null) return false;
-        ComponentName expected = new ComponentName(this, InputKeyService.class);
+        ComponentName expected = new ComponentName(this, service);
         for (android.accessibilityservice.AccessibilityServiceInfo info :
                 manager.getEnabledAccessibilityServiceList(android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK)) {
             ResolveInfo resolved = info.getResolveInfo();
@@ -451,10 +455,14 @@ public final class FeatureSettingsActivity extends Activity {
     private void remote() {
         heading(R.string.feature_remote, R.string.feature_remote_help); section(R.string.feature_remote);
         boolean enabled = remoteAccessibilityEnabled();
-        int status = InputKeyService.connected ? R.string.on
-                : enabled ? R.string.remote_helper_not_running : R.string.off;
+        int status = InputKeyService.connected ? R.string.on : enabled ? R.string.remote_helper_not_running : R.string.off;
         row("remote_access", R.string.feature_remote_access, getString(status), R.drawable.ic_settings, 0xFF737989,
                 this::openOrEnableAccessibility);
+        boolean homeEnabled = accessibilityEnabled(HomeKeyService.class);
+        int homeStatus = HomeKeyService.connected ? R.string.on
+                : homeEnabled ? R.string.remote_helper_not_running : R.string.off;
+        row("remote_home_access", R.string.home_key_name, getString(homeStatus), R.drawable.ic_home_settings,
+                0xFF30B85A, this::openOrEnableAccessibility);
         int panelKey = features.getInt(RemotePanelKeys.PANEL_KEY, 0);
         int selectedPanel = 0;
         for (int i = 1; i < RemotePanelKeys.PANEL_CHOICES.length; i++)
@@ -479,7 +487,7 @@ public final class FeatureSettingsActivity extends Activity {
                 R.drawable.ic_home_settings, 0xFF30B85A, () -> {
                     features.edit().putBoolean(RemoteButtonMapper.HOME_FIX, !features.getBoolean(RemoteButtonMapper.HOME_FIX, false)).apply();
                     render();
-                    if (features.getBoolean(RemoteButtonMapper.HOME_FIX, false) && !InputKeyService.connected)
+                    if (features.getBoolean(RemoteButtonMapper.HOME_FIX, false) && !HomeKeyService.connected)
                         message(R.string.remote_helper_required);
                 });
         for (String button : RemoteButtonMapper.buttons(this)) {

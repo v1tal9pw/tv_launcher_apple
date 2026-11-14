@@ -442,7 +442,7 @@ public final class LauncherSettingsActivity extends Activity {
         boolean isDefault = resolved != null && resolved.activityInfo != null && getPackageName().equals(resolved.activityInfo.packageName);
         boolean fix = FeaturePreferences.prefs(this).getBoolean(RemoteButtonMapper.HOME_FIX, false);
         String status = getString(R.string.home_system_status, getString(isDefault ? R.string.on : R.string.off))
-                + "\n" + getString(R.string.home_key_status, getString(fix && InputKeyService.connected ? R.string.on : R.string.off));
+                + "\n" + getString(R.string.home_key_status, getString(fix && HomeKeyService.connected ? R.string.on : R.string.off));
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(status)
                 .setItems(new String[]{getString(R.string.home_system_choose), getString(R.string.remote_home_fix)
@@ -451,7 +451,7 @@ public final class LauncherSettingsActivity extends Activity {
                             if (which == 0) requestDefaultHome();
                             else if (which == 1) {
                                 FeaturePreferences.prefs(this).edit().putBoolean(RemoteButtonMapper.HOME_FIX, !fix).apply();
-                                if (!fix && !InputKeyService.connected) {
+                                if (!fix && !HomeKeyService.connected) {
                                     Toast.makeText(this, R.string.remote_helper_required, Toast.LENGTH_LONG).show();
                                     open(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
                                 } else chooseDefaultHome();

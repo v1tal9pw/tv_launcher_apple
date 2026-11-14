@@ -1,6 +1,7 @@
 package com.gathin.tvhome;
 
 import android.accessibilityservice.AccessibilityService;
+import android.view.KeyEvent;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -34,6 +35,20 @@ public class RemoteKeysTest {
         assertFalse(RemoteKeys.inFront("com.vt.tv.tvcenter", ""));
         assertFalse(RemoteKeys.inFront(null, "com.vt.tv.tvcenter"));
         assertFalse(RemoteKeys.inFront("input:com.vt.source.external/.HdmiInputService/HW2", "com.vt.source.external"));
+    }
+
+    @Test public void bothHelpersPickTheSameFrontTarget() {
+        String before = RemoteKeys.frontPackage;
+        try {
+            RemoteKeys.frontPackage = "com.vt.tv.tvcenter";
+            assertEquals("guide:com.vt.tv.tvcenter",
+                    RemoteKeys.tap("com.vt.tv.tvcenter", "guide:com.vt.tv.tvcenter"));
+            RemoteKeys.frontPackage = "com.gathin.tvhome";
+            assertEquals("com.vt.tv.tvcenter",
+                    RemoteKeys.tap("com.vt.tv.tvcenter", "guide:com.vt.tv.tvcenter"));
+        } finally {
+            RemoteKeys.frontPackage = before;
+        }
     }
 
     @Test public void frontEntriesAreReadApartFromTheRest() {
@@ -174,7 +189,11 @@ public class RemoteKeysTest {
         });
 
         void down(String button, long at, String holdApp) {
-            presses.down(button, at, 0, holdApp, opened::add);
+            presses.down(button, at, 0, holdApp, this, opened::add);
+        }
+
+        void down(String helper, String button, long at, String holdApp) {
+            presses.down(button, at, 0, holdApp, helper, target -> opened.add(helper + ": " + target));
         }
 
         void up(String button, long at, long downTime, String app, String holdApp) {
@@ -233,6 +252,34 @@ public class RemoteKeysTest {
         remote.presses.up("1:190:0", 1200, 1000, true, "tap", "hold", remote.opened::add);
         remote.holdTimeout();
         assertTrue(remote.opened.isEmpty());
+    }
+
+    @Test public void losingOneHelperLeavesTheHoldWithTheOther() {
+        Remote remote = new Remote();
+        remote.down("home", "1:190:0", 1000, "hold");
+        remote.down("input", "1:190:0", 1000, "hold");
+        remote.presses.release("home");
+        remote.holdTimeout();
+        remote.up("1:190:0", 1800, 1000, "tap", "hold");
+        assertEquals(Arrays.asList("input: hold"), remote.opened);
+    }
+
+    @Test public void releasedHelperCannotFireALateHold() {
+        Remote remote = new Remote();
+        remote.down("home", "1:190:0", 1000, "hold");
+        remote.presses.release("home");
+        remote.holdTimeout();
+        assertTrue(remote.opened.isEmpty());
+        assertTrue(remote.holds.isEmpty());
+    }
+
+    @Test public void xiaomiMenuAndChannelHelpersMatchUpstream() {
+        assertTrue(RemoteKeys.menuReleased(KeyEvent.ACTION_UP, 0));
+        assertTrue(RemoteKeys.menuReleased(KeyEvent.ACTION_UP, RemoteKeys.XIAOMI_SHORT_MENU_FLAGS));
+        assertFalse(RemoteKeys.menuReleased(KeyEvent.ACTION_DOWN, 0));
+        assertTrue(RemoteKeys.isChannelKey(KeyEvent.KEYCODE_CHANNEL_UP));
+        assertTrue(RemoteKeys.isChannelKey(KeyEvent.KEYCODE_CHANNEL_DOWN));
+        assertFalse(RemoteKeys.isChannelKey(KeyEvent.KEYCODE_VOLUME_UP));
     }
 
     @Test public void anUpWithoutItsDownUsesTheEventsDownTime() {

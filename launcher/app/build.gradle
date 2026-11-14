@@ -11,8 +11,8 @@ android {
         applicationId providers.gradleProperty('launcherApplicationId').getOrElse('com.gathin.tvhome')
         minSdk 26
         targetSdk 34
-        versionCode 52
-        versionName '3.49'
+        versionCode 53
+        versionName '3.50'
         testInstrumentationRunner project.findProperty('launcherTestRunner') ?: 'com.gathin.tvhome.LauncherSmoke'
     }
 

@@ -44,11 +44,11 @@ final class GuardKeep {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_OFF, off).commit();
     }
 
-    /** Puts InputKeyService back on the enabled list when standby exit is opted in. Other services stay. */
+    /** Puts HomeKeyService back on the enabled list when standby exit is opted in. Other services stay. */
     static void ensureRemoteHelper(Context context) {
         // The helper may already be bound. Arming only inside onServiceConnected misses an opt-in
         // that arrives after that, so the first screen-off does nothing (Philips 65PUS8102).
-        InputKeyService.applyStandbyOptIn();
+        HomeKeyService.applyStandbyOptIn();
         if (!offInStandby(context)) return;
         if (context.checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS)
                 != PackageManager.PERMISSION_GRANTED) return;
@@ -59,7 +59,7 @@ final class GuardKeep {
             return;
         }
         try {
-            ComponentName mine = new ComponentName(context, InputKeyService.class);
+            ComponentName mine = new ComponentName(context, HomeKeyService.class);
             String list = Settings.Secure.getString(context.getContentResolver(),
                     Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
             List<String> entries = new ArrayList<>();

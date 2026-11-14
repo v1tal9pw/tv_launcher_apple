@@ -3,7 +3,7 @@
     <string name="about_launcher_section">О лаунчере</string>
     <string name="about_launcher">О лаунчере</string>
     <string name="about_launcher_hint">Установленная версия и сведения о лаунчере.</string>
-    <string name="about_launcher_message">Apple TV OS Launcher\nВерсия %1$s\n\nГлавный экран в стиле tvOS для Android TV. Обновления публикуются на GitHub.</string>
+    <string name="about_launcher_message">Apple TV OS Launcher\nВерсия %1$s\n\nГлавный экран в стиле tvOS для Android TV. Обновления публикуются на GitHub.\n\nБлагодарность Денису</string>
     <string name="check_for_updates">Обновление системы</string>
     <string name="check_updates_hint">Проверить новую стабильную версию на GitHub прямо сейчас.</string>
     <string name="update_checking">Проверка…</string>

@@ -17,6 +17,7 @@ import android.view.KeyEvent;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -24,7 +25,7 @@ import java.util.function.ToIntFunction;
 import java.util.regex.Pattern;
 
 /**
- * Remote buttons that only the stock launcher answered, for InputKeyService: app_keys
+ * Remote buttons that only the stock launcher answered, for HomeKeyService and InputKeyService: app_keys
  * (config.xml or a theme) maps a keycode to the app it opens, as "190:com.google.android.youtube.tv" or
  * "KEYCODE_BUTTON_3:com.google.android.youtube.tv", or a scancode as "scan:490:com.wbd.hbomax". A "hold:"
  * prefix makes an entry the long-press action instead: "hold:KEYCODE_BUTTON_8:org.xbmc.kodi" opens Kodi when
@@ -178,6 +179,13 @@ final class RemoteKeys {
         return (slash < 0 ? target : target.substring(0, slash)).equals(front);
     }
 
+    /** The foreground app shared by both helpers while a front: mapping exists. */
+    static String frontPackage = "";
+
+    static String tap(String target, String alt) {
+        return alt != null && inFront(target, frontPackage) ? alt : target;
+    }
+
     /** Created on first use: building a Handler while the class loads breaks the JVM tests. */
     private static Presses presses;
 
@@ -196,12 +204,18 @@ final class RemoteKeys {
         }
         String button = event.getDeviceId() + ":" + event.getKeyCode() + ":" + event.getScanCode();
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
-            presses.down(button, event.getEventTime(), event.getRepeatCount(), holdApp, target -> launch(ctx, target));
+            presses.down(button, event.getEventTime(), event.getRepeatCount(), holdApp, ctx,
+                    target -> launch(ctx, target));
         } else if (event.getAction() == KeyEvent.ACTION_UP) {
             presses.up(button, event.getEventTime(), event.getDownTime(), event.isCanceled(), app, holdApp,
                     target -> launch(ctx, target));
         }
         return true;
+    }
+
+    /** Drops pending holds owned by a helper that stopped receiving key events. */
+    static void release(Context helper) {
+        if (presses != null) presses.release(helper);
     }
 
     /**
@@ -220,6 +234,7 @@ final class RemoteKeys {
             long downAt = -1, upAt = -1;
             boolean fired;
             Runnable hold;
+            final Map<Object, Consumer<String>> owners = new LinkedHashMap<>();
         }
 
         private final Map<String, Press> buttons = new HashMap<>();
@@ -229,21 +244,38 @@ final class RemoteKeys {
             this.timer = timer;
         }
 
-        void down(String button, long eventTime, int repeatCount, String holdApp, Consumer<String> open) {
+        void down(String button, long eventTime, int repeatCount, String holdApp, Object owner,
+                Consumer<String> open) {
             if (repeatCount != 0) return;
             Press press = buttons.computeIfAbsent(button, b -> new Press());
-            if (press.downAt == eventTime) return;
+            if (press.downAt == eventTime) {
+                if (press.hold != null) press.owners.putIfAbsent(owner, open);
+                return;
+            }
             if (press.hold != null) timer.cancel(press.hold);   // its UP never came
             press.downAt = eventTime;
             press.fired = false;
             press.hold = null;
+            press.owners.clear();
             if (holdApp == null) return;
+            press.owners.put(owner, open);
             press.hold = () -> {
+                Consumer<String> first = press.owners.values().iterator().next();
                 press.hold = null;
+                press.owners.clear();
                 press.fired = true;
-                open.accept(holdApp);
+                first.accept(holdApp);
             };
             timer.post(press.hold, HOLD_MS);
+        }
+
+        void release(Object owner) {
+            for (Press press : buttons.values()) {
+                if (press.hold == null || press.owners.remove(owner) == null || !press.owners.isEmpty()) continue;
+                timer.cancel(press.hold);
+                press.hold = null;
+                press.fired = true;
+            }
         }
 
         void up(String button, long eventTime, long downTime, boolean canceled, String app, String holdApp,
@@ -255,11 +287,24 @@ final class RemoteKeys {
             if (press.hold != null) {
                 timer.cancel(press.hold);
                 press.hold = null;
+                press.owners.clear();
             }
             if (canceled || (sawDown && press.fired)) return;
             // Without its DOWN (the service started while the button was held), the event's own down time will do.
             open.accept(target(app, holdApp, eventTime - (sawDown ? press.downAt : downTime)));
         }
+    }
+
+    static final int XIAOMI_SHORT_MENU_FLAGS = 0x7531;
+
+    static boolean isChannelKey(int keyCode) {
+        return keyCode == KeyEvent.KEYCODE_CHANNEL_UP || keyCode == KeyEvent.KEYCODE_CHANNEL_DOWN;
+    }
+
+    static boolean menuReleased(int action, int flags) {
+        if (action != KeyEvent.ACTION_UP) return false;
+        return (flags & KeyEvent.FLAG_CANCELED) == 0
+                || (flags & XIAOMI_SHORT_MENU_FLAGS) == XIAOMI_SHORT_MENU_FLAGS;
     }
 
     /** The app a mapped key opens: its hold entry after HOLD_MS, otherwise its normal one. */
@@ -307,7 +352,9 @@ final class RemoteKeys {
         if (!isAction(target)) return false;
         int global = globalAction(target, Build.VERSION.SDK_INT);
         if (global != 0) {
-            if (ctx instanceof AccessibilityService) ((AccessibilityService) ctx).performGlobalAction(global);
+            AccessibilityService service = ctx instanceof AccessibilityService ? (AccessibilityService) ctx
+                    : HomeKeyService.running != null ? HomeKeyService.running : InputKeyService.running;
+            if (service != null) service.performGlobalAction(global);
             return true;
         }
         switch (target) {
