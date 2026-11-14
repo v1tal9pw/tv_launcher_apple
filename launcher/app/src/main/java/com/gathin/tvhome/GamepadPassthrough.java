@@ -7,7 +7,7 @@ import android.hardware.input.InputManager;
 import android.view.InputDevice;
 
 /**
- * Stops HomeKeyService and InputKeyService filtering keys while a game controller is connected. With key filtering on,
+ * Stops InputKeyService filtering keys while a game controller is connected. With key filtering on,
  * Android routes every key through the accessibility layer and re-injects the ones the service passes on, and games
  * (Steam Link with an Xbox controller, on a TCL G07) stop seeing the controller's buttons as the controller's. The
  * remote buttons the services handle do nothing until the controller disconnects; filtering then comes back.

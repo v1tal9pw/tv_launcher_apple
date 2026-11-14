@@ -1,0 +1,24 @@
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="optimize_title">TV optimization</string>
+    <string name="optimize_help">Manage storage, freeze supported stock launchers and recommendations, or restore them. Freezing requires Shizuku started with ADB.</string>
+    <string name="optimize_connect">Connect Shizuku</string>
+    <string name="optimize_connected">Shizuku connected</string>
+    <string name="optimize_adb_only">Start Shizuku with ADB. Root and secondary users are not supported.</string>
+    <string name="optimize_access_error">Shizuku access is unavailable. Start it and authorize this launcher.</string>
+    <string name="optimize_setup">Install Shizuku and follow its ADB setup instructions. Wireless pairing needs Wireless debugging on the TV; if the firmware lacks it, initial startup needs a computer. After a restart, Shizuku may need starting again. Return here and grant access. Close debugging after setup when no longer needed.</string>
+    <string name="optimize_open_helper">Open Shizuku / download</string>
+    <string name="optimize_cache">Storage and app cache — choose apps</string>
+    <string name="optimize_default_home">Choose default launcher in launcher settings</string>
+    <string name="optimize_refresh">Refresh component list</string>
+    <string name="optimize_stock_home">Stock launcher</string>
+    <string name="optimize_recommendations">Android TV recommendations</string>
+    <string name="optimize_restore">Restore previous state</string>
+    <string name="optimize_freeze">Freeze component</string>
+    <string name="optimize_disabled_before">Already disabled outside this tool; left unchanged.</string>
+    <string name="optimize_no_candidates">No supported components found. Unknown packages are left untouched.</string>
+    <string name="optimize_protected">Play Services, Play Store, firmware updates, HDMI, keyboard and remote services are protected. No app data is deleted. Backups stay privately on this TV; do not clear launcher data before restoring components.</string>
+    <string name="optimize_home_warning">This disables the stock home screen and its recommendations. First select this launcher as the system default and return here with the real Home button. Button interception alone is not enough. A private backup is saved before disabling. Use Restore here to undo.</string>
+    <string name="optimize_recommendations_warning">Recommendation cards provided by this component will stop. This does not remove advertisements inside streaming apps. Save a backup and disable this component?</string>
+    <string name="optimize_restore_help">Restore the state recorded before freezing this component?</string>
+    <string name="optimize_failed">The operation could not finish. Nothing is retried automatically. For a stock launcher, first check the system default Home. Any saved recovery entry remains available.</string>
+</resources>

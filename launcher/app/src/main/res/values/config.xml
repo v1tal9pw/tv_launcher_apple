@@ -57,7 +57,7 @@
     <string name="quick_screensaver_action" translatable="false">com.google.android.pano.action.SLEEP</string>
     <string name="quick_screensaver_component" translatable="false">com.android.tv.settings/.device.display.daydream.DaydreamActivity</string>
 
-    <!-- Remote buttons that open Settings, by Linux scancode (HOME_KEY_SERVICE=1 build-and-install.sh). Remotes
+    <!-- Remote buttons that open Settings, by Linux scancode (InputKeyService). Remotes
          that send KEYCODE_SETTINGS need no entry. Some send a code Android does not map: the Xiaomi/Fengmi
          projector remote's gear button is scancode 384 (KEY_TAPE). Find yours with
          `tools/tv.py 'getevent -lt'` while pressing the button - but a HID consumer-control usage prints an
@@ -71,7 +71,7 @@
          with `tools/tv.py 'logcat -v time -s InputReader:D'` while pressing the button - some firmwares print no
          key line there at any verbosity, and a `getevent` MSC_SCAN is a different number, so the reliable route is
          a temporary `Log.d` in the helper's `onKeyEvent`: `getKeyCode()`, `getScanCode()`, `getDeviceId()`, read
-         after a HOME_KEY_SERVICE=1 rebuild. Leave empty to omit. -->
+         after rebuilding the remote helper. Leave empty to omit. -->
     <integer-array name="settings_key_keycodes">
         <item>83</item>
     </integer-array>
@@ -87,8 +87,8 @@
          reach InputKeyService. Leave empty to omit. -->
     <integer-array name="input_key_keycodes">
     </integer-array>
-    <!-- Remote buttons that open an app, as "keycode:package" or "KEYCODE_NAME:package" (INPUT_KEY_SERVICE=1 or
-         HOME_KEY_SERVICE=1; both read this one list, and a theme's config.json can set it too). On Google TV the
+    <!-- Remote buttons that open an app, as "keycode:package" or "KEYCODE_NAME:package" (InputKeyService;
+         a theme's config.json can set the same list). On Google TV the
          YouTube button sends 190 (KEYCODE_BUTTON_3) to the stock launcher, so it does nothing once launcherx
          is disabled (Chromecast with Google TV, Xiaomi MiTV-AXFR2): 190:com.google.android.youtube.tv brings
          it back. The KTC LUMIO VISION remote (Realtek Google TV) sends Netflix 191, YouTube 190, Prime Video 195
@@ -203,7 +203,7 @@
          past the long-press timeout (400 ms) into its long-press action; on Android TV that is ALL_APPS, sent to the
          system-image launcher, and with the stock launcher disabled nothing answers it, so a firm press on a slow
          remote does nothing (Philips TPM191E, Android 12). The long_press_timeout setting does not move that limit
-         there. HomeKeyService (HOME_KEY_SERVICE=1) then takes the Home key itself and opens Home on release. Needs
+         there. InputKeyService then takes the Home key itself and opens Home on release. Needs
          key_filter, so held keys such as Volume Up/Down stop repeating (confirmed on that Philips; single presses
          still step). A theme's config.json can set it too. Off by default. -->
     <bool name="home_long_press_home">false</bool>

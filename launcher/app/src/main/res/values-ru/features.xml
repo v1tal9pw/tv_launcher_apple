@@ -12,6 +12,8 @@
     <string name="remote_long_home">Удержание Home открывает панель</string>
     <string name="remote_play_pause">Play/Pause открывает панель в других приложениях</string>
     <string name="remote_helper_required">Включите «Помощник кнопок пульта» в специальных возможностях. Перехват Home не меняет системный лаунчер по умолчанию.</string>
+    <string name="remote_helper_not_running">Включена, но не запущена</string>
+    <string name="remote_helper_disabled_warning">Если переключатель сразу выключается, откройте системные свойства этого приложения, разрешите ограниченные настройки и повторите включение.</string>
     <string name="home_system_status">Системный главный экран: %1$s</string>
     <string name="home_key_status">Помощник кнопки Home: %1$s</string>
     <string name="home_system_choose">Выбрать системный главный экран</string>
@@ -34,7 +36,7 @@
     <string name="feature_dim">Затемнение обоев</string>
     <string name="feature_minutes">Минут: %1$d</string>
     <string name="feature_sky_races">Небо на фоне</string>
-    <string name="installed_changes">• Новая плитка настроек по образцу.\n• Убраны «Как в теме» и гонки.\n• Панель рабочего стола открывается поверх приложений.\n• Настройки погоды: город, подробности и размер текста.\n• Журнал установленной версии доступен в обновлениях.</string>
+    <string name="installed_changes">• Одна служба «Помощник кнопок пульта» обрабатывает Home, Quick Settings, назначенные кнопки и источники ТВ.\n• Удалена служба Home Button и автоматическое изменение системного списка специальных возможностей.\n• Добавлена диагностика запуска службы на TCL.\n• Навигационный звук загружается заранее и не ждёт звуковой очереди прошивки.\n• Оптимизация телевизора через Shizuku сохранена.</string>
     <string name="update_check_button">Проверить обновления</string>
     <string name="weather_show_city">Показывать название города</string>
     <string name="weather_show_details">Показывать ощущаемую температуру и ветер</string>

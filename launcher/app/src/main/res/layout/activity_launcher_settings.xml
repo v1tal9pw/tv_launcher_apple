@@ -179,6 +179,8 @@
                 <com.gathin.tvhome.SettingsRowView android:id="@+id/defaultHomeChoice" style="@style/SettingsRow" android:text="@string/home_settings" />
                 <View style="@style/SettingsDivider" />
                 <com.gathin.tvhome.SettingsRowView android:id="@+id/tvSettingsChoice" style="@style/SettingsRow" android:text="@string/tv_settings" />
+                <View style="@style/SettingsDivider" />
+                <com.gathin.tvhome.SettingsRowView android:id="@+id/optimizationChoice" style="@style/SettingsRow" android:text="@string/optimize_title" />
             </LinearLayout>
 
         </LinearLayout>

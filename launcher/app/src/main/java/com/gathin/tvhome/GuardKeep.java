@@ -16,11 +16,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Keeps {@link HomeKeyService} on the accessibility list, the way a China-market TV needs it.
+ * Keeps the single remote-button helper on the accessibility list, the way a China-market TV needs it.
  *
  * TCL and Xiaomi start their own launcher at boot and force-stop a third-party one, which also
  * drops its accessibility service. {@link GuardRevival} is bound again by the system afterwards
- * and calls {@link #ensureHomeKey}. With {@code guard_off_in_standby} the service removes itself
+ * and calls {@link #ensureRemoteHelper}. With {@code guard_off_in_standby} the service removes itself
  * while the screen is off: on a TCL tc8000 the power key never woke the set while an accessibility
  * service of this app stayed bound.
  */
@@ -44,11 +44,11 @@ final class GuardKeep {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_OFF, off).commit();
     }
 
-    /** Puts HomeKeyService back on the enabled list when standby exit is opted in. Other services stay. */
-    static void ensureHomeKey(Context context) {
+    /** Puts InputKeyService back on the enabled list when standby exit is opted in. Other services stay. */
+    static void ensureRemoteHelper(Context context) {
         // The helper may already be bound. Arming only inside onServiceConnected misses an opt-in
         // that arrives after that, so the first screen-off does nothing (Philips 65PUS8102).
-        HomeKeyService.applyStandbyOptIn();
+        InputKeyService.applyStandbyOptIn();
         if (!offInStandby(context)) return;
         if (context.checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS)
                 != PackageManager.PERMISSION_GRANTED) return;
@@ -59,7 +59,7 @@ final class GuardKeep {
             return;
         }
         try {
-            ComponentName mine = new ComponentName(context, HomeKeyService.class);
+            ComponentName mine = new ComponentName(context, InputKeyService.class);
             String list = Settings.Secure.getString(context.getContentResolver(),
                     Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
             List<String> entries = new ArrayList<>();
@@ -100,7 +100,7 @@ final class GuardKeep {
                     app.unregisterReceiver(this);
                 } catch (RuntimeException ignored) {
                 }
-                ensureHomeKey(app);
+                ensureRemoteHelper(app);
             }
         };
         screenOn = receiver;
