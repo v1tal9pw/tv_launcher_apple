@@ -14,7 +14,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.os.SystemClock;
-import android.os.UserManager;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.provider.Settings;
@@ -72,8 +71,6 @@ public class InputKeyService extends AccessibilityService {
     private Map<Integer, String> holdAppKeys = Collections.emptyMap();
     private Map<Integer, String> holdAppScancodes = Collections.emptyMap();
 
-    /** Waits for the user to unlock when Android binds this service at boot; null once the config is read. */
-    private BroadcastReceiver unlockReceiver;
     /** The stock launcher's HOME activities (stock_home_redirect), disabled ones included. */
     private final Set<String> stockHome = new HashSet<>();
     /** stock_home_redirect, the stock launcher's package. */
@@ -108,54 +105,25 @@ public class InputKeyService extends AccessibilityService {
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
-        UserManager users = getSystemService(UserManager.class);
-        Log.i(TAG, "onServiceConnected uid=" + android.os.Process.myUid()
-                + " unlocked=" + (users == null || users.isUserUnlocked()));
+        Log.i(TAG, "onServiceConnected uid=" + android.os.Process.myUid());
         connected = true;
         running = this;
         try {
+            AccessibilityServiceInfo info = getServiceInfo();
+            if (info != null) {
+                info.flags |= AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS;
+                setServiceInfo(info);
+                Log.i(TAG, "Key filtering requested flags=0x" + Integer.toHexString(info.flags));
+            }
+        } catch (RuntimeException error) {
+            Log.w(TAG, "Unable to request key filtering", error);
+        }
+        try {
             settingsScancodes = getResources().getIntArray(R.array.settings_key_scancodes);
-        // The service is directBootAware: Android 11 skips a service that is not while the user is still
-        // locked at boot, writes accessibility_enabled=0 and, on TCL G03 firmware, never binds it after the
-        // unlock. Config.load reads credential-protected storage, so wait for the unlock before reading it.
-            if (users == null || users.isUserUnlocked()) {
-                loadConfig();
-                return;
-            }
-            unlockReceiver = new BroadcastReceiver() {
-                @Override
-                public void onReceive(Context context, Intent intent) {
-                    stopWaitingForUnlock();
-                    loadConfigSafely();
-                }
-            };
-            registerReceiver(unlockReceiver, new IntentFilter(Intent.ACTION_USER_UNLOCKED));
-            // The unlock may have happened between the check and the registration.
-            if (users.isUserUnlocked()) {
-                stopWaitingForUnlock();
-                loadConfig();
-            }
+            loadConfig();
         } catch (RuntimeException error) {
             Log.e(TAG, "Service initialization failed", error);
         }
-    }
-
-    private void loadConfigSafely() {
-        try {
-            loadConfig();
-        } catch (RuntimeException error) {
-            Log.e(TAG, "Configuration failed after unlock", error);
-        }
-    }
-
-    private void stopWaitingForUnlock() {
-        if (unlockReceiver == null) return;
-        try {
-            unregisterReceiver(unlockReceiver);
-        } catch (RuntimeException error) {
-            Log.w(TAG, "Unlock receiver was not registered", error);
-        }
-        unlockReceiver = null;
     }
 
     /** The opt-in broadcast: arm this binding now, or drop the receiver if the opt-in was turned off. */
@@ -174,7 +142,6 @@ public class InputKeyService extends AccessibilityService {
         connected = false;
         RemoteButtonMapper.cancelPending();
         if (running == this) running = null;
-        stopWaitingForUnlock();
         if (screenOnReceiver != null) unregisterReceiver(screenOnReceiver);
         if (standbyExit != null) {
             try {

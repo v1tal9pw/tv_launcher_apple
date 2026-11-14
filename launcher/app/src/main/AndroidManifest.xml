@@ -122,7 +122,7 @@
             </intent-filter>
         </service>
         <provider android:name=".ThemeProvider" android:authorities="${applicationId}.theme" android:exported="true" android:permission="android.permission.WRITE_SECURE_SETTINGS" />
-        <service android:name=".InputKeyService" android:exported="true" android:directBootAware="true" android:label="@string/feature_remote_service" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+        <service android:name=".InputKeyService" android:exported="true" android:label="@string/feature_remote_service" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
             </intent-filter>

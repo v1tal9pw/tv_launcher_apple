@@ -1,6 +1,6 @@
 RemoteButtonMapper adapts the remote-button workflow and tap dispatcher from
-ButtonMapper.java in the user-supplied tvOS-Launcher-2.1.5-ru-desktop1.zip,
-package com.techgenius.tvoslauncher, distributed under Apache License 2.0.
+ButtonMapper.java in https://github.com/techgenius1/tvOS-Launcher,
+Copyright 2026 techgenius, distributed under Apache License 2.0.
 The complete license is in tvos-launcher-LICENSE.txt beside this file.
 
 Modified for this project: preference storage, launcher actions, existing
