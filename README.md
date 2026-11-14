@@ -1,117 +1,140 @@
-# tv_launcher_apple
-Моя версия iyashwant / apple-tv-os-launcher
+<div align="center">
+
+# v1tal9 TV Launcher
+
+### Лаунчер для Android TV и Google TV в стиле Apple TV
+
+**Стеклянный док · Настраиваемый главный экран · Управление с пульта**
+
+[Возможности](#возможности) · [Скриншоты](#скриншоты) · [Установка](#установка-и-сборка) · [Авторы](#авторы-и-оригинальный-проект)
+
+</div>
 
 ---
 
-<h1 align="center">Apple TV OS Launcher</h1>
+**v1tal9 TV Launcher** — моя версия [Apple TV OS Launcher](https://github.com/iyashwant/apple-tv-os-launcher) для телевизоров и приставок на Android TV / Google TV.
 
-<p align="center"><strong>A tvOS-inspired home for Android TV and Google TV.</strong></p>
+Цель проекта — удобный минималистичный домашний экран с оформлением в духе tvOS, который можно подстроить под себя. Это независимая модификация с сохранением указания на авторов исходного проекта.
 
-<p align="center">A floating glass dock. Your apps, arranged your way.<br>Soft frosted menus and settings that feel like part of Home.</p>
+![Главный экран с прозрачным доком](docs/screenshots/readme/home.png)
 
-<p align="center">
-  <a href="#explore-the-interface">Explore the interface</a> ·
-  <a href="#make-it-yours">Make it yours</a> ·
-  <a href="#remote-controls">Remote controls</a> ·
-  <a href="#build-and-install">Build &amp; install</a>
-</p>
+## Возможности
 
-![Home with Apple TV selected in the glass dock, a large clock, and Wi-Fi, Inputs and Settings controls](docs/screenshots/readme/home.png)
+- **Главный экран в стиле tvOS:** полупрозрачный док, скруглённые карточки, анимации и понятное выделение выбранного элемента.
+- **Приложения и папки:** избранные приложения в доке, общая сетка приложений, изменение порядка и группировка в папки.
+- **Управление с пульта:** навигация крестовиной, открытие приложений кнопкой OK, дополнительные действия по удержанию OK или кнопке Menu.
+- **Быстрые настройки:** переход к Bluetooth, звуку, дисплею, заставке, приложениям и системным параметрам телевизора (доступность отдельных пунктов зависит от прошивки).
+- **Персонализация:** изменение числа столбцов, оформление карточек и названий приложений, темы, обои, прозрачность дока и анимации.
+- **Библиотека приложений:** просмотр установленных приложений и управление их отображением на главном экране.
+- **Часы и заставка:** отображение часов в режиме ожидания; дополнительные фоновые и атмосферные эффекты.
+- **Продолжить просмотр:** дополнительная полка для совместимых приложений, которые предоставляют сведения о незавершённом просмотре через Android TV.
+- **Назначение кнопок пульта:** настройка поддерживаемых физических кнопок; для работы назначений за пределами главного экрана может потребоваться служба специальных возможностей.
 
-A home screen built around the apps you actually use. Pin your favorites to the dock, put the rest in folders, and move between everything with your TV remote. Rounded artwork, soft borders, translucent surfaces and clear focus states carry through the whole interface.
+> Некоторые возможности зависят от версии Android, прошивки телевизора и установленных приложений. Проект развивается, поэтому работа отдельных функций на конкретных моделях не гарантируется.
 
-**These are captures from the current launcher on a physical Xiaomi TV running Android 14, taken on 28 October 2026.** The app layout, menus and settings are shown as they were on the TV, with Apple TV selected in the Home view.
+## Скриншоты
 
-## Explore the interface
+**Главный экран и приложения**
 
-### Home, then all your apps
+![Сетка приложений](docs/screenshots/readme/app-grid.png)
 
-Keep your favorites in the glass dock. Press **Down** once to bring the full app grid into view, with folders alongside individual apps. Press **Up** from the dock to reach the header controls.
+**Быстрые настройки**
 
-![Expanded Home showing the dock, full app grid and folder previews](docs/screenshots/readme/app-grid.png)
+![Панель быстрых настроек](docs/screenshots/readme/quick-settings.png)
 
-### Quick settings without leaving Home
+**Настройки внешнего вида и поведения**
 
-The gear opens six large glass tiles for **Bluetooth**, **Audio Output**, **Display**, **Sound**, **Screensaver** and **Apps**. The controls above them open launcher settings, all TV settings, or close the panel.
+![Настройки лаунчера](docs/screenshots/readme/launcher-settings.png)
 
-![Quick settings with six glass tiles and launcher settings, system settings and close controls](docs/screenshots/readme/quick-settings.png)
+**Меню действий с приложением**
 
-### Hold an app to make it yours
+![Меню действий с приложением](docs/screenshots/readme/f1-tv-menu.png)
 
-Hold **OK**, or press the remote's **Menu** key, to open the app's frosted action menu. Move it, add it to the dock, put it in a folder, open its app settings, or remove its Home shortcut. Dock apps also offer a replacement action so you can swap a favorite without rearranging everything.
+**Выбор источника сигнала**
 
-![F1 TV long-press menu with Move, Add to dock, Add to Folder, App settings and Remove from Home](docs/screenshots/readme/f1-tv-menu.png)
+![Меню источников](docs/screenshots/readme/inputs.png)
 
-### Inputs, one icon away
+## Управление
 
-The compact source icon sits between Wi-Fi and Settings. Its matching glass menu brings together the TV's available inputs and Live TV. The options shown depend on the TV.
-
-![Inputs menu showing HDMI 1, HDMI 2, HDMI 3, AV and Live TV](docs/screenshots/readme/inputs.png)
-
-### Settings with a view of Home
-
-Open the gear, then choose the **sliders icon** to enter Launcher settings. Grouped controls and a live miniature of Home help you see how layout and appearance changes fit together.
-
-![Launcher settings with a live Home preview, app columns, wallpaper, rows, sky and animation controls](docs/screenshots/readme/launcher-settings.png)
-
-## Make it yours
-
-| Your Home | What you can change |
+| Действие | Кнопка пульта |
 |---|---|
-| **Layout** | Choose 4–7 apps per row, set the rows visible below the dock, arrange apps, and create folders. |
-| **App Library** | Browse installed apps. OK opens an app; hold OK to add or remove its Home shortcut. |
-| **Artwork & names** | Rename tiles, choose built-in artwork, borrow another app's icon, or import your own image. |
-| **Wallpaper & glass** | Use a theme, Aurora, one of 14 bundled Scenes, or a rotating collection. Adjust dimming and dock opacity. |
-| **Motion & sound** | Choose animations, advanced effects and navigation sounds. |
-| **Ambient details** | Set up the idle clock, city-based sky effects and the optional race-weekend panel. |
-| **Continue Watching** | Enable a shelf above the dock for unfinished items published by the selected app. Apps with no eligible items show no shelf. |
-| **Remote buttons** | Learn a supported physical button and assign an app. The optional accessibility helper extends mappings beyond Home. |
+| Перемещение по интерфейсу | Стрелки ↑ ↓ ← → |
+| Открыть приложение или пункт | **OK** |
+| Открыть дополнительные действия | **Удержание OK** или **Menu** |
+| Развернуть список приложений | **Вниз** из дока |
+| Перейти к верхним элементам | **Вверх** из дока |
+| Закрыть меню или вернуться назад | **Назад / Back** |
 
-Personal app names, artwork, folders and ordering survive theme changes. Continue Watching depends on what each media app publishes through Android TV; it does not read private streaming accounts. City search, race-calendar updates and some media thumbnails use the network. Home navigation, bundled wallpapers and the clock work offline.
+## Совместимость
 
-Read the [feature guide](docs/features.md), [App Library guide](docs/app-library.md), and [theme configuration reference](themes/README.md) for details.
+- **Платформа:** Android TV / Google TV.
+- **Минимальная версия:** Android 8.0 (API 26).
+- **Для сборки:** JDK 17, Android SDK Platform 34 и Build Tools 34.0.0.
+- **Среда разработки:** Android Studio или Gradle из командной строки.
 
-## Remote controls
+Интерфейс рассчитан на управление пультом телевизора. Совместимость с конкретными устройствами и производительностью 4K-интерфейса нужно проверять отдельно.
 
-| Button | On Home |
-|---|---|
-| **D-pad** | Move between apps, folders and controls. |
-| **OK** | Open the selected app, folder or control. |
-| **Hold OK / Menu** | Open actions for the selected app. |
-| **Down from the dock** | Expand the app grid. |
-| **Up from the dock** | Reach the header, or the Continue Watching shelf when it has items. |
-| **Back** | Close the current menu or folder and return to the previous view. |
+## Установка и сборка
 
-## Build and install
+### Через Android Studio (Windows)
 
-For **Android TV and Google TV running Android 8.0 or later** (API 26+). Use a full **JDK 17**, Android SDK **platform 34**, and **build-tools 34.0.0**. Set `ANDROID_HOME` to your SDK location, or set `sdk.dir` in `launcher/local.properties`.
+1. Склонируй репозиторий:
 
-```bash
-git clone https://github.com/iyashwant/apple-tv-os-launcher.git
-cd apple-tv-os-launcher/launcher
-./gradlew --no-daemon assembleRelease
-```
+   ```powershell
+   git clone https://github.com/v1tal9pw/tv_launcher_apple.git
+   ```
 
-The APK is written to `launcher/app/build/outputs/apk/release/app-release.apk` from the repository root. With an authorized ADB connection, install it from that root:
+2. В **Android Studio** выбери **Open** и открой папку `tv_launcher_apple/launcher`.
+3. Установи необходимые компоненты SDK и дождись синхронизации Gradle.
+4. Открой меню **Build → Build Bundle(s) / APK(s) → Build APK(s)** для отладочной сборки либо собери release через терминал:
 
-```bash
-export TV_ENDPOINT='<tv-ip>:<adb-port>'
-adb connect "$TV_ENDPOINT"
-adb -s "$TV_ENDPOINT" install -r launcher/app/build/outputs/apk/release/app-release.apk
-```
+   ```powershell
+   .\gradlew.bat assembleRelease
+   ```
 
-For a TV that uses Wireless debugging, [pair and connect first](tools/native-adb.md). Open the launcher and check that your remote and inputs work, then select it in the TV's default Home settings where supported. Keep the stock launcher available. Updates to an existing install must use the same signing key; the Android package remains `com.gathin.tvhome`.
+5. Готовый release APK находится по пути:
 
-### Working on the launcher
+   ```text
+   launcher/app/build/outputs/apk/release/app-release.apk
+   ```
 
-The custom launcher lives on **`main`**. Java source and Android resources are in [`launcher/`](launcher/); visual presets and wallpapers are in [`themes/`](themes/). To check a launcher change, run this from `launcher/`:
+   Путь указан от корня репозитория. Если находишься внутри папки `launcher`, используй `app/build/outputs/apk/release/app-release.apk`.
+
+### Установка APK по ADB
+
+На телевизоре включи режим разработчика и отладку по сети или USB (если поддерживается), затем выполни:
 
 ```bash
-./gradlew --no-daemon testReleaseUnitTest lintRelease assembleRelease
+adb connect IP_ТЕЛЕВИЗОРА:ПОРТ
+adb install -r launcher/app/build/outputs/apk/release/app-release.apk
 ```
 
-Follow the [agent instructions](AGENTS.md) when working in this repository. For bugs and ideas, [open an issue](https://github.com/iyashwant/apple-tv-os-launcher/issues).
+Команды установки приведены для запуска **из корня репозитория**. При необходимости выбери новый лаунчер в настройках приложения «Главный экран» телевизора.
 
-## Credits & upstream
+**Важно:** не отключай и не удаляй штатный лаунчер до проверки работы нового. Для обновления уже установленного APK требуется та же подпись, что у предыдущей версии. Идентификатор пакета по умолчанию: `com.gathin.tvhome`.
 
-Based on [CleanYourTV](https://github.com/Gathin23/cleanyourtv) by Gathin and its contributors, with an independently maintained Apple-inspired interface. Upstream changes are reviewed and merged manually; see the [integration record](docs/upstream-integration.md). The inherited device-maintenance documentation is kept in the [reference guide](README.upstream.md). Released under the [MIT license](LICENSE). Unofficial; not affiliated with Apple.
+## Документация
+
+- [Описание возможностей](docs/features.md)
+- [Библиотека приложений](docs/app-library.md)
+- [Темы и оформление](themes/README.md)
+- [Проблемы и решения](docs/TROUBLESHOOTING.md)
+- [История интеграции изменений из исходных проектов](docs/upstream-integration.md)
+
+## Авторы и оригинальный проект
+
+**Модификация и развитие этой версии:** [v1tal9](https://github.com/v1tal9pw).
+
+**Оригинальный проект, на котором основана эта версия:** [iyashwant / apple-tv-os-launcher](https://github.com/iyashwant/apple-tv-os-launcher). Спасибо автору за основу интерфейса и проделанную работу.
+
+**Более ранняя основа:** [Gathin23 / CleanYourTV](https://github.com/Gathin23/cleanyourtv) и его участники.
+
+Лицензия: [MIT](LICENSE). Все авторские уведомления и условия исходной лицензии сохраняются. Проект не связан с Apple Inc. и не является официальным продуктом Apple.
+
+---
+
+<div align="center">
+
+Сделано и адаптируется [v1tal9](https://github.com/v1tal9pw) · [Репозиторий](https://github.com/v1tal9pw/tv_launcher_apple)
+
+</div>
