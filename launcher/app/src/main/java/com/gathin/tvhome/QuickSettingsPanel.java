@@ -34,7 +34,7 @@ final class QuickSettingsPanel extends FrameLayout {
         void onClosed(boolean restoreFocus);
     }
 
-    private final Activity activity;
+    private final android.content.Context activity;
     private final ViewGroup home;
     private final Listener listener;
     private final Bitmap backdrop;
@@ -59,7 +59,7 @@ final class QuickSettingsPanel extends FrameLayout {
     private int selected = R.id.quickAllSettings;
     private boolean restoreFocus = true;
 
-    QuickSettingsPanel(Activity activity, View home, boolean reducedMotion, boolean animations,
+    QuickSettingsPanel(android.content.Context activity, View home, boolean reducedMotion, boolean animations,
                        boolean navigationSounds, Listener listener) {
         super(activity);
         this.activity = activity;
@@ -195,7 +195,7 @@ final class QuickSettingsPanel extends FrameLayout {
         if (!isShowing() || closing) return;
         closing = true;
         removeEntryListener();
-        if (activity.isFinishing() || activity.isDestroyed()) finishDismiss();
+        if (activity instanceof Activity && (((Activity) activity).isFinishing() || ((Activity) activity).isDestroyed())) finishDismiss();
         else animateTo(0f);
     }
 
@@ -214,7 +214,7 @@ final class QuickSettingsPanel extends FrameLayout {
         listener.onClosed(restoreFocus);
         Runnable action = afterClose;
         afterClose = null;
-        if (action != null && !activity.isFinishing() && !activity.isDestroyed()) action.run();
+        if (action != null && (!(activity instanceof Activity) || (!((Activity) activity).isFinishing() && !((Activity) activity).isDestroyed()))) action.run();
     }
 
     boolean isShowing() { return getParent() == home; }

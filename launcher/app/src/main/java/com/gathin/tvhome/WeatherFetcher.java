@@ -58,13 +58,15 @@ final class WeatherFetcher {
         SharedPreferences prefs = FeaturePreferences.prefs(context);
         String lat = prefs.getString("latitude", "");
         String lon = prefs.getString("longitude", "");
-        String city = prefs.getString("city", "");
+        String city = prefs.getBoolean("weather_city", true) ? prefs.getString("city", "") : "";
+        boolean details = prefs.getBoolean("weather_details", true);
+        view.setTextSize(prefs.getInt("weather_size", 16));
         if (!prefs.getBoolean("weather_enabled", true) || lat.isEmpty() || lon.isEmpty()) {
             if (!lastLocation.isEmpty()) { lastLocation = ""; generation++; fetching = false; }
             view.setVisibility(android.view.View.GONE);
             return;
         }
-        String location = lat + "," + lon + "," + city;
+        String location = lat + "," + lon + "," + city + details;
         if (!location.equals(lastLocation)) {
             lastLocation = location;
             lastFetchMs = 0;
@@ -97,9 +99,9 @@ final class WeatherFetcher {
                     if (!Double.isNaN(temp)) {
                         String emoji = emojiForCode(code);
                         String tempStr = Math.round(temp) + "°";
-                        String feelsStr = !Double.isNaN(feels) && Math.abs(feels - temp) >= 2
+                        String feelsStr = details && !Double.isNaN(feels) && Math.abs(feels - temp) >= 2
                                 ? "  feels " + Math.round(feels) + "°" : "";
-                        String windStr = !Double.isNaN(wind) && wind >= 5
+                        String windStr = details && !Double.isNaN(wind) && wind >= 5
                                 ? "  " + Math.round(wind) + " m/s" : "";
                         String cityLabel = city.isEmpty() ? "" : "  ·  " + firstWord(city);
                         line = emoji + "  " + tempStr + feelsStr + windStr + cityLabel;

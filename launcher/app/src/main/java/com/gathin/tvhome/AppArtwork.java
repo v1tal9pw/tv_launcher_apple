@@ -22,10 +22,10 @@ final class AppArtwork {
         ResolveInfo settings = context.getPackageManager().resolveActivity(
                 new Intent(Settings.ACTION_SETTINGS), PackageManager.MATCH_DEFAULT_ONLY);
         if (settings != null && settings.activityInfo != null
-                && pkg.equals(settings.activityInfo.packageName)) return context.getDrawable(R.drawable.settings_ios);
+                && pkg.equals(settings.activityInfo.packageName)) return context.getDrawable(R.drawable.banner_ios_settings);
         if (pkg.equals("com.android.settings") || pkg.equals("com.android.tv.settings")
                 || pkg.equals("com.google.android.tv.settings") || pkg.equals("com.tcl.settings")
-                || pkg.equals("com.tcl.tv.settings")) return context.getDrawable(R.drawable.settings_ios);
+                || pkg.equals("com.tcl.tv.settings")) return context.getDrawable(R.drawable.banner_ios_settings);
         return null;
     }
     static final String APP_ICON_PREFIX = "app_icon:";
