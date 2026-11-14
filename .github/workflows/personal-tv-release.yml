@@ -1,0 +1,50 @@
+﻿name: Personal TV release
+
+on:
+  push:
+    tags: ['v[0-9]*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3.2.2
+        with:
+          packages: platforms;android-34 build-tools;34.0.0
+      - uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
+      - name: Check release tag and signing key
+        env:
+          TVHOME_DEBUG_KEYSTORE_B64: ${{ secrets.TVHOME_DEBUG_KEYSTORE_B64 }}
+        run: |
+          [[ "$GITHUB_REF_NAME" =~ ^v[1-9][0-9]{0,8}$ ]] || { echo 'Tag must be v<versionCode>'; exit 1; }
+          code="${GITHUB_REF_NAME#v}"
+          grep -Eq "^[[:space:]]*versionCode[[:space:]]+$code([[:space:]]|$)" launcher/app/build.gradle
+          test -n "$TVHOME_DEBUG_KEYSTORE_B64" || { echo 'Missing TVHOME_DEBUG_KEYSTORE_B64 secret'; exit 1; }
+          mkdir -p "$HOME/.android"
+          printf '%s' "$TVHOME_DEBUG_KEYSTORE_B64" | base64 --decode > "$HOME/.android/debug.keystore"
+          chmod 600 "$HOME/.android/debug.keystore"
+      - name: Test, lint, build
+        working-directory: launcher
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon testReleaseUnitTest lintRelease assembleRelease
+      - name: Verify release APK
+        run: |
+          apk=launcher/app/build/outputs/apk/release/app-release.apk
+          size=$(stat -c %s "$apk")
+          test "$size" -lt 1835008 || { echo 'APK exceeds size gate'; exit 1; }
+          digest=$("$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs "$apk" | sed -n 's/Signer #1 certificate SHA-256 digest: //p')
+          test "$digest" = c40564873b8385a6fa3ba3e3cd2d767d1475d4cf3003a24fad411378ec5bff1f || { echo 'Wrong signing certificate'; exit 1; }
+          cp "$apk" "tvhome-${GITHUB_REF_NAME#v}.apk"
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "tvhome-${GITHUB_REF_NAME#v}.apk" --verify-tag --title "TV Home ${GITHUB_REF_NAME}" --generate-notes

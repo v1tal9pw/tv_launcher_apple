@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Launcher configuration. Edit this file, then run launcher/build-and-install.sh.
+  Or leave it and push a theme instead: tools/theme.sh themes/<name> puts a config.json (same keys, see
+  themes/README.md) and an optional wallpaper on the TV, and the launcher overlays it at start.
+  Package names: on the TV run `pm list packages` (tools/tv.py 'pm list packages').
+-->
+<resources>
+
+    <!-- Apps pinned to the dock row at the bottom, in this order. Missing apps are skipped. -->
+    <string-array name="dock_apps">
+        <item>com.netflix.ninja</item>
+        <item>com.amazon.amazonvideo.livingroom</item>
+        <item>com.google.android.youtube.tv</item>
+        <item>in.startv.hotstar</item>
+    </string-array>
+
+    <!-- Apps never shown as tiles (e.g. the Live TV app, which the Inputs menu already covers). -->
+    <string-array name="hidden_apps">
+        <item>com.tcl.tv</item>
+    </string-array>
+
+    <!-- The TV's Live TV / tuner app, offered at the end of the Inputs menu. Leave empty to omit. -->
+    <string name="live_tv_package" translatable="false">com.tcl.tv</string>
+
+    <!-- Some TVs give their Live TV app no leanback entry point at all, so `live_tv_package` above
+         resolves to nothing (TCL Android TV 9 on China-market sets is one). This action is then sent
+         to that package instead, and the app starts normally. Leave empty to omit. -->
+    <string name="live_tv_action" translatable="false"></string>
+
+    <!-- TVs with no TvInputManager have no HDMI list to read, but their own source-selection panel
+         still switches inputs (TCL Android TV 9 again). When nothing could be listed, the Inputs menu
+         offers one row that starts this service: component first, then action. Leave empty to omit. -->
+    <string name="source_panel_service" translatable="false"></string>
+    <string name="source_panel_action" translatable="false"></string>
+
+    <!-- Inputs menu: HDMI and AV rows normally open with ACTION_VIEW on the input's channel URI, which the
+         Live TV app handles. Where nothing answers that, this action is sent with the same URI instead
+         (XGIMI projectors: com.xgimi.action.hdmiPlayer). Leave empty to omit. -->
+    <string name="input_action" translatable="false"></string>
+
+    <!-- Optional firmware-specific Settings destinations. Standard Android settings actions remain
+         the fallback; a missing, disabled, non-exported or protected destination is skipped.
+         These keys can also be overridden in a theme's config.json; an empty string disables one.
+         Components use package/class or package/.Class. See themes/README.md for the route order. -->
+    <!-- Tried first for optional slices; other launchable system Settings packages are discovered
+         through Android's SETTINGS action. Empty disables slice lookup and discovery. -->
+    <string name="settings_package" translatable="false">com.android.tv.settings</string>
+    <string name="settings_fallback_component" translatable="false"></string>
+    <string name="settings_slice_action" translatable="false">android.settings.SLICE_SETTINGS</string>
+    <string name="settings_slice_uri_extra" translatable="false">slice_uri</string>
+    <string name="quick_audio_output_component" translatable="false"></string>
+    <string name="quick_audio_output_slice_resource" translatable="false">default_audio_output_settings_slice_uri</string>
+    <string name="quick_apps_component" translatable="false">com.android.tv.settings/.device.apps.AppsActivity</string>
+    <string name="quick_bluetooth_component" translatable="false">com.android.tv.settings/.accessories.AccessoriesActivity</string>
+    <string name="quick_bluetooth_slice_resource" translatable="false">connected_devices_slice_uri</string>
+    <string name="quick_screensaver_action" translatable="false">com.google.android.pano.action.SLEEP</string>
+    <string name="quick_screensaver_component" translatable="false">com.android.tv.settings/.device.display.daydream.DaydreamActivity</string>
+
+    <!-- Remote buttons that open Settings, by Linux scancode (HOME_KEY_SERVICE=1 build-and-install.sh). Remotes
+         that send KEYCODE_SETTINGS need no entry. Some send a code Android does not map: the Xiaomi/Fengmi
+         projector remote's gear button is scancode 384 (KEY_TAPE). Find yours with
+         `tools/tv.py 'getevent -lt'` while pressing the button - but a HID consumer-control usage prints an
+         evdev MSC_SCAN there, which is not always the scanCode the framework reports, so a number that takes
+         nothing is no proof the press never arrived. Leave empty to omit. -->
+    <integer-array name="settings_key_scancodes">
+    </integer-array>
+    <!-- The same by Android keycode, for buttons whose scancode is shared. TCL Google TV remotes send their
+         Settings button as keycode 83 (KEYCODE_NOTIFICATION, which the stock Google TV home turned into its quick
+         settings panel) on scancode 240 (KEY_UNKNOWN), the scancode several TCL buttons share. Find the keycode
+         with `tools/tv.py 'logcat -v time -s InputReader:D'` while pressing the button - some firmwares print no
+         key line there at any verbosity, and a `getevent` MSC_SCAN is a different number, so the reliable route is
+         a temporary `Log.d` in the helper's `onKeyEvent`: `getKeyCode()`, `getScanCode()`, `getDeviceId()`, read
+         after a HOME_KEY_SERVICE=1 rebuild. Leave empty to omit. -->
+    <integer-array name="settings_key_keycodes">
+        <item>83</item>
+    </integer-array>
+    <!-- What the remote's Settings button opens (KEYCODE_SETTINGS and the codes above): true, Home's glass quick
+         settings, the same panel as the Settings pill; false, the TV's own Settings. Both keys can also be set from
+         a theme's config.json ("settings_key_keycodes": [83], "settings_key_panel": false). -->
+    <bool name="settings_key_panel">true</bool>
+
+    <!-- More remote buttons that open the input switcher, by Android keycode (INPUT_KEY_SERVICE=1
+         build-and-install.sh; KEYCODE_TV always does). For buttons only a disabled app answered: the Xiaomi
+         MiTV-AXFR2 remote's PatchWall button is 192 (KEYCODE_BUTTON_5). `dumpsys window policy` lists which
+         app each such "global key" was routed to. Check with the real remote: keys injected over ADB never
+         reach InputKeyService. Leave empty to omit. -->
+    <integer-array name="input_key_keycodes">
+    </integer-array>
+    <!-- Remote buttons that open an app, as "keycode:package" or "KEYCODE_NAME:package" (INPUT_KEY_SERVICE=1 or
+         HOME_KEY_SERVICE=1; both read this one list, and a theme's config.json can set it too). On Google TV the
+         YouTube button sends 190 (KEYCODE_BUTTON_3) to the stock launcher, so it does nothing once launcherx
+         is disabled (Chromecast with Google TV, Xiaomi MiTV-AXFR2): 190:com.google.android.youtube.tv brings
+         it back. The KTC LUMIO VISION remote (Realtek Google TV) sends Netflix 191, YouTube 190, Prime Video 195
+         and TL;DR 200. A listed app that is not installed leaves the button doing nothing. Leave empty to omit. -->
+    <string-array name="app_keys" translatable="false">
+    </string-array>
+
+    <!-- Show the Solar Hijri (Shamsi) date used in Iran and Afghanistan, e.g. "27 Mehr 1405", above the
+         Gregorian date. -->
+    <bool name="shamsi_date">false</bool>
+
+    <!-- A name after the greeting: "Mr. Trịnh" shows GOOD MORNING, MR. TRỊNH. Empty: the greeting alone. -->
+    <string name="greeting_name" translatable="false"></string>
+    <!-- Optional VPN app the network pill opens (hold the pill for Wi-Fi settings), e.g. the package of the
+         VPN you use. Empty: the pill opens Wi-Fi settings. The green VPN badge shows for any VPN either way;
+         with an app set here, a red "VPN off" badge also shows while no VPN is up. -->
+    <string name="vpn_app" translatable="false"></string>
+
+    <!-- Grid rows left visible under the dock on the home screen. 0 = dock sits at the very bottom. -->
+    <integer name="rows_below_dock">0</integer>
+
+    <!-- The top shelf: the focused dock app's name in large type above the dock. false keeps only the app-colour
+         glow, for a quieter Home. A theme can set "dock_title": false. -->
+    <bool name="dock_title">true</bool>
+
+    <!-- Tiles per row in the grid; the dock always has this many slots. Tiles are 180dp wide at 4 columns and
+         shrink to fit from 5 up (about 144dp at 5, 120dp at the default 6 on a 1080p TV). -->
+    <integer name="columns">6</integer>
+
+    <!-- Basic motion is on; advanced effects are opt-in in the launcher's own Settings screen. -->
+    <bool name="animations">true</bool>
+    <bool name="advanced_effects">false</bool>
+
+    <!-- Optional Default-home tile; keep this key for existing themes and tile-ordering work.
+         Off by default because the chooser is also available from launcher settings. -->
+    <bool name="show_home_settings_shortcut">false</bool>
+
+    <!-- App Library: a glass pill after the last row of apps opens every installed app, including ordinary
+         Android apps that have no TV entry, to add them to Home or take them off it (hold OK on a tile, Remove
+         from Home). Also in Launcher settings, or "app_library" in a theme's config.json. -->
+    <bool name="app_library">true</bool>
+
+    <!-- Module cards: an app that declares a card (docs/specs/card.md) can stand in for its tile with its own
+         label, caption and glow colour, once you answer Show on the prompt. false: never look for cards or ask. -->
+    <bool name="module_cards">true</bool>
+
+    <!-- Reduced motion: for TVs whose GPU cannot keep up (MediaTek MT5895 on Android 10 is the known case).
+         true keeps the GPU drawing path but calms the movement: a stiff highlight spring with no bounce,
+         tiles that zoom without overshoot, shorter fades and no tile entrance when Home comes back. Set it
+         here or with "reduced_motion": true in a theme's config.json; false keeps the normal motion. -->
+    <bool name="reduced_motion">false</bool>
+
+    <!-- Navigation and button sounds for Home tiles, folders, header buttons and quick settings.
+         Set false here or use "navigation_sounds": false in a theme's config.json to silence them. -->
+    <bool name="navigation_sounds">true</bool>
+
+    <!-- One quiet line under the clock: CPU, free memory and free storage, every 10 seconds. Off by default;
+         also in Launcher settings, or "show_stats": true in a theme. Nothing is read while this is false. -->
+    <bool name="show_stats">false</bool>
+
+    <!-- Time-of-day backdrop behind everything: a dark gradient that follows the clock, with a warm
+         horizon glow around sunrise and sunset. 0 keeps the plain background (the default); 1 to 100
+         sets its opacity. Around 60 reads clearly without hiding a wallpaper. Can also be set with
+         "sky_intensity": 60 in a theme's config.json. -->
+    <integer name="sky_intensity">0</integer>
+    <string-array name="launch_actions">
+    </string-array>
+    <string-array name="app_labels">
+    </string-array>
+    <string-array name="app_banners">
+        <item>com.android.tv.settings=banner_ios_settings</item>
+        <item>com.google.android.tv.settings=banner_ios_settings</item>
+        <item>com.tcl.settings=banner_ios_settings</item>
+    </string-array>
+    <bool name="icon_only_buttons">false</bool>
+    <bool name="library_button">false</bool>
+    <integer name="wifi_label_width">0</integer>
+    <bool name="show_network_pill">true</bool>
+    <bool name="always_show_names">false</bool>
+    <bool name="wallpaper_true_color">false</bool>
+    <string name="latitude" translatable="false"></string>
+    <string name="longitude" translatable="false"></string>
+    <bool name="cinematic_home">false</bool>
+    <bool name="ambient_glow">true</bool>
+    <integer name="home_idle_clock_minutes">0</integer>
+
+    <!-- Additional upstream options; the Apple-style defaults above remain authoritative. -->
+    <string-array name="settings_fallback_components" translatable="false">
+        <item>com.xiaomi.mitv.settings/com.xiaomi.mitv.settings.entry.MainActivity</item>
+        <item>com.tcl.settings/com.tcl.settings.ui.MainActivity</item>
+        <item>com.amazon.tv.launcher/com.amazon.tv.launcher.ui.MainSettingsActivity</item>
+    </string-array>
+    <bool name="fill_dock">true</bool>
+    <bool name="boot_to_live_tv">false</bool>
+    <bool name="open_on_start_choice">false</bool>
+    <integer name="open_on_start_network_wait">0</integer>
+    <string name="live_tv_input_id" translatable="false"></string>
+    <string name="source_panel_extra" translatable="false"></string>
+    <bool name="coocaa_sources">false</bool>
+    <string name="input_uri_scheme" translatable="false"></string>
+    <bool name="key_filter">true</bool>
+    <bool name="gamepad_passthrough">false</bool>
+    <bool name="consume_volume_keys">false</bool>
+    <string-array name="input_sources" translatable="false">
+    </string-array>
+    <bool name="restore_key_services">false</bool>
+    <bool name="handle_view_inputs">false</bool>
+    <string name="stock_home_redirect" translatable="false"></string>
+    <bool name="power_on_home">false</bool>
+    <bool name="power_on_home_always">false</bool>
+    <!-- Every press of the remote's Home button opens this launcher, a held one too. Android turns a Home press held
+         past the long-press timeout (400 ms) into its long-press action; on Android TV that is ALL_APPS, sent to the
+         system-image launcher, and with the stock launcher disabled nothing answers it, so a firm press on a slow
+         remote does nothing (Philips TPM191E, Android 12). The long_press_timeout setting does not move that limit
+         there. HomeKeyService (HOME_KEY_SERVICE=1) then takes the Home key itself and opens Home on release. Needs
+         key_filter, so held keys such as Volume Up/Down stop repeating (confirmed on that Philips; single presses
+         still step). A theme's config.json can set it too. Off by default. -->
+    <bool name="home_long_press_home">false</bool>
+    <bool name="lunar_date">false</bool>
+    <bool name="date_below_clock">false</bool>
+    <string name="locale" translatable="false">ru-RU</string>
+    <bool name="show_greeting">true</bool>
+    <bool name="header_white">false</bool>
+    <bool name="vpn_pill">false</bool>
+    <bool name="dock_row">true</bool>
+    <bool name="top_menu">false</bool>
+    <bool name="launcher_settings_button">false</bool>
+    <bool name="dock_glass">false</bool>
+    <bool name="dock_band">true</bool>
+    <bool name="single_row">false</bool>
+    <bool name="dock_band_all">false</bool>
+    <bool name="dock_even_padding">false</bool>
+    <bool name="reorder_button">false</bool>
+    <!-- This fork uses a compact source-switch button between Wi-Fi and Settings. A theme can
+         set icon_only_inputs to false to restore the Inputs label. -->
+    <bool name="icon_only_inputs">true</bool>
+    <bool name="wifi_status_color">false</bool>
+    <bool name="wifi_status_warnings">false</bool>
+    <bool name="show_library_pill">true</bool>
+    <string-array name="top_bar_apps" translatable="false">
+    </string-array>
+    <bool name="show_inputs_pill">true</bool>
+    <bool name="inputs_connected_only">false</bool>
+    <bool name="wallpaper_captions">false</bool>
+    <string name="wallpaper_moods" translatable="false"></string>
+    <bool name="tile_menu">false</bool>
+    <bool name="uniform_tiles">false</bool>
+    <bool name="app_library_selection">false</bool>
+    <bool name="library_ok_opens">true</bool>
+    <string-array name="library_apps" translatable="false">
+    </string-array>
+    <string-array name="library_excluded_apps" translatable="false">
+    </string-array>
+    <bool name="focus_overshoot">true</bool>
+    <string name="game_day" translatable="false"></string>
+    <bool name="cinematic_dots">true</bool>
+    <bool name="cinematic_white_focus">false</bool>
+    <integer name="cinematic_scrim">100</integer>
+    <integer name="cinematic_art">50</integer>
+    <bool name="app_glow">false</bool>
+    <bool name="fade_rows">false</bool>
+    <bool name="clock_wallpaper">false</bool>
+    <integer name="clock_wallpaper_dim">50</integer>
+    <bool name="clock_glow">true</bool>
+    <string name="glow_style" translatable="false">radial</string>
+    <string name="glass_style" translatable="false">glass</string>
+    <string-array name="icon_tiles" translatable="false">
+    </string-array>
+</resources>
