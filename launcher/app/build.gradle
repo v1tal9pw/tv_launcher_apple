@@ -16,9 +16,16 @@ android {
         applicationId providers.gradleProperty('launcherApplicationId').getOrElse('com.gathin.tvhome')
         minSdk 26
         targetSdk 34
-        versionCode 44
-        versionName '3.41'
+        versionCode 45
+        versionName '3.42'
         testInstrumentationRunner project.findProperty('launcherTestRunner') ?: 'com.gathin.tvhome.LauncherSmoke'
+    }
+
+    signingConfigs {
+        debug {
+            def signingStore = providers.gradleProperty('tvhomeSigningStoreFile').orNull
+            if (signingStore) storeFile file(signingStore)
+        }
     }
 
     buildTypes {
