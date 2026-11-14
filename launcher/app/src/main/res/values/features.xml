@@ -36,6 +36,9 @@
     <string name="feature_sky_races">Sky &amp; race weekends</string>
     <string name="feature_sky_help">The sky follows your city’s sunrise and sunset. Race information appears near a race weekend. City search uses Open-Meteo; calendar updates use Jolpica.</string>
     <string name="feature_sky">Sky backdrop</string>
+    <string name="feature_weather">Weather widget</string>
+    <string name="feature_weather_help">Show current weather under the clock. Choose a city to get its forecast from Open-Meteo.</string>
+    <string name="feature_weather_enabled">Show weather on Home</string>
     <string name="feature_city">City</string>
     <string name="feature_city_prompt">Search for a city</string>
     <string name="feature_city_hint">City, country</string>

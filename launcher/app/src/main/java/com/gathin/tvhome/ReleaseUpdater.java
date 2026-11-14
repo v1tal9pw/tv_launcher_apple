@@ -25,10 +25,16 @@ final class ReleaseUpdater {
 
     static final class Release {
         final int code;
-        final String url, sha256;
-        Release(int code, String url, String sha256) {
-            this.code = code; this.url = url; this.sha256 = sha256;
+        final String url, sha256, notes;
+        Release(int code, String url, String sha256, String notes) {
+            this.code = code; this.url = url; this.sha256 = sha256; this.notes = notes;
         }
+    }
+
+    static String prompt(Context context, Release release) {
+        String message = context.getString(R.string.update_prompt, release.code);
+        return release.notes.isEmpty() ? message
+                : message + "\n\n" + context.getString(R.string.update_changes) + "\n" + release.notes;
     }
 
     static int tagCode(String tag) {
@@ -51,9 +57,15 @@ final class ReleaseUpdater {
             if (url.startsWith("https://github.com/" + REPOSITORY + "/releases/download/")
                     && digest.matches("sha256:[0-9a-fA-F]{64}")
                     && asset.optLong("size") > 0 && asset.optLong("size") <= 5L * 1024 * 1024)
-                return new Release(code, url, digest.substring(7).toLowerCase(java.util.Locale.ROOT));
+                return new Release(code, url, digest.substring(7).toLowerCase(java.util.Locale.ROOT),
+                        limitedNotes(json.optString("body", "")));
         }
         return null;
+    }
+
+    static String limitedNotes(String body) {
+        String notes = body == null ? "" : body.trim();
+        return notes.length() <= 3000 ? notes : notes.substring(0, 3000).trim() + "…";
     }
 
     static void check(Activity activity, Consumer<Release> available) {

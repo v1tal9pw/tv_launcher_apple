@@ -261,7 +261,7 @@ public class HomeKeyService extends AccessibilityService {
     @Override
     protected boolean onKeyEvent(KeyEvent event) {
         if (RemoteLearning.handle(event)) return true;
-        if (RemotePanelKeys.handle(this, event)) return true;
+        if (!InputKeyService.connected && RemotePanelKeys.handle(this, event)) return true;
         if (event.getKeyCode() == KeyEvent.KEYCODE_HOME
                 && FeaturePreferences.prefs(this).getBoolean(RemotePanelKeys.LONG_HOME, false)) {
             if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {

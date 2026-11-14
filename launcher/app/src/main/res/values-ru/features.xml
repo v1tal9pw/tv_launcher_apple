@@ -36,6 +36,9 @@
     <string name="feature_sky_races">Небо и гоночные выходные</string>
     <string name="feature_sky_help">Небо меняется с учётом восхода и заката в вашем городе. Информация о гонках появляется в преддверии гоночных выходных. Поиск городов использует Open-Meteo, обновление календаря — Jolpica.</string>
     <string name="feature_sky">Небо на фоне</string>
+    <string name="feature_weather">Виджет погоды</string>
+    <string name="feature_weather_help">Показывать погоду под часами. Выберите город для прогноза Open-Meteo.</string>
+    <string name="feature_weather_enabled">Показывать погоду на главном экране</string>
     <string name="feature_city">Город</string>
     <string name="feature_city_prompt">Поиск города</string>
     <string name="feature_city_hint">Город, страна</string>

@@ -35,6 +35,8 @@ final class WeatherFetcher {
     private TextView view;
 
     private long lastFetchMs;
+    private String lastLocation = "";
+    private int generation;
     private boolean fetching;
     private Future<?> pending;
 
@@ -57,14 +59,24 @@ final class WeatherFetcher {
         String lat = prefs.getString("latitude", "");
         String lon = prefs.getString("longitude", "");
         String city = prefs.getString("city", "");
-        if (lat.isEmpty() || lon.isEmpty()) {
+        if (!prefs.getBoolean("weather_enabled", true) || lat.isEmpty() || lon.isEmpty()) {
+            if (!lastLocation.isEmpty()) { lastLocation = ""; generation++; fetching = false; }
             view.setVisibility(android.view.View.GONE);
             return;
+        }
+        String location = lat + "," + lon + "," + city;
+        if (!location.equals(lastLocation)) {
+            lastLocation = location;
+            lastFetchMs = 0;
+            generation++;
+            fetching = false;
+            view.setVisibility(android.view.View.GONE);
         }
         long now = System.currentTimeMillis();
         if (fetching) return;
         if (now - lastFetchMs < CACHE_TTL_MS) return; // still fresh
         fetching = true;
+        final int requestGeneration = generation;
         final String url = "https://api.open-meteo.com/v1/forecast"
                 + "?latitude=" + lat
                 + "&longitude=" + lon
@@ -73,6 +85,7 @@ final class WeatherFetcher {
                 + "&forecast_days=1";
         pending = FeatureNetwork.WORKER.submit(() -> {
             String line = null;
+            long retryAt;
             try {
                 JSONObject json = fetchJson(url);
                 JSONObject current = json.optJSONObject("current");
@@ -92,14 +105,17 @@ final class WeatherFetcher {
                         line = emoji + "  " + tempStr + feelsStr + windStr + cityLabel;
                     }
                 }
-                lastFetchMs = System.currentTimeMillis();
+                retryAt = System.currentTimeMillis();
             } catch (Exception ignored) {
                 // On error keep whatever was shown; retry after RETRY_MS
-                lastFetchMs = System.currentTimeMillis() - CACHE_TTL_MS + RETRY_MS;
+                retryAt = System.currentTimeMillis() - CACHE_TTL_MS + RETRY_MS;
             }
             final String result = line;
+            final long fetchedAt = retryAt;
             ui.post(() -> {
+                if (requestGeneration != generation) return;
                 fetching = false;
+                lastFetchMs = fetchedAt;
                 if (view == null) return;
                 if (result != null) {
                     view.setText(result);
@@ -112,6 +128,7 @@ final class WeatherFetcher {
     /** Cancel any in-flight request (e.g. in onDestroy). */
     void cancel() {
         if (pending != null) pending.cancel(false);
+        generation++;
         fetching = false;
         view = null;
     }

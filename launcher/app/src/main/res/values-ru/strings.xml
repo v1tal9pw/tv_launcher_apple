@@ -4,7 +4,7 @@
     <string name="about_launcher">О лаунчере</string>
     <string name="about_launcher_hint">Установленная версия и сведения о лаунчере.</string>
     <string name="about_launcher_message">Apple TV OS Launcher\nВерсия %1$s\n\nГлавный экран в стиле tvOS для Android TV. Обновления публикуются на GitHub.</string>
-    <string name="check_for_updates">Проверить обновления</string>
+    <string name="check_for_updates">Обновление системы</string>
     <string name="check_updates_hint">Проверить новую стабильную версию на GitHub прямо сейчас.</string>
     <string name="update_checking">Проверка…</string>
     <string name="update_current_title">Обновлений нет</string>
@@ -15,6 +15,7 @@
     <string name="github_open_failed">На телевизоре нет браузера. Откройте этот адрес на другом устройстве:\n%1$s</string>
     <string name="update_available">Доступно обновление лаунчера</string>
     <string name="update_prompt">Версия %1$d готова. Скачать её с GitHub и подтвердить установку?</string>
+    <string name="update_changes">Что изменилось:</string>
     <string name="update_install">Обновить</string>
     <string name="update_downloading">Скачивание и проверка обновления…</string>
     <string name="update_allow_installs">Разрешите этому приложению устанавливать обновления и вернитесь сюда.</string>
