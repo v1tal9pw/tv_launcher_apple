@@ -20,7 +20,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="CleanYourTV"
+            android:text="@string/launcher_brand"
             android:textColor="#99FFFFFF"
             android:textSize="12sp"
             android:fontFamily="sans-serif-medium"
@@ -168,6 +168,15 @@
                 <com.gathin.tvhome.SettingsRowView android:id="@+id/defaultHomeChoice" style="@style/SettingsRow" android:text="@string/home_settings" />
                 <View style="@style/SettingsDivider" />
                 <com.gathin.tvhome.SettingsRowView android:id="@+id/tvSettingsChoice" style="@style/SettingsRow" android:text="@string/tv_settings" />
+            </LinearLayout>
+
+            <TextView style="@style/SettingsSection" android:layout_marginTop="22dp" android:text="@string/about_launcher_section" />
+            <LinearLayout style="@style/SettingsGroup">
+                <com.gathin.tvhome.SettingsRowView android:id="@+id/aboutLauncherChoice" style="@style/SettingsRow" android:text="@string/about_launcher" />
+                <View style="@style/SettingsDivider" />
+                <com.gathin.tvhome.SettingsRowView android:id="@+id/checkUpdatesChoice" style="@style/SettingsRow" android:text="@string/check_for_updates" />
+                <View style="@style/SettingsDivider" />
+                <com.gathin.tvhome.SettingsRowView android:id="@+id/githubChoice" style="@style/SettingsRow" android:text="@string/github_repository" />
             </LinearLayout>
         </LinearLayout>
     </ScrollView>
