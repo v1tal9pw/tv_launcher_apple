@@ -83,6 +83,8 @@
     <string name="feature_remote_service">Remote button helper</string>
     <string name="feature_remote_service_help">Opens apps assigned to remote buttons and the TV input switcher. Only remote key presses are handled; screen content is not read.</string>
     <string name="feature_remote_access">Enable button helper</string>
+    <string name="remote_diagnostics">Button helper diagnostics</string>
+    <string name="remote_diagnostics_adb_required">Connect local ADB in Cleanup settings, then try again.</string>
     <string name="feature_remote_learn">Add a button</string>
     <string name="feature_remote_press">Press the remote button you want to assign. Press Back to cancel.</string>
     <string name="feature_remote_choose">Choose an app</string>

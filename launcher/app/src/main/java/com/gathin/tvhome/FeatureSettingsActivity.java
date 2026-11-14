@@ -458,6 +458,8 @@ public final class FeatureSettingsActivity extends Activity {
         int status = InputKeyService.connected ? R.string.on : enabled ? R.string.remote_helper_not_running : R.string.off;
         row("remote_access", R.string.feature_remote_access, getString(status), R.drawable.ic_settings, 0xFF737989,
                 this::openOrEnableAccessibility);
+        row("remote_diagnostics", R.string.remote_diagnostics, "", R.drawable.ic_settings, 0xFF737989,
+                this::remoteDiagnostics);
         int panelKey = features.getInt(RemotePanelKeys.PANEL_KEY, 0);
         int selectedPanel = 0;
         for (int i = 1; i < RemotePanelKeys.PANEL_CHOICES.length; i++)
@@ -507,6 +509,27 @@ public final class FeatureSettingsActivity extends Activity {
                     features.edit().putBoolean(preference, !enabled).apply();
                     markChanged(); render();
                 });
+    }
+
+    private void remoteDiagnostics() {
+        async(() -> {
+            String enabled = LocalAdbClient.run(this, "settings get secure accessibility_enabled");
+            String services = LocalAdbClient.run(this, "settings get secure enabled_accessibility_services");
+            String ops = LocalAdbClient.run(this, "appops get " + getPackageName()
+                    + " | grep -E 'AUTO_START|ACCESS_RESTRICTED_SETTINGS|BIND_ACCESSIBILITY_SERVICE' || true");
+            String dump = LocalAdbClient.run(this, "dumpsys accessibility | grep -E"
+                    + " 'Bound services|Binding services|Crashed services|InputKeyService' | tail -n 16");
+            String logs = LocalAdbClient.run(this, "logcat -d -t 2000 | grep -E"
+                    + " 'RemoteButtonHelper|TclAppBoot|AndroidRuntime.*(FATAL|com.gathin.tvhome)' | tail -n 25");
+            return "accessibility_enabled=" + enabled + "\nInputKeyService in list="
+                    + services.contains("InputKeyService")
+                    + "\nguard_off_in_standby=" + GuardKeep.offInStandby(this)
+                    + "\n\nappops:\n" + ops + "\n\nservice:\n" + dump + "\n\nlog:\n" + logs;
+        }, report -> {
+            AlertDialog dialog = new AlertDialog.Builder(this).setTitle(R.string.remote_diagnostics)
+                    .setMessage(report).setPositiveButton(android.R.string.ok, null).show();
+            glass(dialog);
+        }, R.string.remote_diagnostics_adb_required);
     }
     private void learn() {
         int session = request;

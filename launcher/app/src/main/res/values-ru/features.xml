@@ -83,6 +83,8 @@
     <string name="feature_remote_service">Помощник кнопок пульта</string>
     <string name="feature_remote_service_help">Открывает приложения, назначенные кнопкам пульта, и меню источников телевизора. Обрабатывает только нажатия кнопок пульта, не читает содержимое экрана.</string>
     <string name="feature_remote_access">Включить помощник кнопок</string>
+    <string name="remote_diagnostics">Диагностика помощника кнопок</string>
+    <string name="remote_diagnostics_adb_required">Подключите локальный ADB в настройках очистки и повторите попытку.</string>
     <string name="feature_remote_learn">Добавить кнопку</string>
     <string name="feature_remote_press">Нажмите кнопку пульта, которой хотите назначить приложение. Для отмены нажмите «Назад».</string>
     <string name="feature_remote_choose">Выберите приложение</string>
