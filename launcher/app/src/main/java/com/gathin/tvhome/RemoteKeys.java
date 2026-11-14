@@ -24,7 +24,7 @@ import java.util.function.ToIntFunction;
 import java.util.regex.Pattern;
 
 /**
- * Remote buttons that only the stock launcher answered, for InputKeyService and HomeKeyService: app_keys
+ * Remote buttons that only the stock launcher answered, for InputKeyService: app_keys
  * (config.xml or a theme) maps a keycode to the app it opens, as "190:com.google.android.youtube.tv" or
  * "KEYCODE_BUTTON_3:com.google.android.youtube.tv", or a scancode as "scan:490:com.wbd.hbomax". A "hold:"
  * prefix makes an entry the long-press action instead: "hold:KEYCODE_BUTTON_8:org.xbmc.kodi" opens Kodi when

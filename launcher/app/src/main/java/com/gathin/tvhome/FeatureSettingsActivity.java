@@ -21,6 +21,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.io.File;
@@ -73,7 +74,11 @@ public final class FeatureSettingsActivity extends Activity {
         rows = findViewById(R.id.featureRows); title = findViewById(R.id.featureTitle); summary = findViewById(R.id.featureSummary);
     }
 
-    @Override protected void onResume() { super.onResume(); render(); }
+    @Override protected void onResume() {
+        super.onResume();
+        render();
+        rows.postDelayed(() -> { if (!isFinishing() && REMOTE.equals(page)) render(); }, 600);
+    }
     @Override protected void onPause() { RemoteLearning.stop(); request++; busy = false; confirmPressed = false; super.onPause(); }
     @Override protected void onSaveInstanceState(Bundle state) {
         state.putString("editing_package", editingPackage); state.putString("image_package", imagePackage);
@@ -391,73 +396,23 @@ public final class FeatureSettingsActivity extends Activity {
     }
 
     private void openOrEnableAccessibility() {
-        if (checkSelfPermission(android.Manifest.permission.WRITE_SECURE_SETTINGS)
-                == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            try {
-                android.content.ContentResolver cr = getContentResolver();
-                String enabled = Settings.Secure.getString(cr, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
-                String inputCmp = new ComponentName(this, InputKeyService.class).flattenToString();
-                String homeCmp = new ComponentName(this, HomeKeyService.class).flattenToString();
-                String inputCmpShort = new ComponentName(this, InputKeyService.class).flattenToShortString();
-                String homeCmpShort = new ComponentName(this, HomeKeyService.class).flattenToShortString();
-                boolean active = InputKeyService.connected;
-                if (active) {
-                    List<String> list = new ArrayList<>();
-                    if (enabled != null) {
-                        for (String s : enabled.split(":")) {
-                            if (!s.equals(inputCmp) && !s.equals(homeCmp)
-                                    && !s.equals(inputCmpShort) && !s.equals(homeCmpShort)
-                                    && !s.isEmpty()) list.add(s);
-                        }
-                    }
-                    Settings.Secure.putString(cr, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, String.join(":", list));
-                    ServiceRepair.disconnected(this, InputKeyService.class);
-                    ServiceRepair.disconnected(this, HomeKeyService.class);
-                    InputKeyService.connected = false;
-                } else {
-                    List<String> otherServices = new ArrayList<>();
-                    boolean listed = false;
-                    if (enabled != null) for (String item : enabled.split(":")) {
-                        if (item.equals(inputCmp) || item.equals(homeCmp)
-                                || item.equals(inputCmpShort) || item.equals(homeCmpShort)) listed = true;
-                        else if (!item.isEmpty()) otherServices.add(item);
-                    }
-                    // TCL can leave a helper listed but unbound. Remove it first so Android tries binding again.
-                    if (listed) Settings.Secure.putString(cr,
-                            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, String.join(":", otherServices));
-                    otherServices.add(inputCmp);
-                    otherServices.add(homeCmp);
-                    Settings.Secure.putString(cr, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
-                            String.join(":", otherServices));
-                    Settings.Secure.putInt(cr, Settings.Secure.ACCESSIBILITY_ENABLED, 1);
-                    ServiceRepair.connected(this, InputKeyService.class);
-                    ServiceRepair.connected(this, HomeKeyService.class);
-                    // The setting is only a request; TCL may still refuse to bind the service.
-                }
-                render();
-                rows.postDelayed(() -> { if (!isFinishing() && REMOTE.equals(page)) render(); }, 1200);
-                return;
-            } catch (Exception ignored) {
-            }
-        }
+        if (!remoteAccessibilityEnabled())
+            Toast.makeText(this, R.string.remote_helper_disabled_warning, Toast.LENGTH_LONG).show();
+        openSystemAccessibilitySettings();
+    }
 
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(R.string.feature_remote_service)
-                .setMessage(R.string.remote_helper_android14_hint)
-                .setPositiveButton(R.string.remote_open_app_settings, (d, w) -> {
-                    try {
-                        Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                        intent.setData(android.net.Uri.parse("package:" + getPackageName()));
-                        startActivity(intent);
-                    } catch (Exception ignored) {
-                        openSystemAccessibilitySettings();
-                    }
-                })
-                .setNeutralButton(R.string.remote_open_accessibility, (d, w) -> openSystemAccessibilitySettings())
-                .setNegativeButton(android.R.string.cancel, null)
-                .create();
-        dialog.show();
-        glass(dialog);
+    private boolean remoteAccessibilityEnabled() {
+        android.view.accessibility.AccessibilityManager manager =
+                (android.view.accessibility.AccessibilityManager) getSystemService(ACCESSIBILITY_SERVICE);
+        if (manager == null) return false;
+        ComponentName expected = new ComponentName(this, InputKeyService.class);
+        for (android.accessibilityservice.AccessibilityServiceInfo info :
+                manager.getEnabledAccessibilityServiceList(android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK)) {
+            ResolveInfo resolved = info.getResolveInfo();
+            if (resolved != null && resolved.serviceInfo != null
+                    && expected.equals(new ComponentName(resolved.serviceInfo.packageName, resolved.serviceInfo.name))) return true;
+        }
+        return false;
     }
 
     private void openSystemAccessibilitySettings() {
@@ -495,8 +450,10 @@ public final class FeatureSettingsActivity extends Activity {
 
     private void remote() {
         heading(R.string.feature_remote, R.string.feature_remote_help); section(R.string.feature_remote);
-        boolean active = InputKeyService.connected;
-        row("remote_access", R.string.feature_remote_access, getString(active ? R.string.on : R.string.off), R.drawable.ic_settings, 0xFF737989,
+        boolean enabled = remoteAccessibilityEnabled();
+        int status = InputKeyService.connected ? R.string.on
+                : enabled ? R.string.remote_helper_not_running : R.string.off;
+        row("remote_access", R.string.feature_remote_access, getString(status), R.drawable.ic_settings, 0xFF737989,
                 this::openOrEnableAccessibility);
         int panelKey = features.getInt(RemotePanelKeys.PANEL_KEY, 0);
         int selectedPanel = 0;

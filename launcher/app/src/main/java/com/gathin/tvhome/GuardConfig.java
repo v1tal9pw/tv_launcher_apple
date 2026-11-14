@@ -13,7 +13,7 @@ public class GuardConfig extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         if (intent.hasExtra("guard_off_in_standby")) {
             GuardKeep.setOffInStandby(context, intent.getBooleanExtra("guard_off_in_standby", false));
-            GuardKeep.ensureHomeKey(context);
+            GuardKeep.ensureRemoteHelper(context);
         }
         setResultData("guard_off_in_standby=" + GuardKeep.offInStandby(context));
     }

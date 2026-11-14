@@ -184,6 +184,10 @@ public final class LauncherSettingsActivity extends Activity {
         defaultHome.setIcon(R.drawable.ic_home_settings, 0xFF30B85A);
         defaultHome.setValue("", true);
         SettingsRowView tvSettings = findViewById(R.id.tvSettingsChoice);
+        SettingsRowView optimization = findViewById(R.id.optimizationChoice);
+        optimization.setIcon(R.drawable.ic_settings_stats, 0xFF30D158);
+        optimization.setValue("", true);
+        optimization.setOnClickListener(v -> startActivity(new Intent(this, OptimizationActivity.class)));
         tvSettings.setIcon(R.drawable.ic_settings, 0xFF737989);
         tvSettings.setValue("", true);
         SettingsRowView aboutLauncher = findViewById(R.id.aboutLauncherChoice);
@@ -211,7 +215,7 @@ public final class LauncherSettingsActivity extends Activity {
                 R.id.wallpaperChoice, R.id.rowsChoice, R.id.skyChoice, R.id.weatherChoice, R.id.idleClockChoice,
                 R.id.appCustomizationChoice, R.id.remoteButtonsChoice, R.id.followThemeChoice,
                 R.id.defaultHomeChoice, R.id.tvSettingsChoice, R.id.aboutLauncherChoice,
-                R.id.checkUpdatesChoice, R.id.githubChoice}) {
+                R.id.checkUpdatesChoice, R.id.githubChoice, R.id.optimizationChoice}) {
             findViewById(id).setOnFocusChangeListener((v, focused) -> {
                 v.animate().translationZ(focused ? 6 * getResources().getDisplayMetrics().density : 0)
                         .setDuration(animations ? 130 : 0).start();
@@ -285,7 +289,9 @@ public final class LauncherSettingsActivity extends Activity {
 
     private void showDetail(int id) {
         int title, hint;
-        if (id == R.id.wallpaperChoice) {
+        if (id == R.id.optimizationChoice) {
+            title = R.string.optimize_title; hint = R.string.optimize_help;
+        } else if (id == R.id.wallpaperChoice) {
             title = R.string.settings_wallpaper; hint = R.string.wallpaper_hint;
         } else if (id == R.id.rowsChoice) {
             title = R.string.rows_below_dock_label; hint = R.string.settings_rows_hint;

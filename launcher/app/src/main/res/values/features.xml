@@ -12,6 +12,8 @@
     <string name="remote_long_home">Hold Home for control panel</string>
     <string name="remote_play_pause">Play/Pause opens panel in other apps</string>
     <string name="remote_helper_required">Enable Remote button helper in Accessibility. Home interception does not change the system default launcher.</string>
+    <string name="remote_helper_not_running">Enabled, not running</string>
+    <string name="remote_helper_disabled_warning">If the switch immediately turns off, open this app’s system details and allow restricted settings, then try again.</string>
     <string name="home_system_status">System default Home: %1$s</string>
     <string name="home_key_status">Home button helper: %1$s</string>
     <string name="home_system_choose">Choose the system default Home</string>
@@ -34,7 +36,7 @@
     <string name="feature_dim">Wallpaper dimming</string>
     <string name="feature_minutes">%1$d minutes</string>
     <string name="feature_sky_races">Sky backdrop</string>
-    <string name="installed_changes">Updated Settings artwork. Removed theme reset and races. The same Quick Settings panel opens over apps. Weather controls: city, details and text size.</string>
+    <string name="installed_changes">One Remote Button Helper now handles Home, Quick Settings, assigned buttons and TV inputs. Removed the duplicate Home Button service and automatic secure-settings changes. Added lifecycle diagnostics for TCL. Navigation clicks are preloaded to remove firmware sound delay. TV optimization remains available through Shizuku.</string>
     <string name="update_check_button">Check for updates</string>
     <string name="weather_show_city">Show city name</string>
     <string name="weather_show_details">Show feels-like temperature and wind</string>

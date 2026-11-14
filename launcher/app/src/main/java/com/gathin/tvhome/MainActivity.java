@@ -64,7 +64,6 @@ import android.text.TextPaint;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.KeyEvent;
-import android.view.SoundEffectConstants;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -234,7 +233,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** Hebrew mirrors the app grid and the header buttons (values-iw/bools.xml). */
     private boolean rtlAppGrid, rtlMenuBar;
     private boolean navigationSounds;
-    /** config settings_key_keycodes / settings_key_panel, so the Settings button works on Home without HomeKeyService. */
+    /** config settings_key_keycodes / settings_key_panel, so the Settings button works on Home without the helper. */
     private int[] settingsKeycodes = new int[0];
     private boolean settingsKeyPanel;
     /** App Library (config.xml app_library, or Launcher settings): the pill after the last row, and its shelf. */
@@ -379,6 +378,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         rtlAppGrid = getResources().getBoolean(R.bool.rtl_app_grid);
         rtlMenuBar = getResources().getBoolean(R.bool.rtl_menu_bar);
         navigationSounds = cfg.navigationSounds;
+        if (navigationSounds) prepareSyntheticClick();
         idleClockMs = cfg.homeIdleClockMinutes * MINUTE_MS;
         mappedAppKeys = RemoteKeys.parseAppKeys(cfg.appKeys);
         mappedAppScancodes = RemoteKeys.parseAppScancodes(cfg.appKeys);
@@ -1252,7 +1252,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     private static android.media.AudioTrack sClickTrack;
 
-    private void playSyntheticClick() {
+    private void prepareSyntheticClick() {
         try {
             if (sClickTrack == null) {
                 int sampleRate = 22050;
@@ -1278,6 +1278,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                         .build();
                 sClickTrack.write(buffer, 0, buffer.length);
             }
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void playSyntheticClick() {
+        try {
+            prepareSyntheticClick();
+            if (sClickTrack == null) return;
             sClickTrack.stop();
             sClickTrack.reloadStaticData();
             sClickTrack.play();
@@ -1287,30 +1295,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     private void playNavigationSound(int keyCode) {
         if (!navigationSounds) return;
-        boolean systemSoundsOn = false;
-        try {
-            systemSoundsOn = android.provider.Settings.System.getInt(getContentResolver(),
-                    android.provider.Settings.System.SOUND_EFFECTS_ENABLED, 0) != 0;
-        } catch (Exception ignored) {
-        }
-
-        if (systemSoundsOn) {
-            try {
-                android.media.AudioManager am = (android.media.AudioManager) getSystemService(AUDIO_SERVICE);
-                if (am != null) {
-                    am.playSoundEffect(android.media.AudioManager.FX_KEY_CLICK);
-                }
-            } catch (Exception ignored) {
-            }
-            if (root != null) {
-                root.setSoundEffectsEnabled(true);
-                root.playSoundEffect(SoundEffectConstants.CLICK);
-            }
-        } else {
-            // TV firmware has system sounds disabled/muted (common on TCL Google TV),
-            // but launcher navigation sounds are enabled. Play a soft synthesized click.
-            playSyntheticClick();
-        }
+        // TCL queues firmware sound effects behind focus rendering; the preloaded local click stays in sync.
+        playSyntheticClick();
     }
 
     private void updateGridPadding() {
@@ -2171,7 +2157,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         if (isSettingsKey(code)) {
             // settings_key_panel (on by default): the glass quick settings, as from the Settings pill;
-            // off, the TV's own Settings, the same choice HomeKeyService makes while it runs.
+            // off, the TV's own Settings, the same choice InputKeyService makes while it runs.
             if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
                 if (settingsKeyPanel) openQuickSettings();
                 else openSettings(Settings.ACTION_SETTINGS);
@@ -3410,7 +3396,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 this::openLauncherSettings);
         Intent vendor=SystemSettings.vendorIntent(this);
         if(vendor!=null) addSettingsMenuRow(rows,popup,R.drawable.ic_settings,R.string.native_settings,()->open(vendor));
-        if(HomeKeyService.canOpenPowerMenu()) addSettingsMenuRow(rows,popup,R.drawable.ic_settings,R.string.power_menu,HomeKeyService::openPowerMenu);
+        if(InputKeyService.canOpenPowerMenu()) addSettingsMenuRow(rows,popup,R.drawable.ic_settings,R.string.power_menu,InputKeyService::openPowerMenu);
         if (moduleCards) addSettingsMenuRow(rows, popup, R.drawable.ic_quick_apps, R.string.module_cards,
                 this::showModuleCards);
         if (appLibraryEnabled) addSettingsMenuRow(rows, popup, R.drawable.ic_apps, R.string.app_library,

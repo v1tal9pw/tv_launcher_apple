@@ -11,6 +11,7 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" tools:ignore="CoarseFineLocation" />
     <queries>
+        <package android:name="moe.shizuku.privileged.api" />
         <provider android:authorities="android.media.tv" />
         <intent>
             <action android:name="android.intent.action.OPEN_DOCUMENT" />
@@ -95,6 +96,8 @@
     </queries>
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" tools:ignore="ProtectedPermissions" />
     <application android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:banner="@drawable/banner" android:theme="@style/Theme.TvHome" android:allowBackup="false" android:localeConfig="@xml/locales_config">
+        <provider android:name="rikka.shizuku.ShizukuProvider" android:authorities="${applicationId}.shizuku" android:multiprocess="false" android:exported="true" android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
+        <activity android:name=".OptimizationActivity" android:exported="false" android:screenOrientation="landscape" android:excludeFromRecents="true" />
         <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTask" android:stateNotNeeded="true" android:excludeFromRecents="true" android:clearTaskOnLaunch="true" android:configChanges="orientation|screenSize|keyboard|keyboardHidden|uiMode" android:windowSoftInputMode="adjustNothing" android:screenOrientation="landscape">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -111,12 +114,6 @@
         <receiver android:name=".UpdateInstallReceiver" android:exported="false" />
         <activity android:name=".FeatureSettingsActivity" android:exported="false" android:excludeFromRecents="true" android:screenOrientation="landscape" />
         <activity android:name=".HomeSettingsActivity" android:exported="false" android:taskAffinity="" android:excludeFromRecents="true" android:theme="@android:style/Theme.NoDisplay" />
-        <service android:name=".HomeKeyService" android:label="@string/home_key_name" android:exported="true" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:directBootAware="true">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data android:name="android.accessibilityservice" android:resource="@xml/home_key_service" />
-        </service>
         <activity android:name=".ClockActivity" android:exported="false" android:excludeFromRecents="true" android:noHistory="true" android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />
         <service android:name=".ClockDream" android:label="@string/dream_name" android:exported="true" android:permission="android.permission.BIND_DREAM_SERVICE">
             <intent-filter>
@@ -125,7 +122,7 @@
             </intent-filter>
         </service>
         <provider android:name=".ThemeProvider" android:authorities="${applicationId}.theme" android:exported="true" android:permission="android.permission.WRITE_SECURE_SETTINGS" />
-        <service android:name=".InputKeyService" android:exported="true" android:label="@string/feature_remote_service" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+        <service android:name=".InputKeyService" android:exported="true" android:directBootAware="true" android:label="@string/feature_remote_service" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
             </intent-filter>
@@ -146,7 +143,7 @@
             </intent-filter>
         </activity>
         <activity android:name=".ProbeActivity" android:exported="false" android:excludeFromRecents="true" android:noHistory="true" android:taskAffinity="" android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-        <service android:name=".GuardRevival" android:directBootAware="true" android:exported="true" android:label="@string/home_key_name" android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+        <service android:name=".GuardRevival" android:directBootAware="true" android:exported="true" android:label="@string/feature_remote_service" android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>

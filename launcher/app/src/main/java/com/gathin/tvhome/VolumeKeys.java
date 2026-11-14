@@ -12,8 +12,7 @@ import android.view.KeyEvent;
  * Volume Up/Down instead, which leaves the firmware's first step; a swallowed key gets no auto-repeat, so a held
  * one is repeated here, from the same delay and at about the rate Android uses.
  *
- * The state is per process, not per service: with HomeKeyService and InputKeyService both bound, each sees the
- * same press, and the second call restarts the same repeat instead of adding a second one.
+ * The state is per process, so repeated callbacks from InputKeyService share one volume-key state.
  */
 final class VolumeKeys {
     static final long REPEAT_DELAY_MS = 500;

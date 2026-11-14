@@ -163,7 +163,7 @@ final class Config {
     final int backgroundColor;
     /** Time-of-day backdrop, 0 to 100 (config.xml, sky_intensity); 0 keeps the plain background. */
     final int skyIntensity;
-    /** Remote keycodes that open Settings through HomeKeyService (config.xml, settings_key_keycodes). */
+    /** Remote keycodes that open Settings through InputKeyService (config.xml, settings_key_keycodes). */
     final int[] settingsKeycodes;
     /** Extra keycodes that open the input switcher in InputKeyService (config.xml input_key_keycodes). */
     final int[] inputKeycodes;

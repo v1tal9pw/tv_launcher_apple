@@ -26,17 +26,17 @@ public class GuardRevival extends NotificationListenerService {
                 @Override
                 public void onReceive(Context context, Intent intent) {
                     stopWaiting();
-                    GuardKeep.ensureHomeKey(GuardRevival.this);
+                    GuardKeep.ensureRemoteHelper(GuardRevival.this);
                 }
             };
             registerReceiver(unlocked, new IntentFilter(Intent.ACTION_USER_UNLOCKED));
             if (users.isUserUnlocked()) {
                 stopWaiting();
-                GuardKeep.ensureHomeKey(this);
+                GuardKeep.ensureRemoteHelper(this);
             }
             return;
         }
-        GuardKeep.ensureHomeKey(this);
+        GuardKeep.ensureRemoteHelper(this);
     }
 
     private void stopWaiting() {
