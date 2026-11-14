@@ -12,6 +12,7 @@
     <string name="optimize_refresh">Обновить список компонентов</string>
     <string name="optimize_stock_home">Родной лаунчер</string>
     <string name="optimize_recommendations">Рекомендации Android TV</string>
+    <string name="optimize_tcl_extras">Реклама и диагностика TCL</string>
     <string name="optimize_restore">Восстановить прежнее состояние</string>
     <string name="optimize_freeze">Заморозить компонент</string>
     <string name="optimize_disabled_before">Уже отключён вне этого раздела — состояние не меняем.</string>

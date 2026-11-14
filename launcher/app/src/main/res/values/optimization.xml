@@ -12,6 +12,7 @@
     <string name="optimize_refresh">Refresh component list</string>
     <string name="optimize_stock_home">Stock launcher</string>
     <string name="optimize_recommendations">Android TV recommendations</string>
+    <string name="optimize_tcl_extras">TCL promotions and diagnostics</string>
     <string name="optimize_restore">Restore previous state</string>
     <string name="optimize_freeze">Freeze component</string>
     <string name="optimize_disabled_before">Already disabled outside this tool; left unchanged.</string>

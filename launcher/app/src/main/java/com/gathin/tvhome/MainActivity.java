@@ -120,7 +120,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private TextView heroMeta;
     private LinearLayout heroDots;
     private ImageView heroArt;
-    private boolean cinematic, ambientEnabled, started, pillsShown, wifiIconOnly;
+    private boolean cinematic, ambientEnabled, started, pillsShown;
+    private CharSequence wifiLabel;
     private int wifiIcon;
     private int glassAccent;
     private float HERO_ART_ALPHA = .5f;
@@ -551,11 +552,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             libraryFromTopBar = true;
             onLibraryRequested();
         });
-        wifiIconOnly = cfg.iconOnlyButtons && cfg.wifiLabelWidth <= 0;
-        if (cfg.iconOnlyButtons) {
-            if (cfg.wifiLabelWidth > 0) btnWifi.setMaxWidth(Math.round(cfg.wifiLabelWidth * density));
-            else makeIconOnly(btnWifi);
-        }
+        makeIconOnly(btnWifi);
+        btnWifi.setMaxWidth(Math.round((cfg.wifiLabelWidth > 0 ? cfg.wifiLabelWidth : 180) * density));
         btnSettings.setOnLongClickListener(v -> {
             showSettingsMenu();
             return true;
@@ -567,6 +565,17 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                         .setDuration(160).start());
             }
         }
+        btnWifi.setOnFocusChangeListener((view, focused) -> {
+            ViewGroup.LayoutParams params = btnWifi.getLayoutParams();
+            params.width = focused ? ViewGroup.LayoutParams.WRAP_CONTENT : Math.round(42 * density);
+            btnWifi.setLayoutParams(params);
+            btnWifi.setPaddingRelative(Math.round((focused ? 16 : 10) * density), 0,
+                    Math.round((focused ? 20 : 10) * density), 0);
+            btnWifi.setCompoundDrawablePadding(Math.round((focused ? 9 : 0) * density));
+            btnWifi.setText(focused ? wifiLabel : null);
+            if (advancedEffects) view.animate().scaleX(focused ? 1.04f : 1f)
+                    .scaleY(focused ? 1.04f : 1f).setDuration(160).start();
+        });
         if (festive) applyFestiveSkin();
         headerGlass = new HeaderGlass(root, findViewById(R.id.topButtons), this::drawHeaderScene);
         wallpaperPlayer.setOnChanged(() -> {
@@ -2865,14 +2874,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             text = name.length() < text.length() && name.length() < 5 ? "" : name;
             SpannableString label = new SpannableString(text + " " + badge);
             label.setSpan(span, text.length() + 1, label.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            if (!TextUtils.equals(btnWifi.getText(), label)) btnWifi.setText(label);
-        } else if (!TextUtils.equals(btnWifi.getText(), text)) {
-            btnWifi.setText(text);
+            wifiLabel = label;
+        } else {
+            wifiLabel = text;
         }
-        if (wifiIconOnly) {
-            btnWifi.setContentDescription(btnWifi.getText());
-            btnWifi.setText(null);
-        }
+        btnWifi.setContentDescription(wifiLabel);
+        CharSequence visibleLabel = btnWifi.hasFocus() ? wifiLabel : null;
+        if (!TextUtils.equals(btnWifi.getText(), visibleLabel)) btnWifi.setText(visibleLabel);
         if (festive && diya != null) {
             if (online && flame == 0) flame = 3;   // online some other way (cellular, USB tethering)
             diya.setSteady(steady);
@@ -3396,7 +3404,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 this::openLauncherSettings);
         Intent vendor=SystemSettings.vendorIntent(this);
         if(vendor!=null) addSettingsMenuRow(rows,popup,R.drawable.ic_settings,R.string.native_settings,()->open(vendor));
-        if(InputKeyService.canOpenPowerMenu()) addSettingsMenuRow(rows,popup,R.drawable.ic_settings,R.string.power_menu,InputKeyService::openPowerMenu);
+        if(HomeKeyService.canOpenPowerMenu()) addSettingsMenuRow(rows,popup,R.drawable.ic_settings,R.string.power_menu,HomeKeyService::openPowerMenu);
         if (moduleCards) addSettingsMenuRow(rows, popup, R.drawable.ic_quick_apps, R.string.module_cards,
                 this::showModuleCards);
         if (appLibraryEnabled) addSettingsMenuRow(rows, popup, R.drawable.ic_apps, R.string.app_library,

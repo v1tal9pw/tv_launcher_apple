@@ -99,7 +99,8 @@ public final class OptimizationActivity extends Activity {
         for (int i = 0; i < packages.length(); i++) {
             JSONObject item = packages.optJSONObject(i); if (item == null) continue;
             String pkg = item.optString("package"); int state = item.optInt("state", -1);
-            String label = getString(OptimizationPolicy.launcher(pkg) ? R.string.optimize_stock_home : R.string.optimize_recommendations);
+            String label = getString(OptimizationPolicy.launcher(pkg) ? R.string.optimize_stock_home
+                    : pkg.startsWith("com.tcl.") ? R.string.optimize_tcl_extras : R.string.optimize_recommendations);
             text(label + "\n" + pkg, 17);
             if (journal.contains(pkg)) button(getString(R.string.optimize_restore), () -> confirm(pkg, true));
             else if (state == 0 || state == 1) button(getString(R.string.optimize_freeze), () -> confirm(pkg, false));
