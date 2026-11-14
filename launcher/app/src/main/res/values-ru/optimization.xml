@@ -6,6 +6,7 @@
     <string name="optimize_local_setup">Включите на ТВ сетевую отладку (порт 5555), подключитесь здесь и подтвердите ключ этого лаунчера на экране ТВ. Подключение только к этому телевизору: через 127.0.0.1 или его сетевой адрес. Если прошивка даёт только беспроводную отладку со сменным портом, используйте Shizuku. После очистки выключите отладку.</string>
     <string name="optimize_open_settings">Открыть настройки разработчика</string>
     <string name="optimize_local_grant">Выдать лаунчеру системное разрешение</string>
+    <string name="optimize_local_granted">Системное разрешение выдано</string>
     <string name="optimize_local_home">Назначить лаунчер главным экраном через ADB</string>
     <string name="optimize_local_close">Закрыть локальный порт ADB 5555</string>
     <string name="optimize_connect">Подключить Shizuku</string>
