@@ -677,7 +677,14 @@ final class Config {
         } else if (wallpaperChoice.startsWith(FeaturePreferences.SCENE_PREFIX)) {
             wallpaper = WallpaperRotation.find(SceneFiles.images(ctx), wallpaperChoice.substring(FeaturePreferences.SCENE_PREFIX.length()));
             if (wallpaper != null) { wallpapers.add(wallpaper); wallpaperEnabled = true; }
-            else wallpaperChoice = WALLPAPER_THEME;
+            else {
+                // A selected picture from an older bundled collection becomes the new collection.
+                wallpaperChoice = FeaturePreferences.SCENES;
+                wallpapers.addAll(SceneFiles.images(ctx));
+                wallpaper = wallpapers.isEmpty() ? null : wallpapers.get(0);
+                wallpaperEnabled = wallpaper != null;
+                choices.edit().putString(WALLPAPER_CHOICE_KEY, wallpaperChoice).apply();
+            }
         } else if (!WALLPAPER_THEME.equals(wallpaperChoice) && !WALLPAPER_AURORA.equals(wallpaperChoice)
                 && !WALLPAPER_OFF.equals(wallpaperChoice)) {
             File picked = WallpaperRotation.find(WallpaperRotation.images(

@@ -9,7 +9,7 @@ import java.util.List;
 /** Bundled, offline Scenes. Extract once so the existing cropped wallpaper decoder handles every source. */
 final class SceneFiles {
     static synchronized List<File> images(Context context) {
-        File dir = new File(context.getFilesDir(), "scenes-v1");
+        File dir = new File(context.getFilesDir(), "scenes-v2");
         try {
             if (!dir.isDirectory() && !dir.mkdirs()) return java.util.Collections.emptyList();
             String[] names = context.getAssets().list("scenes");
