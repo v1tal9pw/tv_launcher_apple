@@ -181,6 +181,7 @@ public class HomeKeyService extends AccessibilityService {
     }
 
     private void leaveForStandby() {
+        Log.w(TAG, "Disabling helper for standby: guard_off_in_standby is enabled");
         steppingOut = true;
         GuardKeep.stepOut(this);
     }
