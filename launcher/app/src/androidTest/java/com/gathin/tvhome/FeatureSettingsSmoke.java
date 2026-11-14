@@ -41,7 +41,7 @@ public final class FeatureSettingsSmoke extends Instrumentation {
         try {
             if (!android.os.Build.PRODUCT.contains("sdk")) throw new IllegalStateException("Feature fixtures require an emulator");
             features.edit().clear().commit(); choices.edit().remove(Config.WALLPAPER_CHOICE_KEY).commit();
-            check(SceneFiles.images(context).size() == 14, "All 14 Scenes ship offline inside the APK");
+            check(SceneFiles.images(context).size() == 6, "All six Scenes ship offline inside the APK");
             open(FeatureSettingsActivity.WALLPAPER);
             runOnMainSync(() -> {
                 screen.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_CENTER));
@@ -49,7 +49,7 @@ public final class FeatureSettingsSmoke extends Instrumentation {
             });
             click("wallpaper_source"); select(3);
             Config config = Config.load(context);
-            check(FeaturePreferences.SCENES.equals(config.wallpaperChoice) && config.wallpapers.size() == 14, "Scenes collection is selected from the TV UI");
+            check(FeaturePreferences.SCENES.equals(config.wallpaperChoice) && config.wallpapers.size() == 6, "Scenes collection is selected from the TV UI");
             check(config.wallpaperEnabled && config.wallpaperRotationMinutes == 60, "Scenes work even when an existing theme disabled wallpaper");
             click("wallpaper_rotation_minutes"); select(2);
             check(Config.load(context).wallpaperRotationMinutes == 15, "Rotation interval reaches runtime configuration");

@@ -22,9 +22,9 @@
     <string name="home_default_unavailable">This TV firmware does not expose the standard Home selection dialog. Opening Google TV does not make this launcher the default. Home must be configured separately for this TV, for example through ADB. The remote button helper does not change the default Home.</string>
     <string name="feature_back">Press Back to return</string>
     <string name="feature_wallpapers">Wallpapers</string>
-    <string name="feature_wallpaper_help">Choose a background, rotate the 14 bundled Scenes, or use your own theme pictures. Changes apply when you return Home.</string>
+    <string name="feature_wallpaper_help">Choose a background, rotate the six built-in Apple TV style landscapes, or use your own theme pictures. Changes apply when you return Home.</string>
     <string name="feature_source">Background</string>
-    <string name="feature_scenes">Scenes collection</string>
+    <string name="feature_scenes">Apple TV style landscapes</string>
     <string name="feature_rotation">Change picture</string>
     <string name="feature_order">Playback order</string>
     <string name="feature_sequential">In order</string>

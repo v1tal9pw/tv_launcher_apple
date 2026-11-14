@@ -22,9 +22,9 @@
     <string name="home_default_unavailable">Прошивка телевизора не предоставляет стандартное окно выбора главного экрана. Открытие Google TV не назначает этот лаунчер по умолчанию. Главный экран нужно настроить отдельно для телевизора, например через ADB. Помощник кнопок пульта не меняет главный экран по умолчанию.</string>
     <string name="feature_back">Нажмите «Назад», чтобы вернуться</string>
     <string name="feature_wallpapers">Обои</string>
-    <string name="feature_wallpaper_help">Выберите фон, включите смену 14 встроенных пейзажей или используйте изображения своей темы. Изменения применятся при возвращении на главный экран.</string>
+    <string name="feature_wallpaper_help">Выберите фон, включите смену шести встроенных пейзажей в стиле Apple TV или используйте изображения своей темы. Изменения применятся при возвращении на главный экран.</string>
     <string name="feature_source">Фон</string>
-    <string name="feature_scenes">Коллекция пейзажей</string>
+    <string name="feature_scenes">Пейзажи в стиле Apple TV</string>
     <string name="feature_rotation">Смена изображения</string>
     <string name="feature_order">Порядок показа</string>
     <string name="feature_sequential">По порядку</string>

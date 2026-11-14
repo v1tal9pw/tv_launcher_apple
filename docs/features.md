@@ -8,7 +8,7 @@ customization previews the selected app, including a replacement icon and its di
 
 | Section | Controls |
 |---|---|
-| **Wallpaper** | Theme, Aurora, Off, all 14 bundled Scenes as a rotating collection, or one pinned Scene/theme picture; interval, sequential/shuffle order, full-color decoding, and dimming. |
+| **Wallpaper** | Theme, Aurora, Off, six original Apple TV style landscapes as a rotating collection, or one pinned Scene/theme picture; interval, sequential/shuffle order, full-color decoding, and dimming. |
 | **Sky & race weekends** | Sky intensity, city search, race-weekend panel, and calendar update. |
 | **Continue Watching** | Optional Home shelf for the app selected in the dock, with unfinished items, artwork and progress. Enabling asks for Android’s TV listings permission. Empty shelves stay hidden. |
 | **Idle clock** | Off or 5/10/15/30/60 minutes, plus a preview. It starts only from idle Home and consumes the wake key. |
