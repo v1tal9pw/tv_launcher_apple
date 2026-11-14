@@ -1,5 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="launcher_brand" translatable="false">Apple TV OS Launcher</string>
+    <string name="about_launcher_section">About launcher</string>
+    <string name="about_launcher">About this launcher</string>
+    <string name="about_launcher_hint">See the installed version and information about the launcher.</string>
+    <string name="about_launcher_message">Apple TV OS Launcher\nVersion %1$s\n\nA tvOS-inspired home screen for Android TV. Updates are published on GitHub.</string>
+    <string name="check_for_updates">Check for updates</string>
+    <string name="check_updates_hint">Check GitHub for the latest stable release now.</string>
+    <string name="update_checking">Checking…</string>
+    <string name="update_current_title">Up to date</string>
+    <string name="update_current_message">Version %1$s is installed. There is no newer stable release.</string>
+    <string name="update_check_failed">Could not check for updates. Check the network connection and try again.</string>
+    <string name="github_repository">GitHub repository</string>
+    <string name="github_hint">Source code and stable releases: %1$s</string>
+    <string name="github_open_failed">No browser is available. Open this address on another device:\n%1$s</string>
     <string name="update_available">Launcher update available</string>
     <string name="update_prompt">Version %1$d is ready. Download it from GitHub and confirm installation?</string>
     <string name="update_install">Update</string>

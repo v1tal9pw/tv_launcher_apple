@@ -1,20 +1,24 @@
 package com.gathin.tvhome;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.net.ssl.HttpsURLConnection;
 
 /** Checks the personal fork's published release when Home opens, at most once a day. */
 final class ReleaseUpdater {
     static final String REPOSITORY = "v1tal9pw/tv_launcher_apple";
+    static final String GITHUB_URL = "https://github.com/" + REPOSITORY;
     private static final String API = "https://api.github.com/repos/" + REPOSITORY + "/releases/latest";
     private static final long DAY_MS = 24L * 60 * 60 * 1000;
     private static final String LAST_CHECK = "release_last_check";
@@ -53,34 +57,58 @@ final class ReleaseUpdater {
     }
 
     static void check(Activity activity, Consumer<Release> available) {
+        check(activity, false, (release, checked) -> {
+            if (release != null) available.accept(release);
+        });
+    }
+
+    static void checkNow(Activity activity, BiConsumer<Release, Boolean> completed) {
+        check(activity, true, completed);
+    }
+
+    private static void check(Activity activity, boolean force, BiConsumer<Release, Boolean> completed) {
         SharedPreferences prefs = FeaturePreferences.prefs(activity);
         long now = System.currentTimeMillis();
         long last = prefs.getLong(LAST_CHECK, 0);
-        if (last > 0 && now >= last && now - last < DAY_MS) return;
+        if (!shouldCheck(last, now, force)) return;
         prefs.edit().putLong(LAST_CHECK, now).apply();
+        Context context = activity.getApplicationContext();
         FeatureNetwork.WORKER.execute(() -> {
+            Release release = null;
+            boolean checked = false;
             try {
-                HttpsURLConnection connection = (HttpsURLConnection) new URL(API).openConnection();
-                connection.setConnectTimeout(8000);
-                connection.setReadTimeout(8000);
-                connection.setRequestProperty("Accept", "application/vnd.github+json");
-                connection.setRequestProperty("User-Agent", "TvHome-Updater");
-                try {
-                    if (connection.getResponseCode() != 200) return;
-                    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-                    try (InputStream in = connection.getInputStream()) {
-                        byte[] buffer = new byte[4096]; int n;
-                        while ((n = in.read(buffer)) != -1) {
-                            if (bytes.size() + n > 128 * 1024) return;
-                            bytes.write(buffer, 0, n);
-                        }
-                    }
-                    int installed = activity.getPackageManager().getPackageInfo(activity.getPackageName(), 0).versionCode;
-                    Release release = parse(new JSONObject(bytes.toString("UTF-8")), installed);
-                    if (release != null) new Handler(Looper.getMainLooper()).post(() -> available.accept(release));
-                } finally { connection.disconnect(); }
+                release = fetch(context);
+                checked = true;
             } catch (Exception ignored) { /* Offline Home remains usable. */ }
+            Release result = release;
+            boolean succeeded = checked;
+            new Handler(Looper.getMainLooper()).post(() -> completed.accept(result, succeeded));
         });
+    }
+
+    static boolean shouldCheck(long last, long now, boolean force) {
+        return force || last <= 0 || now < last || now - last >= DAY_MS;
+    }
+
+    private static Release fetch(Context context) throws Exception {
+        HttpsURLConnection connection = (HttpsURLConnection) new URL(API).openConnection();
+        connection.setConnectTimeout(8000);
+        connection.setReadTimeout(8000);
+        connection.setRequestProperty("Accept", "application/vnd.github+json");
+        connection.setRequestProperty("User-Agent", "TvHome-Updater");
+        try {
+            if (connection.getResponseCode() != 200) throw new IOException("Release unavailable");
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            try (InputStream in = connection.getInputStream()) {
+                byte[] buffer = new byte[4096]; int n;
+                while ((n = in.read(buffer)) != -1) {
+                    if (bytes.size() + n > 128 * 1024) throw new IOException("Release response too large");
+                    bytes.write(buffer, 0, n);
+                }
+            }
+            int installed = context.getPackageManager().getPackageInfo(context.getPackageName(), 0).versionCode;
+            return parse(new JSONObject(bytes.toString("UTF-8")), installed);
+        } finally { connection.disconnect(); }
     }
 
     private ReleaseUpdater() { }

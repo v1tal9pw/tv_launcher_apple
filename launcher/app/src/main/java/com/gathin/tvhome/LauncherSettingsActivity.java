@@ -5,8 +5,10 @@ import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageInfo;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.view.View;
@@ -35,6 +37,8 @@ public final class LauncherSettingsActivity extends Activity {
     private SettingsRowView continueChoice;
     private boolean continueWatching;
     private SettingsRowView followThemeChoice;
+    private SettingsRowView checkUpdatesChoice;
+    private boolean checkingUpdate;
     private int columns;
     private boolean animations;
     private boolean advancedEffects;
@@ -180,13 +184,32 @@ public final class LauncherSettingsActivity extends Activity {
         SettingsRowView tvSettings = findViewById(R.id.tvSettingsChoice);
         tvSettings.setIcon(R.drawable.ic_settings, 0xFF737989);
         tvSettings.setValue("", true);
+        SettingsRowView aboutLauncher = findViewById(R.id.aboutLauncherChoice);
+        aboutLauncher.setIcon(R.drawable.ic_settings_info, 0xFF64D2FF);
+        aboutLauncher.setValue(installedVersion(), true);
+        aboutLauncher.setOnClickListener(v -> {
+            AlertDialog dialog = new AlertDialog.Builder(this)
+                    .setTitle(R.string.about_launcher)
+                    .setMessage(getString(R.string.about_launcher_message, installedVersion()))
+                    .setPositiveButton(android.R.string.ok, null).show();
+            glass(dialog);
+        });
+        checkUpdatesChoice = findViewById(R.id.checkUpdatesChoice);
+        checkUpdatesChoice.setIcon(R.drawable.ic_settings_update, 0xFF30D158);
+        checkUpdatesChoice.setValue("", true);
+        checkUpdatesChoice.setOnClickListener(v -> checkForUpdates());
+        SettingsRowView github = findViewById(R.id.githubChoice);
+        github.setIcon(R.drawable.ic_settings_link, 0xFF5E5CE6);
+        github.setValue("v1tal9pw", true);
+        github.setOnClickListener(v -> openGitHub());
         // White focus and a raised shadow stay within the row's width. No scaling into a clip edge.
         for (int id : new int[]{R.id.columns4, R.id.columns5, R.id.columns6, R.id.columns7, R.id.animationsChoice,
                 R.id.advancedChoice, R.id.soundsChoice, R.id.libraryChoice, R.id.statsChoice,
                 R.id.continueWatchingChoice,
                 R.id.wallpaperChoice, R.id.rowsChoice, R.id.skyChoice, R.id.idleClockChoice,
                 R.id.appCustomizationChoice, R.id.remoteButtonsChoice, R.id.followThemeChoice,
-                R.id.defaultHomeChoice, R.id.tvSettingsChoice}) {
+                R.id.defaultHomeChoice, R.id.tvSettingsChoice, R.id.aboutLauncherChoice,
+                R.id.checkUpdatesChoice, R.id.githubChoice}) {
             findViewById(id).setOnFocusChangeListener((v, focused) -> {
                 v.animate().translationZ(focused ? 6 * getResources().getDisplayMetrics().density : 0)
                         .setDuration(animations ? 130 : 0).start();
@@ -290,6 +313,15 @@ public final class LauncherSettingsActivity extends Activity {
             title = R.string.home_settings; hint = R.string.home_settings_help;
         } else if (id == R.id.tvSettingsChoice) {
             title = R.string.tv_settings; hint = R.string.settings_system_hint;
+        } else if (id == R.id.aboutLauncherChoice) {
+            title = R.string.about_launcher; hint = R.string.about_launcher_hint;
+        } else if (id == R.id.checkUpdatesChoice) {
+            title = R.string.check_for_updates; hint = R.string.check_updates_hint;
+        } else if (id == R.id.githubChoice) {
+            ((TextView) findViewById(R.id.settingsDetailTitle)).setText(R.string.github_repository);
+            ((TextView) findViewById(R.id.settingsDetailHint)).setText(
+                    getString(R.string.github_hint, ReleaseUpdater.GITHUB_URL));
+            return;
         } else {
             title = R.string.columns_label; hint = R.string.settings_columns_hint;
         }
@@ -299,6 +331,55 @@ public final class LauncherSettingsActivity extends Activity {
 
     private void updatePreview() {
         ((HomePreviewView) findViewById(R.id.settingsPreviewImage)).refresh(Config.load(this), null);
+    }
+
+    private String installedVersion() {
+        try {
+            PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
+            return info.versionName + " (" + info.versionCode + ")";
+        } catch (android.content.pm.PackageManager.NameNotFoundException ignored) {
+            return "?";
+        }
+    }
+
+    private void checkForUpdates() {
+        if (checkingUpdate) return;
+        checkingUpdate = true;
+        checkUpdatesChoice.setValue(getString(R.string.update_checking), false);
+        ReleaseUpdater.checkNow(this, (release, checked) -> {
+            if (isFinishing() || isDestroyed()) return;
+            checkingUpdate = false;
+            checkUpdatesChoice.setValue("", true);
+            if (!checked) {
+                Toast.makeText(this, R.string.update_check_failed, Toast.LENGTH_LONG).show();
+            } else if (release == null) {
+                AlertDialog dialog = new AlertDialog.Builder(this)
+                        .setTitle(R.string.update_current_title)
+                        .setMessage(getString(R.string.update_current_message, installedVersion()))
+                        .setPositiveButton(android.R.string.ok, null).show();
+                glass(dialog);
+            } else {
+                AlertDialog dialog = new AlertDialog.Builder(this)
+                        .setTitle(R.string.update_available)
+                        .setMessage(getString(R.string.update_prompt, release.code))
+                        .setPositiveButton(R.string.update_install, (d, which) ->
+                                startActivity(UpdateActivity.intent(this, release)))
+                        .setNegativeButton(android.R.string.cancel, null).show();
+                glass(dialog);
+            }
+        });
+    }
+
+    private void openGitHub() {
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(ReleaseUpdater.GITHUB_URL)));
+        } catch (ActivityNotFoundException | SecurityException ignored) {
+            AlertDialog dialog = new AlertDialog.Builder(this)
+                    .setTitle(R.string.github_repository)
+                    .setMessage(getString(R.string.github_open_failed, ReleaseUpdater.GITHUB_URL))
+                    .setPositiveButton(android.R.string.ok, null).show();
+            glass(dialog);
+        }
     }
 
     private void setContinueWatching(boolean enabled) {
