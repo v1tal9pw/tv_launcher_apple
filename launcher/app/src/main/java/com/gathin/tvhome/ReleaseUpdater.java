@@ -14,7 +14,7 @@ import javax.net.ssl.HttpsURLConnection;
 
 /** Checks the personal fork's published release when Home opens, at most once a day. */
 final class ReleaseUpdater {
-    static final String REPOSITORY = "idkwhormiloveumybabe/tv_launcher_apple";
+    static final String REPOSITORY = "v1tal9pw/tv_launcher_apple";
     private static final String API = "https://api.github.com/repos/" + REPOSITORY + "/releases/latest";
     private static final long DAY_MS = 24L * 60 * 60 * 1000;
     private static final String LAST_CHECK = "release_last_check";

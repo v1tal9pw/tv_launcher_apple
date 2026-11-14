@@ -1,7 +1,7 @@
 # Personal TV updates
 
 This copy checks the latest public release of
-`idkwhormiloveumybabe/tv_launcher_apple` when Home opens, at most once every
+`v1tal9pw/tv_launcher_apple` when Home opens, at most once every
 24 hours. If its tag is a higher `v<versionCode>` and it contains
 `tvhome-<versionCode>.apk`, the TV offers to download and install it. Android
 asks for approval to install from this app and to confirm each update.
@@ -9,7 +9,7 @@ asks for approval to install from this app and to confirm each update.
 ## First-time setup
 
 1. Create a **public, empty** GitHub repository named `tv_launcher_apple` in
-   the `idkwhormiloveumybabe` account. Do not add a README or licence on GitHub.
+   the `v1tal9pw` account. Do not add a README or licence on GitHub.
 2. Push this source tree to its `main` branch. Keep local build output,
    `local.properties`, TV backups, and `.idea` files out of the commit.
 3. In the repository, open **Settings → Secrets and variables → Actions** and
