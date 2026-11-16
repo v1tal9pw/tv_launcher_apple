@@ -5,6 +5,12 @@ param([switch]$SelfTest)
 $ErrorActionPreference = 'Stop'
 $package = 'com.gathin.tvhome'
 
+function ExactPackageVersion($listing, $name) {
+    $entries = [regex]::Matches($listing, "(?m)^package:$([regex]::Escape($name)) versionCode:(\d+)\r?$")
+    if ($entries.Count -ne 1) { throw "Не удалось определить версию пакета $name." }
+    return $entries[0].Groups[1].Value
+}
+
 function AutoStartDenial($ops, $log) {
     $blockedOps = [regex]::Matches($ops, '(?m)^\s*(?<name>APP_AUTO_START|AUTO_START):\s*(ignore|deny)\b')
     $blocked = @($log -split "`n" | Where-Object {
@@ -17,6 +23,7 @@ function AutoStartDenial($ops, $log) {
 }
 
 if ($SelfTest) {
+    if ((ExactPackageVersion "package:com.gathin.tvhome.old versionCode:42`npackage:com.gathin.tvhome versionCode:57" $package) -ne '57') { throw 'Ошибка проверки версии пакета' }
     if ((AutoStartDenial '  AUTO_START: ignore' '[TclAppBoot] forbid bind service com.gathin.tvhome/.InputKeyService') -ne 'AUTO_START') { throw 'Ошибка проверки AUTO_START' }
     if ((AutoStartDenial '  APP_AUTO_START: deny' '[TclAppBoot] bind_service isAllow = false com.gathin.tvhome/.InputKeyService') -ne 'APP_AUTO_START') { throw 'Ошибка проверки APP_AUTO_START' }
     if (AutoStartDenial '  AUTO_START: ignore' 'No TCL binding denial') { throw 'Ложное срабатывание' }
@@ -115,19 +122,20 @@ try {
     if ($installed -notmatch '^package:') { throw "Приложение $package не установлено на этом телевизоре." }
     $packageDump = Invoke-Shell "dumpsys package $package"
     if ($packageDump -notmatch 'InputKeyService') { throw 'Установленный APK не содержит InputKeyService. Сначала обновите лаунчер.' }
-    $version = @($packageDump -split "`n" | Where-Object { $_ -match 'versionCode=|InputKeyService' } | Select-Object -First 8) -join "`n"
+    $version = ExactPackageVersion (Invoke-Shell "cmd package list packages --show-versioncode $package") $package
+    $foreground = @((Invoke-Shell 'dumpsys activity activities') -split "`n" | Where-Object { $_ -match 'mResumedActivity|topResumedActivity' } | Select-Object -First 2) -join "`n"
     $device = "$(Invoke-Shell 'getprop ro.product.model') / Android $(Invoke-Shell 'getprop ro.build.version.release') / $(Invoke-Shell 'getprop ro.build.display.id')"
     $directory = Join-Path $env:TEMP ('tvhome-button-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
     New-Item -ItemType Directory -Path $directory -Force | Out-Null
     $before = Snapshot 'до попытки включения'
     $reportPath = Join-Path $directory 'report.txt'
-    Set-Content -LiteralPath $reportPath -Value "Устройство: $device`r`nПриложение: $version`r`n$(Report $before)" -Encoding UTF8
+    Set-Content -LiteralPath $reportPath -Value "Устройство: $device`r`nПакет: $package, версия: $version`r`nАктивное окно: $foreground`r`n$(Report $before)" -Encoding UTF8
     $marker = 'TVHOME_' + [guid]::NewGuid().ToString('N')
     Invoke-Shell "log -p i -t TVHomeDiag $marker" | Out-Null
     Invoke-Shell 'am start -a android.settings.ACCESSIBILITY_SETTINGS' | Out-Null
     Read-Host 'Попробуйте включить «Помощник кнопок пульта» на ТВ, затем нажмите Enter' | Out-Null
     $after = Snapshot 'после попытки включения'
-    $report = "Устройство: $device`r`nПриложение: $version`r`n$(Report $before)`r`n$(Report $after)"
+    $report = "Устройство: $device`r`nПакет: $package, версия: $version`r`nАктивное окно: $foreground`r`n$(Report $before)`r`n$(Report $after)"
     Set-Content -LiteralPath $reportPath -Value $report -Encoding UTF8
     $op = AutoStartDenial $after.Ops $after.AttemptLog
     if ($op) {
