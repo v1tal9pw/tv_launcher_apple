@@ -17,8 +17,6 @@
     <string name="home_system_status">System default Home: %1$s</string>
     <string name="home_key_status">Home button helper: %1$s</string>
     <string name="home_system_choose">Choose the system default Home</string>
-    <string name="home_adb_help">Set Home from a computer (ADB)</string>
-    <string name="home_adb_instructions">If the firmware does not offer a Home picker, connect ADB from your computer and run:\n\n%1$s\n\nThen press the real Home button and check the result. This command does not disable Google TV. Turn debugging off when finished.</string>
     <string name="home_already_default">This launcher is already your default Home.</string>
     <string name="home_default_unavailable_title">Home selection unavailable</string>
     <string name="home_default_unavailable">This TV firmware does not expose the standard Home selection dialog. Opening Google TV does not make this launcher the default. Home must be configured separately for this TV, for example through ADB. The remote button helper does not change the default Home.</string>
@@ -36,7 +34,7 @@
     <string name="feature_dim">Wallpaper dimming</string>
     <string name="feature_minutes">%1$d minutes</string>
     <string name="feature_sky_races">Sky backdrop</string>
-    <string name="installed_changes">One Remote Button Helper now handles Home, Quick Settings, assigned buttons and TV inputs. Removed the duplicate Home Button service and automatic secure-settings changes. Added lifecycle diagnostics for TCL. Navigation clicks are preloaded to remove firmware sound delay. TV optimization remains available through Shizuku.</string>
+    <string name="installed_changes">Version 3.55 is prepared for TCL C6K. Removed temporary button-helper diagnostics and the manual ADB Home hint from launcher settings. Remote buttons, Quick Settings, updates and TV cleanup remain available.</string>
     <string name="update_check_button">Check for updates</string>
     <string name="weather_show_city">Show city name</string>
     <string name="weather_show_details">Show feels-like temperature and wind</string>
@@ -83,8 +81,6 @@
     <string name="feature_remote_service">Remote button helper</string>
     <string name="feature_remote_service_help">Opens apps assigned to remote buttons and the TV input switcher. Only remote key presses are handled; screen content is not read.</string>
     <string name="feature_remote_access">Enable button helper</string>
-    <string name="remote_diagnostics">Button helper diagnostics</string>
-    <string name="remote_diagnostics_adb_required">Connect local ADB in Cleanup settings, then try again.</string>
     <string name="feature_remote_learn">Add a button</string>
     <string name="feature_remote_press">Press the remote button you want to assign. Press Back to cancel.</string>
     <string name="feature_remote_choose">Choose an app</string>

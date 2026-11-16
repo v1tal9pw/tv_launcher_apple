@@ -446,7 +446,7 @@ public final class LauncherSettingsActivity extends Activity {
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(status)
                 .setItems(new String[]{getString(R.string.home_system_choose), getString(R.string.remote_home_fix)
-                        + ": " + getString(fix ? R.string.on : R.string.off), getString(R.string.feature_remote_access), getString(R.string.home_adb_help)},
+                        + ": " + getString(fix ? R.string.on : R.string.off), getString(R.string.feature_remote_access)},
                         (d, which) -> {
                             if (which == 0) requestDefaultHome();
                             else if (which == 1) {
@@ -456,14 +456,6 @@ public final class LauncherSettingsActivity extends Activity {
                                     open(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
                                 } else chooseDefaultHome();
                             } else if (which == 2) open(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
-                            else {
-                                String command = "adb shell cmd package set-home-activity --user 0 "
-                                        + new android.content.ComponentName(this, MainActivity.class).flattenToShortString();
-                                AlertDialog help = new AlertDialog.Builder(this).setTitle(R.string.home_adb_help)
-                                        .setMessage(getString(R.string.home_adb_instructions, command))
-                                        .setPositiveButton(android.R.string.ok, null).show();
-                                glass(help);
-                            }
                         }).setNegativeButton(android.R.string.cancel, null).show();
         glass(dialog);
     }
