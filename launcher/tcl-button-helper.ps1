@@ -1,5 +1,5 @@
-# Run tcl-button-helper.bat on a Windows PC on the same network as the TV.
-# Read-only diagnosis comes first. Only a confirmed TCL auto-start denial changes an app-op.
+﻿# Запускайте tcl-button-helper.bat на компьютере с Windows в одной сети с телевизором.
+# Сначала выполняется диагностика. Разрешение appops меняется только при подтверждённом отказе TCL.
 param([switch]$SelfTest)
 
 $ErrorActionPreference = 'Stop'
@@ -17,12 +17,12 @@ function AutoStartDenial($ops, $log) {
 }
 
 if ($SelfTest) {
-    if ((AutoStartDenial '  AUTO_START: ignore' '[TclAppBoot] forbid bind service com.gathin.tvhome/.InputKeyService') -ne 'AUTO_START') { throw 'AUTO_START check failed' }
-    if ((AutoStartDenial '  APP_AUTO_START: deny' '[TclAppBoot] bind_service isAllow = false com.gathin.tvhome/.InputKeyService') -ne 'APP_AUTO_START') { throw 'APP_AUTO_START check failed' }
-    if (AutoStartDenial '  AUTO_START: ignore' 'No TCL binding denial') { throw 'False positive' }
-    if (AutoStartDenial '  AUTO_START: ignore' '[TclAppBoot] forbid bind service com.gathin.tvhome/.HomeKeyService') { throw 'Wrong service' }
-    if (AutoStartDenial "AUTO_START: ignore`nAPP_AUTO_START: ignore" '[TclAppBoot] forbid bind service com.gathin.tvhome/.InputKeyService') { throw 'Ambiguous app-op' }
-    Write-Host 'Self-test passed.'
+    if ((AutoStartDenial '  AUTO_START: ignore' '[TclAppBoot] forbid bind service com.gathin.tvhome/.InputKeyService') -ne 'AUTO_START') { throw 'Ошибка проверки AUTO_START' }
+    if ((AutoStartDenial '  APP_AUTO_START: deny' '[TclAppBoot] bind_service isAllow = false com.gathin.tvhome/.InputKeyService') -ne 'APP_AUTO_START') { throw 'Ошибка проверки APP_AUTO_START' }
+    if (AutoStartDenial '  AUTO_START: ignore' 'No TCL binding denial') { throw 'Ложное срабатывание' }
+    if (AutoStartDenial '  AUTO_START: ignore' '[TclAppBoot] forbid bind service com.gathin.tvhome/.HomeKeyService') { throw 'Определена не та служба' }
+    if (AutoStartDenial "AUTO_START: ignore`nAPP_AUTO_START: ignore" '[TclAppBoot] forbid bind service com.gathin.tvhome/.InputKeyService') { throw 'Неоднозначное разрешение appops' }
+    Write-Host 'Самопроверка пройдена.'
     exit 0
 }
 
@@ -36,13 +36,13 @@ function Find-Adb {
             if (Test-Path -LiteralPath $path) { return $path }
         }
     }
-    throw 'adb.exe not found. Install Google SDK Platform-Tools: https://developer.android.com/tools/releases/platform-tools'
+    throw 'Не найден adb.exe. Установите Google SDK Platform-Tools: https://developer.android.com/tools/releases/platform-tools'
 }
 
 function Invoke-Adb([string[]]$arguments) {
     $ErrorActionPreference = 'Continue'
     $output = & $script:adb @arguments 2>&1
-    if ($LASTEXITCODE -ne 0) { throw "adb failed: $($output -join ' ')" }
+    if ($LASTEXITCODE -ne 0) { throw "Ошибка ADB: $($output -join ' ')" }
     return ($output -join "`n").Trim()
 }
 
@@ -53,7 +53,7 @@ function Invoke-Shell([string]$command) {
 function Read-Port([string]$prompt) {
     $text = Read-Host $prompt
     [int]$number = 0
-    if (-not [int]::TryParse($text, [ref]$number) -or $number -lt 1 -or $number -gt 65535) { throw 'Port must be from 1 to 65535.' }
+    if (-not [int]::TryParse($text, [ref]$number) -or $number -lt 1 -or $number -gt 65535) { throw 'Порт должен быть числом от 1 до 65535.' }
     return $number
 }
 
@@ -74,85 +74,86 @@ function Snapshot([string]$label) {
 }
 
 function Report($snapshot) {
+    $listed = if ($snapshot.Listed) { 'да' } else { 'нет' }
     return @(
         "[$($snapshot.Label)]",
         "accessibility_enabled=$($snapshot.Enabled)",
-        "InputKeyService listed=$($snapshot.Listed)",
-        'appops:', $snapshot.Ops,
-        'accessibility:', $snapshot.Dump,
-        'recent log:', $snapshot.Log, ''
+        "InputKeyService в списке: $listed",
+        'Разрешения appops:', $snapshot.Ops,
+        'Состояние спецвозможностей:', $snapshot.Dump,
+        'Последние записи лога:', $snapshot.Log, ''
     ) -join "`r`n"
 }
 
 try {
     $adb = Find-Adb
-    Write-Host "Using $adb"
-    $ip = Read-Host 'TV IPv4 address (shown under Network settings)'
+    Write-Host "Найден ADB: $adb"
+    $ip = Read-Host 'IPv4-адрес телевизора (указан в настройках сети)'
     $address = $null
-    if (-not [Net.IPAddress]::TryParse($ip, [ref]$address) -or $address.AddressFamily -ne [Net.Sockets.AddressFamily]::InterNetwork) { throw 'Enter a valid IPv4 address.' }
-    $port = Read-Port 'ADB connection port (not the pairing port)'
+    if (-not [Net.IPAddress]::TryParse($ip, [ref]$address) -or $address.AddressFamily -ne [Net.Sockets.AddressFamily]::InterNetwork) { throw 'Введите корректный IPv4-адрес.' }
+    $port = Read-Port 'Порт подключения ADB (не порт сопряжения)'
     $serial = "${ip}:$port"
     try {
         Invoke-Adb -arguments @('connect', $serial) | Out-Host
-        if ((Invoke-Adb -arguments @('-s', $serial, 'get-state')) -ne 'device') { throw 'Not connected' }
+        if ((Invoke-Adb -arguments @('-s', $serial, 'get-state')) -ne 'device') { throw 'Нет подключения к телевизору' }
     } catch {
-        Read-Host 'If the TV asks to authorize this PC, accept it. Then press Enter' | Out-Null
+        Read-Host 'Если на ТВ появился запрос доступа для этого компьютера, подтвердите его и нажмите Enter' | Out-Null
         try {
             Invoke-Adb -arguments @('connect', $serial) | Out-Host
-            if ((Invoke-Adb -arguments @('-s', $serial, 'get-state')) -ne 'device') { throw 'Not connected' }
+            if ((Invoke-Adb -arguments @('-s', $serial, 'get-state')) -ne 'device') { throw 'Нет подключения к телевизору' }
         } catch {
-            Write-Host 'For Wireless debugging, use Pair device with pairing code on the TV.'
-            $pairPort = Read-Port 'ADB pairing port shown on TV'
-            $pairCode = Read-Host 'Six-digit pairing code'
-            if ($pairCode -notmatch '^\d{6}$') { throw 'Pairing code must have six digits.' }
+            Write-Host 'При беспроводной отладке откройте на ТВ «Сопряжение с помощью кода».'
+            $pairPort = Read-Port 'Порт сопряжения ADB, указанный на ТВ'
+            $pairCode = Read-Host 'Шестизначный код сопряжения'
+            if ($pairCode -notmatch '^\d{6}$') { throw 'Код сопряжения должен состоять из шести цифр.' }
             Invoke-Adb -arguments @('pair', "${ip}:$pairPort", $pairCode) | Out-Host
             Invoke-Adb -arguments @('connect', $serial) | Out-Host
-            if ((Invoke-Adb -arguments @('-s', $serial, 'get-state')) -ne 'device') { throw 'ADB is not authorized. Accept the prompt on the TV.' }
+            if ((Invoke-Adb -arguments @('-s', $serial, 'get-state')) -ne 'device') { throw 'ADB не авторизован. Подтвердите запрос на телевизоре.' }
         }
     }
     $installed = Invoke-Shell "pm path $package"
-    if ($installed -notmatch '^package:') { throw "$package is not installed on this TV." }
+    if ($installed -notmatch '^package:') { throw "Приложение $package не установлено на этом телевизоре." }
     $packageDump = Invoke-Shell "dumpsys package $package"
-    if ($packageDump -notmatch 'InputKeyService') { throw 'The installed APK does not register InputKeyService. Update the launcher first.' }
+    if ($packageDump -notmatch 'InputKeyService') { throw 'Установленный APK не содержит InputKeyService. Сначала обновите лаунчер.' }
     $version = @($packageDump -split "`n" | Where-Object { $_ -match 'versionCode=|InputKeyService' } | Select-Object -First 8) -join "`n"
     $device = "$(Invoke-Shell 'getprop ro.product.model') / Android $(Invoke-Shell 'getprop ro.build.version.release') / $(Invoke-Shell 'getprop ro.build.display.id')"
     $directory = Join-Path $env:TEMP ('tvhome-button-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
     New-Item -ItemType Directory -Path $directory -Force | Out-Null
-    $before = Snapshot 'before toggle'
+    $before = Snapshot 'до попытки включения'
     $reportPath = Join-Path $directory 'report.txt'
-    Set-Content -LiteralPath $reportPath -Value "Device: $device`r`nPackage: $version`r`n$(Report $before)" -Encoding UTF8
+    Set-Content -LiteralPath $reportPath -Value "Устройство: $device`r`nПриложение: $version`r`n$(Report $before)" -Encoding UTF8
     $marker = 'TVHOME_' + [guid]::NewGuid().ToString('N')
     Invoke-Shell "log -p i -t TVHomeDiag $marker" | Out-Null
     Invoke-Shell 'am start -a android.settings.ACCESSIBILITY_SETTINGS' | Out-Null
-    Read-Host 'On the TV, try turning on Remote Button Helper. Then press Enter here' | Out-Null
-    $after = Snapshot 'after toggle'
-    $report = "Device: $device`r`nPackage: $version`r`n$(Report $before)`r`n$(Report $after)"
+    Read-Host 'Попробуйте включить «Помощник кнопок пульта» на ТВ, затем нажмите Enter' | Out-Null
+    $after = Snapshot 'после попытки включения'
+    $report = "Устройство: $device`r`nПриложение: $version`r`n$(Report $before)`r`n$(Report $after)"
     Set-Content -LiteralPath $reportPath -Value $report -Encoding UTF8
     $op = AutoStartDenial $after.Ops $after.AttemptLog
     if ($op) {
-        Write-Host "TCL denied the helper bind and $op is blocked. Allowing only this app-op..."
-        $report += "`r`nAttempting ${op}=allow after a matching TclAppBoot bind denial."
+        Write-Host "TCL запретил запуск службы: $op заблокирован. Разрешаю только эту операцию..."
+        $report += "`r`nПопытка установить ${op}=allow после подтверждённого отказа TclAppBoot."
         Set-Content -LiteralPath $reportPath -Value $report -Encoding UTF8
         Invoke-Shell "appops set $package $op allow" | Out-Null
         Invoke-Shell 'appops write-settings' | Out-Null
         $verified = Invoke-Shell "appops get $package $op"
-        if ($verified -notmatch "(?m)^\s*${op}:\s*allow\b") { throw "$op was not saved. Report is in $directory" }
-        $report += "`r`nApplied ${op}=allow. Previous value is in [after toggle] appops."
+        if ($verified -notmatch "(?m)^\s*${op}:\s*allow\b") { throw "Не удалось сохранить $op. Отчёт находится в $directory" }
+        $report += "`r`nУстановлено ${op}=allow. Прежнее значение указано в разделе «после попытки включения»."
         Set-Content -LiteralPath $reportPath -Value $report -Encoding UTF8
         Invoke-Shell 'am start -a android.settings.ACCESSIBILITY_SETTINGS' | Out-Null
-        Read-Host 'Try enabling the helper again on the TV, then press Enter here' | Out-Null
-        $report += "`r`n" + (Report (Snapshot 'after AUTO_START fix'))
+        Read-Host 'Ещё раз включите помощник на ТВ, затем нажмите Enter' | Out-Null
+        $report += "`r`n" + (Report (Snapshot 'после исправления AUTO_START'))
     } else {
-        $report += "`r`nNo unambiguous TCL AUTO_START fix was found. No system setting was changed."
+        $report += "`r`nОднозначная причина в AUTO_START не найдена. Системные настройки не менялись."
     }
     Set-Content -LiteralPath $reportPath -Value $report -Encoding UTF8
-    Write-Host "Report saved: $reportPath"
-    Write-Host 'Send only this report after reviewing it for private information.'
-    Write-Host 'Turn off Wireless/Network debugging on the TV after diagnosis.'
+    Write-Host "Отчёт сохранён: $reportPath"
+    Write-Host 'Перед отправкой отчёта проверьте, нет ли в нём личных данных.'
+    Write-Host 'После диагностики выключите беспроводную/сетевую отладку на ТВ.'
     Invoke-Adb -arguments @('disconnect', $serial) | Out-Null
 } catch {
-    Write-Host "Stopped: $($_.Exception.Message)" -ForegroundColor Red
-    if ($reportPath -and (Test-Path -LiteralPath $reportPath)) { Write-Host "Partial report: $reportPath" }
+    Write-Host "Остановлено: $($_.Exception.Message)" -ForegroundColor Red
+    if ($reportPath -and (Test-Path -LiteralPath $reportPath)) { Write-Host "Неполный отчёт: $reportPath" }
     if ($adb -and $serial) { try { Invoke-Adb -arguments @('disconnect', $serial) | Out-Null } catch {} }
     exit 1
 }
