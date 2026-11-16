@@ -6,6 +6,9 @@ This version is prepared for the TCL C6K with Google TV 14. The Home handover
 and Remote Button Helper were checked on that TV. Other TV models may need
 different package names and button mappings.
 
+Co-authors: [v1tal9](https://github.com/v1tal9pw) and
+[Denis (sicarioden)](https://github.com/sicarioden).
+
 The Windows helpers are in this folder:
 
 - `tcl-button-helper.bat` checks and repairs the remote button service.

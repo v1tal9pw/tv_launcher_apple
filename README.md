@@ -125,7 +125,7 @@ adb install -r launcher/app/build/outputs/apk/release/app-release.apk
 
 ## Авторы и оригинальный проект
 
-**Модификация и развитие этой версии:** [v1tal9](https://github.com/v1tal9pw).
+**Соавторы этой версии:** [v1tal9](https://github.com/v1tal9pw) и [Денис (sicarioden)](https://github.com/sicarioden).
 
 **Оригинальный проект, на котором основана эта версия:** [iyashwant / apple-tv-os-launcher](https://github.com/iyashwant/apple-tv-os-launcher). Спасибо автору за основу интерфейса и проделанную работу.
 
@@ -137,6 +137,6 @@ adb install -r launcher/app/build/outputs/apk/release/app-release.apk
 
 <div align="center">
 
-Сделано и адаптируется [v1tal9](https://github.com/v1tal9pw) · [Репозиторий](https://github.com/v1tal9pw/tv_launcher_apple)
+Сделано и адаптируется [v1tal9](https://github.com/v1tal9pw) и [Денисом (sicarioden)](https://github.com/sicarioden) · [Репозиторий](https://github.com/v1tal9pw/tv_launcher_apple)
 
 </div>
