@@ -8,6 +8,7 @@ different package names and button mappings.
 
 Co-authors: [v1tal9](https://github.com/v1tal9pw) and
 [Denis (sicarioden)](https://github.com/sicarioden).
+Development assistance: OpenAI Codex (AI assistant).
 
 The Windows helpers are in this folder:
 

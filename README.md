@@ -127,6 +127,8 @@ adb install -r launcher/app/build/outputs/apk/release/app-release.apk
 
 **Соавторы этой версии:** [v1tal9](https://github.com/v1tal9pw) и [Денис (sicarioden)](https://github.com/sicarioden).
 
+**Помощь в разработке:** OpenAI Codex (ИИ-помощник).
+
 **Оригинальный проект, на котором основана эта версия:** [iyashwant / apple-tv-os-launcher](https://github.com/iyashwant/apple-tv-os-launcher). Спасибо автору за основу интерфейса и проделанную работу.
 
 **Более ранняя основа:** [Gathin23 / CleanYourTV](https://github.com/Gathin23/cleanyourtv) и его участники.
@@ -137,6 +139,6 @@ adb install -r launcher/app/build/outputs/apk/release/app-release.apk
 
 <div align="center">
 
-Сделано и адаптируется [v1tal9](https://github.com/v1tal9pw) и [Денисом (sicarioden)](https://github.com/sicarioden) · [Репозиторий](https://github.com/v1tal9pw/tv_launcher_apple)
+Сделано и адаптируется [v1tal9](https://github.com/v1tal9pw) и [Денисом (sicarioden)](https://github.com/sicarioden) при помощи OpenAI Codex · [Репозиторий](https://github.com/v1tal9pw/tv_launcher_apple)
 
 </div>
