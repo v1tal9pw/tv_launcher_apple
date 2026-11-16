@@ -17,8 +17,6 @@
     <string name="home_system_status">Системный главный экран: %1$s</string>
     <string name="home_key_status">Помощник кнопки Home: %1$s</string>
     <string name="home_system_choose">Выбрать системный главный экран</string>
-    <string name="home_adb_help">Назначить с компьютера через ADB</string>
-    <string name="home_adb_instructions">Если прошивка не предлагает выбор главного экрана, подключите ADB с компьютера и выполните:\n\n%1$s\n\nЗатем нажмите настоящую кнопку Home и проверьте результат. Команда не отключает Google TV. После настройки выключите отладку.</string>
     <string name="home_already_default">Этот лаунчер уже выбран главным экраном по умолчанию.</string>
     <string name="home_default_unavailable_title">Выбор главного экрана недоступен</string>
     <string name="home_default_unavailable">Прошивка телевизора не предоставляет стандартное окно выбора главного экрана. Открытие Google TV не назначает этот лаунчер по умолчанию. Главный экран нужно настроить отдельно для телевизора, например через ADB. Помощник кнопок пульта не меняет главный экран по умолчанию.</string>
@@ -36,7 +34,7 @@
     <string name="feature_dim">Затемнение обоев</string>
     <string name="feature_minutes">Минут: %1$d</string>
     <string name="feature_sky_races">Небо на фоне</string>
-    <string name="installed_changes">• Одна служба «Помощник кнопок пульта» обрабатывает Home, Quick Settings, назначенные кнопки и источники ТВ.\n• Удалена служба Home Button и автоматическое изменение системного списка специальных возможностей.\n• Добавлена диагностика запуска службы на TCL.\n• Навигационный звук загружается заранее и не ждёт звуковой очереди прошивки.\n• Оптимизация телевизора через Shizuku сохранена.</string>
+    <string name="installed_changes">• Версия 3.55 подготовлена для TCL C6K.\n• Из настроек убраны временная диагностика помощника кнопок и ручная подсказка ADB для Home.\n• Настройка пульта, Quick Settings, обновления и очистка ТВ сохранены.</string>
     <string name="update_check_button">Проверить обновления</string>
     <string name="weather_show_city">Показывать название города</string>
     <string name="weather_show_details">Показывать ощущаемую температуру и ветер</string>
@@ -83,8 +81,6 @@
     <string name="feature_remote_service">Помощник кнопок пульта</string>
     <string name="feature_remote_service_help">Открывает приложения, назначенные кнопкам пульта, и меню источников телевизора. Обрабатывает только нажатия кнопок пульта, не читает содержимое экрана.</string>
     <string name="feature_remote_access">Включить помощник кнопок</string>
-    <string name="remote_diagnostics">Диагностика помощника кнопок</string>
-    <string name="remote_diagnostics_adb_required">Подключите локальный ADB в настройках очистки и повторите попытку.</string>
     <string name="feature_remote_learn">Добавить кнопку</string>
     <string name="feature_remote_press">Нажмите кнопку пульта, которой хотите назначить приложение. Для отмены нажмите «Назад».</string>
     <string name="feature_remote_choose">Выберите приложение</string>

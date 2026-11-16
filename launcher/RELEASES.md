@@ -1,5 +1,24 @@
 # Personal TV updates
 
+## TCL C6K — v58 (3.55)
+
+This version is prepared for the TCL C6K with Google TV 14. The Home handover
+and Remote Button Helper were checked on that TV. Other TV models may need
+different package names and button mappings.
+
+The Windows helpers are in this folder:
+
+- `tcl-button-helper.bat` checks and repairs the remote button service.
+- `tcl-home-handover.bat` checks Wi-Fi ownership, backs up TV settings, and
+  makes this launcher Home by disabling the two competing Google TV Home apps.
+- `tcl-home-restore.bat` restores Google TV as Home.
+
+Keep each BAT beside its matching PS1 file. The Home handover stops before
+changing packages if a saved Wi-Fi network belongs to the Google TV setup app.
+AirPlay packages are left enabled; check AirPlay and physical remote buttons
+after a handover and again after reboot. The BAT files contain no TV IP,
+password, ADB key, or personal backup.
+
 This copy checks the latest public release of
 `v1tal9pw/tv_launcher_apple` when Home opens, at most once every
 24 hours. If its tag is a higher `v<versionCode>` and it contains
