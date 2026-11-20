@@ -20,10 +20,10 @@ final class PersonalWallpapers {
 
     static synchronized File file(Context context, String choice) {
         if (COAST_VIDEO.equals(choice)) {
-            File video = new File(context.getFilesDir(), "coast-motion-v1.mp4");
+            File video = new File(context.getFilesDir(), "coast-motion-v2.mp4");
             try {
                 extract(context, "coast-motion.mp4", video);
-                extract(context, "scenes/01-volcanic-coast.jpg", poster(video));
+                extract(context, "coast-motion-poster.jpg", poster(video));
                 return video;
             } catch (java.io.IOException unavailable) { return null; }
         }

@@ -2,6 +2,14 @@ package com.gathin.tvhome;
 import org.junit.Test;
 import static org.junit.Assert.*;
 public class OptimizationPolicyTest {
+    @Test public void everyCleanupCandidateHasSpecificGuidance() {
+        for (String pkg : OptimizationPolicy.TCL_C6K_PACKAGES)
+            assertNotEquals(pkg, R.string.optimize_hint_unknown, OptimizationPolicy.guidance(pkg));
+        assertEquals(R.string.optimize_hint_unknown, OptimizationPolicy.guidance(null));
+        assertEquals(R.string.optimize_hint_unknown, OptimizationPolicy.guidance("unknown.package"));
+        assertEquals(R.string.optimize_hint_peripheral, OptimizationPolicy.guidance("com.tcl.UpdatePeripheral"));
+        assertEquals(R.string.optimize_hint_assistant, OptimizationPolicy.guidance("com.google.android.katniss"));
+    }
     @Test public void onlyExplicitCandidatesCanBeChanged() {
         assertTrue(OptimizationPolicy.launcher("com.google.android.apps.tv.launcherx"));
         assertTrue(OptimizationPolicy.launcher("com.google.android.leanbacklauncher"));

@@ -9,9 +9,6 @@ import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.net.Uri;
 import android.provider.Settings;
-import android.os.Handler;
-import android.os.Looper;
-import android.util.Log;
 import android.widget.Toast;
 
 import java.util.ArrayList;
@@ -19,31 +16,43 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Resolve optional configured firmware destinations, then fall back to public Android settings. */
 final class QuickSettingsActions {
-    private static final AtomicBoolean clearing = new AtomicBoolean();
+    static final String SYSTEM_CLEANER = "com.tcl.guard";
+
+    static boolean nativeCleanerEnabled(int flags, boolean enabled) {
+        return enabled && (flags & (ApplicationInfo.FLAG_SYSTEM | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0;
+    }
+
+    static Intent nativeCleaner(Context context) {
+        PackageManager pm = context.getPackageManager();
+        try {
+            ApplicationInfo app = pm.getApplicationInfo(SYSTEM_CLEANER, 0);
+            if (!nativeCleanerEnabled(app.flags, app.enabled)) return null;
+            Intent launch = pm.getLeanbackLaunchIntentForPackage(SYSTEM_CLEANER);
+            if (launch != null && available(context, launch) != null) return launch;
+            launch = pm.getLaunchIntentForPackage(SYSTEM_CLEANER);
+            return launch != null ? available(context, launch) : null;
+        } catch (PackageManager.NameNotFoundException | RuntimeException unavailable) { return null; }
+    }
 
     static void clearBackground(Context context) {
-        if (!clearing.compareAndSet(false, true)) return;
-        Context app = LauncherLocale.wrap(context.getApplicationContext());
-        Toast.makeText(app, R.string.quick_background_clearing, Toast.LENGTH_SHORT).show();
-        new Thread(() -> {
-            int message;
+        Intent target = nativeCleaner(context);
+        if (target == null) {
+            Toast.makeText(context, R.string.quick_system_cleaner_unavailable, Toast.LENGTH_LONG).show();
             try {
-                LocalAdbClient.run(app, "am kill-all");
-                message = R.string.quick_background_cleared;
-            } catch (Exception unavailable) {
-                Log.w("QuickSettings", "Background cleanup unavailable", unavailable);
-                message = R.string.quick_background_adb_required;
+                context.getPackageManager().getApplicationInfo(SYSTEM_CLEANER, 0);
+                target = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.parse("package:" + SYSTEM_CLEANER));
+            } catch (PackageManager.NameNotFoundException | SecurityException missing) {
+                target = new Intent(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS);
             }
-            int result = message;
-            new Handler(Looper.getMainLooper()).post(() -> {
-                clearing.set(false);
-                Toast.makeText(app, result, Toast.LENGTH_LONG).show();
-            });
-        }, "tvhome-clear-background").start();
+        }
+        try { context.startActivity(target.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP)); }
+        catch (android.content.ActivityNotFoundException | SecurityException unavailable) {
+            Toast.makeText(context, R.string.not_available, Toast.LENGTH_LONG).show();
+        }
     }
 
     static Intent intent(Context context, int control) {

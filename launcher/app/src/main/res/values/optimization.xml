@@ -1,4 +1,27 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="optimize_hint_unknown">Keep enabled: the purpose of this component is not confirmed.</string>
+    <string name="optimize_hint_logs">Can be disabled if you do not send logs to TCL support. Collects and uploads diagnostics.</string>
+    <string name="optimize_hint_account">Keep if you use a TCL account or TCL services. Otherwise optional.</string>
+    <string name="optimize_hint_feedback">Can be disabled if you do not send TV feedback or diagnostic reports.</string>
+    <string name="optimize_hint_ads">Optional: Privacy Sandbox advertising APIs. Disabling does not remove ads inside apps.</string>
+    <string name="optimize_hint_personalization">Optional: system personalization and related computation. Keep if you want personalized recommendations.</string>
+    <string name="optimize_hint_channels">Keep if you watch TCL Channel or TCL free channels. Otherwise optional.</string>
+    <string name="optimize_hint_home_promos">Can be disabled if you do not want TCL Home promotions at startup.</string>
+    <string name="optimize_hint_home_rows">Optional: TCL rows on Google TV. Keep if you use them.</string>
+    <string name="optimize_hint_interactive">Keep if unsure: background service for TCL TIAS interactive features.</string>
+    <string name="optimize_hint_messages">Can be disabled if you do not want TCL push messages and promotions.</string>
+    <string name="optimize_hint_dashboard">Keep if you use the TCL Home panel. Its links to other features vary by firmware.</string>
+    <string name="optimize_hint_partner_apps">Can be disabled if you do not want automatic installation of partner apps.</string>
+    <string name="optimize_hint_partner_setup">Keep if unsure: integration and setup of Google partner services.</string>
+    <string name="optimize_hint_retail">Can be disabled on a home TV: retail demos and promotional stickers.</string>
+    <string name="optimize_hint_hotel">Keep if hotel mode is configured. Otherwise optional on a home TV.</string>
+    <string name="optimize_hint_guides">Optional: the built-in TV manual and troubleshooting guide. Keep if you use them.</string>
+    <string name="optimize_hint_alexa">Keep if you use Amazon Alexa. Otherwise optional.</string>
+    <string name="optimize_hint_cleaner">Keep enabled: the built-in TCL cleaner is used by System cleanup.</string>
+    <string name="optimize_hint_peripheral">Recommended to keep: firmware updates for TCL peripherals and soundbars. Disable only if you do not need these updates.</string>
+    <string name="optimize_hint_games">Keep if you use Google Play Games. Otherwise optional.</string>
+    <string name="optimize_hint_music">Keep if you listen to YouTube Music on this TV. Otherwise optional.</string>
+    <string name="optimize_hint_assistant">Keep if you use Google Assistant or voice search. Disabling may remove these functions from the microphone button.</string>
     <string name="optimize_title">TV cleanup</string>
     <string name="optimize_profile">CleanYourTV — choose components</string>
     <string name="optimize_apply_selected">Disable selected components</string>

@@ -2964,7 +2964,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     private void openQuickControl(int control) {
         if (control == R.id.quickInputs) { showInputs(); return; }
-        if (control == R.id.quickClearAll) { QuickSettingsActions.clearBackground(this); return; }
+        if (control == R.id.quickClearAll) {
+            quickSettingsFocus = control;
+            resumeQuickSettings = true;
+            Runnable clean = () -> QuickSettingsActions.clearBackground(this);
+            if (quickSettings != null) quickSettings.closeForAction(clean);
+            else clean.run();
+            return;
+        }
         // Launcher settings is ours: it stays in Home's task and reports a change back (onActivityResult).
         boolean launcherSettings = control == R.id.quickLauncherSettings;
         Intent intent = launcherSettings ? new Intent(this, LauncherSettingsActivity.class)

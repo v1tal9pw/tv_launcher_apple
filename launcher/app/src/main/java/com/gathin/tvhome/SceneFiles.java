@@ -9,12 +9,12 @@ import java.util.List;
 /** Bundled, offline Scenes. Extract once so the existing cropped wallpaper decoder handles every source. */
 final class SceneFiles {
     static synchronized List<File> images(Context context) {
-        File dir = new File(context.getFilesDir(), "scenes-v2");
+        File dir = new File(context.getFilesDir(), "scenes-v3-fhd");
         try {
             if (!dir.isDirectory() && !dir.mkdirs()) return java.util.Collections.emptyList();
             String[] names = context.getAssets().list("scenes");
             if (names != null) for (String name : names) {
-                if (!name.matches("[a-zA-Z0-9-]+\\.jpg")) continue;
+                if (!name.matches("[a-zA-Z0-9-]+\\.webp")) continue;
                 File output = new File(dir, name);
                 if (output.isFile() && output.length() > 0) continue;
                 File temporary = new File(dir, name + ".tmp");
@@ -27,6 +27,12 @@ final class SceneFiles {
             }
         } catch (Exception ignored) { }
         return WallpaperRotation.images(dir);
+    }
+
+    static File find(Context context, String name) {
+        List<File> files = images(context);
+        File exact = WallpaperRotation.find(files, name);
+        return exact != null ? exact : WallpaperRotation.find(files, name.replaceFirst("\\.jpg$", ".webp"));
     }
 
     static String label(String filename) {

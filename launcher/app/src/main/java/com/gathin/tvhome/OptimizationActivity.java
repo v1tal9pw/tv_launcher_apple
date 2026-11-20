@@ -115,6 +115,7 @@ public final class OptimizationActivity extends Activity {
             JSONObject item = packages.optJSONObject(i);
             if (item == null) continue;
             String pkg = item.optString("package");
+            if (QuickSettingsActions.SYSTEM_CLEANER.equals(pkg)) continue;
             int state = item.optInt("state", -1);
             if (!OptimizationPolicy.tclCandidate(pkg) || (state != 0 && state != 1)
                     || journal.contains(pkg)) continue;
@@ -123,7 +124,7 @@ public final class OptimizationActivity extends Activity {
             try { label = getPackageManager().getApplicationLabel(
                     getPackageManager().getApplicationInfo(pkg, 0)).toString(); }
             catch (PackageManager.NameNotFoundException ignored) { }
-            labels.add(label + "\n" + pkg);
+            labels.add(label + "\n" + pkg + "\n" + getString(OptimizationPolicy.guidance(pkg)));
         }
         if (choices.isEmpty()) { message(getString(R.string.optimize_no_candidates)); return; }
         boolean[] checked = new boolean[choices.size()];
@@ -137,7 +138,9 @@ public final class OptimizationActivity extends Activity {
                     if (selected.isEmpty()) return;
                     new AlertDialog.Builder(this).setTitle(R.string.optimize_apply_selected)
                             .setMessage(getString(R.string.optimize_batch_warning) + "\n\n"
-                                    + android.text.TextUtils.join("\n", selected))
+                                    + selected.stream().map(pkg -> pkg + "\n"
+                                            + getString(OptimizationPolicy.guidance(pkg)))
+                                            .collect(java.util.stream.Collectors.joining("\n\n")))
                             .setNegativeButton(android.R.string.cancel, null)
                             .setPositiveButton(android.R.string.ok, (d, w) -> run(() -> {
                                 for (String pkg : selected) {

@@ -63,6 +63,7 @@ final class RemoteControlOverlay {
                         config.reducedMotion, config.animations, config.navigationSounds, new QuickSettingsPanel.Listener() {
                     public void onAction(int control) {
                         if (control == R.id.quickClearAll) {
+                            close();
                             QuickSettingsActions.clearBackground(service);
                             return;
                         }

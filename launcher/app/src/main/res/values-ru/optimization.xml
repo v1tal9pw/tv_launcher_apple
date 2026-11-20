@@ -1,4 +1,27 @@
 <resources>
+    <string name="optimize_hint_unknown">Лучше оставить: назначение компонента не подтверждено.</string>
+    <string name="optimize_hint_logs">Можно отключить, если не отправляете журналы в поддержку TCL. Сбор и отправка логов.</string>
+    <string name="optimize_hint_account">Оставьте, если используете аккаунт и сервисы TCL. Иначе можно отключить.</string>
+    <string name="optimize_hint_feedback">Можно отключить, если не отправляете отзывы и диагностические отчёты о телевизоре.</string>
+    <string name="optimize_hint_ads">По желанию: рекламные API Privacy Sandbox. Отключение не убирает рекламу внутри приложений.</string>
+    <string name="optimize_hint_personalization">По желанию: системная персонализация и связанные вычисления. Если нужны персональные рекомендации, лучше оставить.</string>
+    <string name="optimize_hint_channels">Оставьте, если смотрите TCL Channel и бесплатные каналы TCL. Иначе можно отключить.</string>
+    <string name="optimize_hint_home_promos">Можно отключить, если не нужны предложения TCL на главном экране при включении.</string>
+    <string name="optimize_hint_home_rows">По желанию: фирменные ряды TCL в Google TV. Оставьте, если пользуетесь ими.</string>
+    <string name="optimize_hint_interactive">Лучше оставить, если не уверены: фоновый сервис интерактивных функций TCL TIAS.</string>
+    <string name="optimize_hint_messages">Можно отключить, если не нужны push-сообщения и предложения TCL.</string>
+    <string name="optimize_hint_dashboard">Оставьте, если пользуетесь панелью TCL Home. На разных прошивках она связана с разными фирменными функциями.</string>
+    <string name="optimize_hint_partner_apps">Можно отключить, если не нужна автоматическая установка партнёрских приложений.</string>
+    <string name="optimize_hint_partner_setup">Лучше оставить, если не уверены: настройка интеграции партнёрских сервисов Google.</string>
+    <string name="optimize_hint_retail">Можно отключить на домашнем телевизоре: магазинная демонстрация и рекламные наклейки.</string>
+    <string name="optimize_hint_hotel">Оставьте, если настроен гостиничный режим. На домашнем ТВ без этого режима можно отключить.</string>
+    <string name="optimize_hint_guides">По желанию: встроенная инструкция и справка по телевизору. Оставьте, если пользуетесь ими.</string>
+    <string name="optimize_hint_alexa">Оставьте, если пользуетесь Amazon Alexa. Иначе можно отключить.</string>
+    <string name="optimize_hint_cleaner">Лучше оставить: встроенная очистка TCL нужна кнопке «Системная очистка».</string>
+    <string name="optimize_hint_peripheral">Рекомендуется оставить: обновление прошивки внешних устройств и саундбаров TCL. Отключайте только если это не требуется.</string>
+    <string name="optimize_hint_games">Оставьте, если пользуетесь Google Play Games. Иначе можно отключить.</string>
+    <string name="optimize_hint_music">Оставьте, если слушаете YouTube Music на ТВ. Иначе можно отключить.</string>
+    <string name="optimize_hint_assistant">Оставьте, если используете Google Assistant и голосовой поиск. После отключения кнопка микрофона может потерять эти функции.</string>
     <string name="optimize_title">Очистка телевизора</string>
     <string name="optimize_profile">CleanYourTV — выбрать компоненты</string>
     <string name="optimize_apply_selected">Отключить выбранное</string>

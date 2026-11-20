@@ -682,8 +682,15 @@ final class Config {
             wallpaper = wallpapers.isEmpty() ? null : wallpapers.get(0);
             wallpaperEnabled = wallpaper != null;
         } else if (wallpaperChoice.startsWith(FeaturePreferences.SCENE_PREFIX)) {
-            wallpaper = WallpaperRotation.find(SceneFiles.images(ctx), wallpaperChoice.substring(FeaturePreferences.SCENE_PREFIX.length()));
-            if (wallpaper != null) { wallpapers.add(wallpaper); wallpaperEnabled = true; }
+            wallpaper = SceneFiles.find(ctx, wallpaperChoice.substring(FeaturePreferences.SCENE_PREFIX.length()));
+            if (wallpaper != null) {
+                wallpapers.add(wallpaper); wallpaperEnabled = true;
+                String migrated = FeaturePreferences.SCENE_PREFIX + wallpaper.getName();
+                if (!wallpaperChoice.equals(migrated)) {
+                    wallpaperChoice = migrated;
+                    choices.edit().putString(WALLPAPER_CHOICE_KEY, migrated).apply();
+                }
+            }
             else {
                 // A selected picture from an older bundled collection becomes the new collection.
                 wallpaperChoice = FeaturePreferences.SCENES;
