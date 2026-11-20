@@ -230,4 +230,16 @@
     <string name="update_downloading">מוריד ובודק את העדכון…</string>
     <string name="update_allow_installs">אפשרו לאפליקציה זו להתקין עדכונים, ואז חזרו לכאן.</string>
     <string name="update_failed">לא ניתן להוריד או להתקין את העדכון.</string>
+    <string name="folder_cat_video">קולנוע וטלוויזיה</string>
+    <string name="folder_cat_music">מוזיקה</string>
+    <string name="folder_cat_games">משחקים</string>
+    <string name="folder_cat_browsers">דפדפנים</string>
+    <string name="folder_cat_vpn">VPN ורשת</string>
+    <string name="folder_cat_utilities">כלים</string>
+    <string name="folder_cat_stores">חנויות אפליקציות</string>
+    <string name="folder_cat_social">תקשורת</string>
+    <string name="folder_cat_news">חדשות</string>
+    <string name="folder_cat_photos">תמונות ומדיה</string>
+    <string name="folder_cat_smart_home">בית חכם</string>
+    <string name="folder_cat_maps">מפות</string>
 </resources>

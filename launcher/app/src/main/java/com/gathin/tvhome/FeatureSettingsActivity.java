@@ -41,7 +41,7 @@ public final class FeatureSettingsActivity extends Activity {
     }
 
     static final String PAGE = "feature_page";
-    static final String WALLPAPER = "wallpaper", SKY = "sky", WEATHER = "weather", APPS = "apps", REMOTE = "remote", CLOCK = "clock";
+    static final String WALLPAPER = "wallpaper", GLOW = "glow", WEATHER = "weather", APPS = "apps", REMOTE = "remote", CLOCK = "clock";
     private SharedPreferences features, choices;
     private LinearLayout rows, group;
     private TextView title, summary;
@@ -101,14 +101,16 @@ public final class FeatureSettingsActivity extends Activity {
                 if (!pressed || event.isCanceled()) return true;
             }
         }
-        return RemoteLearning.handle(event) || super.dispatchKeyEvent(event);
+        if (RemoteLearning.handle(event)) return true;
+        return NavSound.dispatchActivityKey(this, event, sounds, () -> super.dispatchKeyEvent(event));
     }
 
     private void render() {
         config = Config.load(this); sounds = config.navigationSounds;
+        if (sounds) NavSound.prepare();
         rows.removeAllViews(); group = null;
         switch (page) {
-            case SKY: sky(); break;
+            case GLOW: glow(); break;
             case WEATHER: weather(); break;
             case APPS: apps(); break;
             case REMOTE: remote(); break;
@@ -235,11 +237,52 @@ public final class FeatureSettingsActivity extends Activity {
         ((HomePreviewView) findViewById(R.id.featurePreview)).refresh(config, APPS.equals(page) ? editingPackage : null);
     }
 
-    private void sky() {
-        heading(R.string.feature_sky_races, R.string.feature_sky_help); section(R.string.feature_sky);
-        integerChoice("sky_intensity", R.string.feature_sky, config.skyIntensity, new int[]{0, 25, 50, 75, 100},
-                new String[]{getString(R.string.off), "25%", "50%", "75%", "100%"}, R.drawable.ic_quick_picture);
-        cityChoice();
+    private void glow() {
+        heading(R.string.feature_glow, R.string.feature_glow_help); section(R.string.feature_glow);
+        boolean active = !Config.GLOW_OFF.equals(config.glowStyle) && config.glowIntensity > 0;
+        String[] styleValues = {Config.GLOW_RADIAL, Config.GLOW_EDGE, Config.GLOW_HORIZON, Config.GLOW_OFF};
+        String[] styleLabels = {
+                getString(R.string.feature_glow_radial),
+                getString(R.string.feature_glow_edge),
+                getString(R.string.feature_glow_horizon),
+                getString(R.string.feature_glow_off)
+        };
+        int selectedStyle = 0;
+        for (int i = 0; i < styleValues.length; i++) if (styleValues[i].equals(config.glowStyle)) selectedStyle = i;
+        final int currentStyleIndex = selectedStyle;
+        row("glow_style", R.string.feature_glow_style, styleLabels[selectedStyle], R.drawable.ic_quick_picture, 0xFFBF5AF2,
+                () -> choose(getString(R.string.feature_glow_style), styleLabels, currentStyleIndex, which -> {
+                    String nextStyle = styleValues[which];
+                    SharedPreferences.Editor edit = features.edit().putString("glow_style", nextStyle);
+                    if (!Config.GLOW_OFF.equals(nextStyle) && config.glowIntensity <= 0) edit.putInt("glow_intensity", 100);
+                    edit.apply(); markChanged(); render();
+                }));
+
+        int[] intensities = {0, 20, 40, 60, 80, 100};
+        String[] intensityLabels = {getString(R.string.off), "20%", "40%", "60%", "80%", "100%"};
+        int effectiveIntensity = Config.GLOW_OFF.equals(config.glowStyle) ? 0 : config.glowIntensity;
+        int checkedIntensity = -1;
+        for (int i = 0; i < intensities.length; i++) if (intensities[i] == effectiveIntensity) checkedIntensity = i;
+        final int selectedIntensity = checkedIntensity;
+        row("glow_intensity", R.string.feature_glow_intensity,
+                checkedIntensity < 0 ? effectiveIntensity + "%" : intensityLabels[checkedIntensity],
+                R.drawable.ic_settings_motion, 0xFF0A84FF,
+                () -> choose(getString(R.string.feature_glow_intensity), intensityLabels, selectedIntensity, which -> {
+                    int value = intensities[which];
+                    SharedPreferences.Editor edit = features.edit().putInt("glow_intensity", value);
+                    if (value > 0 && Config.GLOW_OFF.equals(config.glowStyle)) edit.putString("glow_style", Config.GLOW_RADIAL);
+                    edit.apply(); markChanged(); render();
+                }));
+
+        SettingsRowView tileRow = row("tile_glow", R.string.feature_glow_tile, "", R.drawable.ic_quick_picture, 0xFF64D2FF, () -> {
+            features.edit().putBoolean("tile_glow", !config.tileGlow).apply(); markChanged(); render();
+        });
+        tileRow.setToggle(config.tileGlow && active);
+        tileRow.setEnabled(active);
+        tileRow.setAlpha(active ? 1f : 0.5f);
+        tileRow.setOnFocusChangeListener((v, focused) -> {
+            if (focused) { selectedKey = "tile_glow"; summary.setText(R.string.feature_glow_tile_help); }
+        });
     }
 
     private void weather() {
@@ -642,6 +685,7 @@ public final class FeatureSettingsActivity extends Activity {
             button.setAllCaps(false); button.setTextSize(16); button.setTextColor(getResources().getColorStateList(R.color.glass_action_text, getTheme()));
             button.setBackgroundResource(R.drawable.glass_menu_row); button.setPadding(dp(18), dp(10), dp(18), dp(10)); button.setSoundEffectsEnabled(sounds);
         }
+        NavSound.attachDialog(dialog, () -> sounds);
     }
     private <T> void async(Callable<T> work, Consumer<T> success) {
         async(work, success, R.string.feature_network_error);

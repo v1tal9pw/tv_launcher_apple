@@ -122,7 +122,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private TextView heroMeta;
     private LinearLayout heroDots;
     private ImageView heroArt;
-    private boolean cinematic, ambientEnabled, started, pillsShown;
+    private boolean cinematic, ambientEnabled, tileGlowEnabled, started, pillsShown;
+    private float glowAlpha = 1f;
+    private String glowStyle = Config.GLOW_RADIAL;
     private CharSequence wifiLabel;
     private int wifiIcon;
     private int glassAccent;
@@ -191,8 +193,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean quickSettingsAwaitingLayout;
     private TextView shamsiDate;
     private boolean shamsi;
-    /** Optional time-of-day backdrop (config.xml, sky_intensity); 0 keeps it hidden. */
-    private SkyView sky;
     private String vpnApp;
     private float glassTargetX, glassTargetY;
     private boolean glassShown;
@@ -336,7 +336,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             updateRace();
             if(integration!=null) { integration.refreshHeader(); integration.refreshRace(); }
             updateWifiLabel();
-            sky.update();
             folderBackdrop.invalidate();
             wallpaperPlayer.update();
             if (headerGlass != null) headerGlass.schedule();
@@ -441,15 +440,18 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         getWindow().setBackgroundDrawable(null);
         // Decoded while the tiles load; onResume waits for it, so the first frame still has it.
         wallpaperPlayer = new WallpaperPlayer(this, root, cfg);
-        sky = findViewById(R.id.sky);
-        sky.setIntensity(cfg.skyIntensity);
-        ((HomeBackdropView) folderBackdrop).bind(wallpaperPlayer, sky);
+        ((HomeBackdropView) folderBackdrop).bind(wallpaperPlayer);
         glass = findViewById(R.id.glass);
         glass.setStyle(cfg.glassStyle);
         if (festive) glass.setAccent(festival.accentColor());
+        glowStyle = cfg.glowStyle;
+        glowAlpha = cfg.glowIntensity / 100f;
+        boolean glowActive = !Config.GLOW_OFF.equals(glowStyle) && glowAlpha > 0f;
         ambient = findViewById(R.id.ambient);
-        ambientEnabled = cfg.ambientGlow;
+        ambientEnabled = cfg.ambientGlow && glowActive;
         if (!ambientEnabled) ambient.setVisibility(View.GONE);
+        tileGlowEnabled = cfg.tileGlow && glowActive;
+        if (!tileGlowEnabled) glass.setVisibility(View.INVISIBLE);
         hero = findViewById(R.id.hero);
         hero.forceHasOverlappingRendering(false);
         heroMeta = findViewById(R.id.heroMeta);
@@ -710,7 +712,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     .setNegativeButton(android.R.string.cancel, null)
                     .show();
         });
-        sky.update();
         handler.postDelayed(minuteTick, MINUTE_MS);
         if (festive && diya != null) {
             diya.start();
@@ -918,9 +919,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             caption.setAlpha(1f);
             caption.setTranslationY(dp(4));
         }
-        boolean whiteFocus=cinematic && integrationConfig.cinematicWhiteFocus
-                && adapter==homeAdapter && position<COLUMNS;
-        glass.setTint(whiteFocus?Color.WHITE:adapter.ambientColorAt(position));
+        if (tileGlowEnabled) {
+            boolean whiteFocus = cinematic && integrationConfig.cinematicWhiteFocus
+                    && adapter == homeAdapter && position < COLUMNS;
+            glass.setTint(whiteFocus ? Color.WHITE : adapter.ambientColorAt(position));
+        }
         if (headerGlass != null) headerGlass.schedule();
         alignTilePresentation(position, card);
         if (gridTransition) return;
@@ -965,7 +968,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (!glassShown) {
             glass.setTranslationX(x);
             glass.setTranslationY(y);
-            glass.animate().alpha(1f).setDuration(motion(reducedMotion ? 100 : 180)).start();
+            if (tileGlowEnabled) {
+                glass.animate().alpha(glowAlpha).setDuration(motion(reducedMotion ? 100 : 180)).start();
+            } else {
+                glass.setAlpha(0f);
+            }
             glassShown = true;
         } else {
             // Coloured light belongs to the selected tile, so it never slides across empty space.
@@ -1065,8 +1072,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             setAmbient(color);
             if (ambientEnabled && !heroShown) {
                 ambient.animate().cancel();
-                ambient.setAlpha(animations ? 0f : 1f);
-                if (animations) ambient.animate().alpha(1f).setDuration(160).start();
+                ambient.setAlpha(animations ? 0f : glowAlpha);
+                if (animations) ambient.animate().alpha(glowAlpha).setDuration(160).start();
             }
             heroShown = true;
             return;
@@ -1079,7 +1086,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             hero.setTranslationX(0f);
             hero.animate().alpha(1f).setDuration(260).start();
             setAmbient(color);
-            if (ambientEnabled) ambient.animate().alpha(1f).setDuration(600).start();
+            if (ambientEnabled) ambient.animate().alpha(glowAlpha).setDuration(600).start();
             heroShown = true;
         } else if (changed) {
             if (label.contentEquals(heroName.getText())) {
@@ -1110,12 +1117,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         ambientTarget = color;
         if (color == ambientColor) {
             // Still showing this colour: replacing the alpha animation drops the pending swap.
-            ambient.animate().alpha(1f).setDuration(300).start();
+            ambient.animate().alpha(glowAlpha).setDuration(300).start();
             return;
         }
-        ambient.animate().alpha(0.35f).setDuration(200).withEndAction(() -> {
+        ambient.animate().alpha(glowAlpha * 0.35f).setDuration(200).withEndAction(() -> {
             setAmbient(color);
-            ambient.animate().alpha(1f).setDuration(500).start();
+            ambient.animate().alpha(glowAlpha).setDuration(500).start();
         }).start();
     }
 
@@ -1132,18 +1139,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (color == ambientColor && ambientGlow != null) return;
         ambientColor = color;
         if (ambientGlow == null) {
-            int w = 480;
-            int h = 270;
-            Bitmap bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
-            Canvas canvas = new Canvas(bitmap);
-            Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            paint.setShader(new RadialGradient(
-                    w * 0.32f, h * 0.42f, w * 0.62f,
-                    new int[]{0x5CFFFFFF, 0x26FFFFFF, 0x00FFFFFF},
-                    new float[]{0f, 0.45f, 1f},
-                    Shader.TileMode.CLAMP));
-            canvas.drawRect(0, 0, w, h, paint);
-            ambientGlow = new BitmapDrawable(getResources(), bitmap);
+            ambientGlow = new BitmapDrawable(getResources(), AmbientGlow.createMask(glowStyle));
             ambient.setImageDrawable(ambientGlow);
         }
         ambientGlow.setTint(0xFF000000 | color);
@@ -1152,7 +1148,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** The material sees the scene under the controls, never a second copy of their text/icons. */
     private void drawHeaderScene(Canvas canvas) {
         wallpaperPlayer.drawBackground(canvas);
-        sky.drawBackdrop(canvas, root.getWidth(), root.getHeight());
         if (ambient.getDrawable() != null && ambient.getAlpha() > 0f) {
             int save = canvas.saveLayerAlpha(0, 0, root.getWidth(), root.getHeight(),
                     Math.round(255 * ambient.getAlpha()));
@@ -1170,7 +1165,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (color == ambientTarget) return;
         stopAmbientAnimation();
         ambient.animate().cancel();
-        ambient.animate().alpha(1f).setDuration(180).start();
+        ambient.animate().alpha(glowAlpha).setDuration(180).start();
         ambientTarget = color;
         if (color == ambientColor) return;
         // A quick Right-Left continues from the colour actually on screen.
@@ -1265,53 +1260,18 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         return true;
     }
 
-    private static android.media.AudioTrack sClickTrack;
-
     private void prepareSyntheticClick() {
-        try {
-            if (sClickTrack == null) {
-                int sampleRate = 22050;
-                int numSamples = sampleRate / 100; // 10ms click
-                short[] buffer = new short[numSamples];
-                for (int i = 0; i < numSamples; i++) {
-                    double t = (double) i / sampleRate;
-                    double decay = Math.exp(-t * 500.0);
-                    buffer[i] = (short) (Math.sin(2 * Math.PI * 900.0 * t) * decay * 14000);
-                }
-                sClickTrack = new android.media.AudioTrack.Builder()
-                        .setAudioAttributes(new android.media.AudioAttributes.Builder()
-                                .setUsage(android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
-                                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                                .build())
-                        .setAudioFormat(new android.media.AudioFormat.Builder()
-                                .setEncoding(android.media.AudioFormat.ENCODING_PCM_16BIT)
-                                .setSampleRate(sampleRate)
-                                .setChannelMask(android.media.AudioFormat.CHANNEL_OUT_MONO)
-                                .build())
-                        .setBufferSizeInBytes(buffer.length * 2)
-                        .setTransferMode(android.media.AudioTrack.MODE_STATIC)
-                        .build();
-                sClickTrack.write(buffer, 0, buffer.length);
-            }
-        } catch (Exception ignored) {
-        }
+        NavSound.prepare();
     }
 
     private void playSyntheticClick() {
-        try {
-            prepareSyntheticClick();
-            if (sClickTrack == null) return;
-            sClickTrack.stop();
-            sClickTrack.reloadStaticData();
-            sClickTrack.play();
-        } catch (Exception ignored) {
-        }
+        NavSound.play(true);
     }
 
     private void playNavigationSound(int keyCode) {
         if (!navigationSounds) return;
         // TCL queues firmware sound effects behind focus rendering; the preloaded local click stays in sync.
-        playSyntheticClick();
+        NavSound.play(true);
     }
 
     private void updateGridPadding() {
@@ -1916,7 +1876,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         input.setPadding(dp(24), dp(16), dp(24), dp(16));
         input.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(40)});
         input.setHint(R.string.folder_name);
-        input.setText(folder != null ? folder.name : "");
+        input.setText(folder != null ? folder.name : suggestFolderName(appKey));
         input.selectAll();
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(folder != null ? R.string.rename_folder : R.string.new_folder)
@@ -1941,6 +1901,18 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         input.requestFocus();
     }
 
+    private String suggestFolderName(String appKey) {
+        if (appKey == null) return "";
+        int pos = adapter.positionOf(appKey);
+        String pkg = pos >= 0 ? adapter.packageAt(pos) : null;
+        String label = pos >= 0 ? adapter.labelAt(pos) : null;
+        if (pkg == null) {
+            ComponentName cn = ComponentName.unflattenFromString(appKey);
+            if (cn != null) pkg = cn.getPackageName();
+        }
+        return FolderNamer.suggest(this, pkg, label);
+    }
+
     private void showEditDialog(AlertDialog dialog, String focus, boolean keyboard) {
         editDialog = dialog;
         boolean returnToTitle = folderTitle.isFocused();
@@ -1963,6 +1935,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             window.setAttributes(params);
         }
         dialog.show();
+        NavSound.attachDialog(dialog, () -> navigationSounds);
         if (!keyboard && dialog.getListView() != null) {
             dialog.getListView().setSelector(new ColorDrawable(Color.TRANSPARENT));
             dialog.getListView().setPadding(dp(12), 0, dp(12), dp(4));
@@ -2975,8 +2948,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         focusRequest++;
         requestedFocusKey = null;
         resumeQuickSettings = false;
-        // The panel crossfades Home's shortcuts along with its dimming and glass controls.
-        QuickSettingsPanel panel = new QuickSettingsPanel(this, root, reducedMotion, animations, navigationSounds,
+        // The panel crossfades Home's shortcuts along with its dimming and glass controls,
+        // reusing WallpaperPlayer's pre-blurred backdrop so opening never stalls on CPU capture.
+        android.graphics.Bitmap prebuiltBackdrop = wallpaperPlayer != null ? wallpaperPlayer.quickBackdrop() : null;
+        QuickSettingsPanel panel = new QuickSettingsPanel(this, root, prebuiltBackdrop,
+                reducedMotion, animations, navigationSounds,
                 new QuickSettingsPanel.Listener() {
                     @Override public void onAction(int control) { openQuickControl(control); }
                     @Override public void onOpened() {
@@ -3820,7 +3796,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 || level == TRIM_MEMORY_RUNNING_CRITICAL;
         if (!due || started || homeAdapter == null) return;
         wallpaperPlayer.releaseMemory();
-        if (sky != null) sky.releaseMemory();
         ContinueWatchingArtwork.clearCache();
         if (adapter != homeAdapter) adapter.clear();
         if (preparedFolderAdapter != null) preparedFolderAdapter.clear();
@@ -3848,7 +3823,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             stopAmbientAnimation();
             ambient.animate().cancel();
             setAmbient(color);
-            ambient.setAlpha(1f);
+            ambient.setAlpha(glowAlpha);
         } else if (advancedEffects) blendAmbientTo(color);
         else fadeAmbientTo(color);
     }

@@ -26,12 +26,15 @@ public final class OptimizationActivity extends Activity {
     private boolean busy;
     private volatile boolean preferLocal;
     private volatile boolean closed;
+    private boolean navigationSounds;
     private LinearLayout rows;
     private SharedPreferences journal;
     private JSONArray packages = new JSONArray();
     @Override protected void attachBaseContext(android.content.Context base) { super.attachBaseContext(LauncherLocale.wrap(base)); }
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        navigationSounds = Config.load(this).navigationSounds;
+        if (navigationSounds) NavSound.prepare();
         journal = getSharedPreferences("optimization_restore", MODE_PRIVATE);
         ScrollView scroll = new ScrollView(this); scroll.setBackgroundColor(0xFF161A23);
         rows = new LinearLayout(this); rows.setOrientation(LinearLayout.VERTICAL);
@@ -41,7 +44,12 @@ public final class OptimizationActivity extends Activity {
     }
     @Override protected void onResume() {
         super.onResume();
+        navigationSounds = Config.load(this).navigationSounds;
+        if (navigationSounds) NavSound.prepare();
         if (remote != null) refresh(); else connect();
+    }
+    @Override public boolean dispatchKeyEvent(android.view.KeyEvent event) {
+        return NavSound.dispatchActivityKey(this, event, navigationSounds, () -> super.dispatchKeyEvent(event));
     }
     private void connect() {
         if (preferLocal) {
@@ -101,6 +109,7 @@ public final class OptimizationActivity extends Activity {
     private void button(String label, Runnable action) {
         SettingsRowView b = (SettingsRowView) getLayoutInflater().inflate(R.layout.optimization_action, rows, false);
         b.setText(label); b.setValue("", true); b.setEnabled(!busy);
+        b.setSoundEffectsEnabled(navigationSounds);
         b.setOnClickListener(v -> action.run()); rows.addView(b);
     }
     private void refresh() {

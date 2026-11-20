@@ -35,7 +35,7 @@ public final class FeatureOnlineSmoke extends Instrumentation {
             check(RaceCalendarStore.load(getTargetContext()).getLong("updated_at") == calendar.getLong("updated_at"), "Downloaded calendar is cached");
             boolean denied = false; try { FeatureNetwork.get("https://example.com/"); } catch (SecurityException expected) { denied = true; }
             check(denied, "Public-data client rejects unrelated hosts before making a request");
-            screen = (FeatureSettingsActivity) startActivitySync(FeatureSettingsActivity.intent(getTargetContext(), FeatureSettingsActivity.SKY)
+            screen = (FeatureSettingsActivity) startActivitySync(FeatureSettingsActivity.intent(getTargetContext(), FeatureSettingsActivity.WEATHER)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); settle();
             runOnMainSync(() -> screen.findViewById(R.id.featureRows).findViewWithTag("location").performClick()); settle();
             AlertDialog search = dialog();

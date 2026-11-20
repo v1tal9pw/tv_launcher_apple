@@ -38,6 +38,7 @@ public final class LauncherSettingsActivity extends Activity {
     private boolean continueWatching;
     private SettingsRowView followThemeChoice;
     private SettingsRowView checkUpdatesChoice;
+    private SettingsRowView glowChoice;
     private boolean checkingUpdate;
     private int columns;
     private boolean animations;
@@ -46,6 +47,8 @@ public final class LauncherSettingsActivity extends Activity {
     private boolean appLibrary;
     private boolean showStats;
     private String wallpaper;
+    private String glowStyle;
+    private int glowIntensity;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -59,10 +62,13 @@ public final class LauncherSettingsActivity extends Activity {
         animations = config.animations;
         advancedEffects = config.animations && config.advancedEffects;
         navigationSounds = config.navigationSounds;
+        if (navigationSounds) NavSound.prepare();
         appLibrary = config.appLibrary;
         showStats = config.showStats;
         continueWatching = config.continueWatching;
         wallpaper = config.wallpaperChoice;
+        glowStyle = config.glowStyle;
+        glowIntensity = config.glowIntensity;
 
         int[] ids = {R.id.columns4, R.id.columns5, R.id.columns6, R.id.columns7};
         for (int i = 0; i < ids.length; i++) {
@@ -111,6 +117,7 @@ public final class LauncherSettingsActivity extends Activity {
             navigationSounds = !navigationSounds;
             choices.edit().putBoolean("navigation_sounds", navigationSounds).apply();
             Config.markSettingsChanged(LauncherSettingsActivity.this); setResult(RESULT_OK);
+            if (navigationSounds) NavSound.play(true);
             refresh();
         });
         libraryChoice = findViewById(R.id.libraryChoice);
@@ -144,7 +151,9 @@ public final class LauncherSettingsActivity extends Activity {
         });
         wallpaperChoice = findViewById(R.id.wallpaperChoice);
         wallpaperChoice.setOnClickListener(v -> openFeature(FeatureSettingsActivity.WALLPAPER));
-        featureRow(R.id.skyChoice, FeatureSettingsActivity.SKY, R.drawable.ic_quick_picture, 0xFF0A84FF);
+        glowChoice = findViewById(R.id.glowChoice);
+        glowChoice.setIcon(R.drawable.ic_quick_picture, 0xFFBF5AF2);
+        glowChoice.setOnClickListener(v -> openFeature(FeatureSettingsActivity.GLOW));
         featureRow(R.id.weatherChoice, FeatureSettingsActivity.WEATHER, R.drawable.ic_quick_picture, 0xFF64D2FF);
         featureRow(R.id.idleClockChoice, FeatureSettingsActivity.CLOCK, R.drawable.ic_quick_screensaver, 0xFFBF5AF2);
         featureRow(R.id.appCustomizationChoice, FeatureSettingsActivity.APPS, R.drawable.ic_apps, 0xFF5E5CE6);
@@ -167,6 +176,8 @@ public final class LauncherSettingsActivity extends Activity {
             showStats = current.showStats;
             continueWatching = current.continueWatching;
             wallpaper = current.wallpaperChoice;
+            glowStyle = current.glowStyle;
+            glowIntensity = current.glowIntensity;
             Config.markSettingsChanged(LauncherSettingsActivity.this); setResult(RESULT_OK);
             refresh();
         });
@@ -212,7 +223,7 @@ public final class LauncherSettingsActivity extends Activity {
         for (int id : new int[]{R.id.columns4, R.id.columns5, R.id.columns6, R.id.columns7, R.id.animationsChoice,
                 R.id.advancedChoice, R.id.soundsChoice, R.id.libraryChoice, R.id.statsChoice,
                 R.id.continueWatchingChoice,
-                R.id.wallpaperChoice, R.id.rowsChoice, R.id.skyChoice, R.id.weatherChoice, R.id.idleClockChoice,
+                R.id.wallpaperChoice, R.id.rowsChoice, R.id.glowChoice, R.id.weatherChoice, R.id.idleClockChoice,
                 R.id.appCustomizationChoice, R.id.remoteButtonsChoice, R.id.followThemeChoice,
                 R.id.defaultHomeChoice, R.id.tvSettingsChoice, R.id.aboutLauncherChoice,
                 R.id.checkUpdatesChoice, R.id.githubChoice, R.id.optimizationChoice}) {
@@ -251,6 +262,11 @@ public final class LauncherSettingsActivity extends Activity {
         View message = dialog.findViewById(android.R.id.message);
         if (message instanceof TextView) ((TextView) message).setTextColor(0xD9FFFFFF);
         if (dialog.getWindow() != null) setSounds(dialog.getWindow().getDecorView());
+        NavSound.attachDialog(dialog, () -> navigationSounds);
+    }
+
+    @Override public boolean dispatchKeyEvent(android.view.KeyEvent event) {
+        return NavSound.dispatchActivityKey(this, event, navigationSounds, () -> super.dispatchKeyEvent(event));
     }
 
     private void setAdvanced(boolean enabled) {
@@ -279,12 +295,21 @@ public final class LauncherSettingsActivity extends Activity {
         else if (wallpaper.startsWith(FeaturePreferences.SCENE_PREFIX)) wallpaperLabel = SceneFiles.label(wallpaper.substring(FeaturePreferences.SCENE_PREFIX.length()));
         wallpaperChoice.setValue(wallpaperLabel, true);
         rowsChoice.setValue(String.valueOf(rowsBelowDock), true);
+        glowChoice.setValue(glowSummary(), true);
         wallpaperChoice.setNextFocusUpId(columnChoices[Math.max(0, Math.min(columns - 4, 3))].getId());
         followThemeChoice.setSelected(!hasOnTvChoices());
         followThemeChoice.setValue(getString(hasOnTvChoices() ? R.string.settings_custom : R.string.wallpaper_theme), true);
         ((TextView) findViewById(R.id.settingsPreviewCaption)).setText(getString(R.string.wallpaper_state, wallpaperLabel));
         updatePreview();
         setSounds(getWindow().getDecorView());
+    }
+
+    private String glowSummary() {
+        if (Config.GLOW_OFF.equals(glowStyle) || glowIntensity <= 0) return getString(R.string.off);
+        int label = Config.GLOW_EDGE.equals(glowStyle) ? R.string.feature_glow_edge
+                : Config.GLOW_HORIZON.equals(glowStyle) ? R.string.feature_glow_horizon
+                : R.string.feature_glow_radial;
+        return getString(label) + " · " + glowIntensity + "%";
     }
 
     private void showDetail(int id) {
@@ -295,8 +320,8 @@ public final class LauncherSettingsActivity extends Activity {
             title = R.string.settings_wallpaper; hint = R.string.wallpaper_hint;
         } else if (id == R.id.rowsChoice) {
             title = R.string.rows_below_dock_label; hint = R.string.settings_rows_hint;
-        } else if (id == R.id.skyChoice) {
-            title = R.string.feature_sky_races; hint = R.string.feature_sky_help;
+        } else if (id == R.id.glowChoice) {
+            title = R.string.feature_glow; hint = R.string.feature_glow_help;
         } else if (id == R.id.weatherChoice) {
             title = R.string.feature_weather; hint = R.string.feature_weather_help;
         } else if (id == R.id.idleClockChoice) {
@@ -516,6 +541,7 @@ public final class LauncherSettingsActivity extends Activity {
             navigationSounds = current.navigationSounds; appLibrary = current.appLibrary;
             showStats = current.showStats; wallpaper = current.wallpaperChoice;
             continueWatching = current.continueWatching;
+            glowStyle = current.glowStyle; glowIntensity = current.glowIntensity;
             Config.markSettingsChanged(LauncherSettingsActivity.this); setResult(RESULT_OK); refresh();
         }
     }

@@ -8,6 +8,8 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffColorFilter;
 import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
@@ -26,9 +28,12 @@ public final class HomePreviewView extends View {
     static final String DOCK_PACKAGE = "preview_dock_package";
     private static final ExecutorService LOADER = Executors.newSingleThreadExecutor();
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+    private final Paint glowPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final Path clip = new Path();
     private final RectF bounds = new RectF();
-    private final SkyView sky;
+    private Bitmap glowMask;
+    private String glowMaskStyle;
+    private int previewGlowColor = 0xFF0A84FF;
     private Config config;
     private Bitmap wallpaper;
     private List<Tile> tiles = Collections.emptyList();
@@ -58,7 +63,7 @@ public final class HomePreviewView extends View {
     }
 
     public HomePreviewView(Context context, AttributeSet attrs) {
-        super(context, attrs); sky = new SkyView(context, null); setWillNotDraw(false);
+        super(context, attrs); setWillNotDraw(false);
         paint.setTypeface(getResources().getFont(R.font.outfit_regular));
     }
 
@@ -69,7 +74,7 @@ public final class HomePreviewView extends View {
 
     void refresh(Config current, String selectedApp) {
         if (!java.util.Objects.equals(appPackage, selectedApp)) app = null;
-        config = current; appPackage = selectedApp; sky.setIntensity(current.skyIntensity);
+        config = current; appPackage = selectedApp;
         if (!current.continueWatching || !ContinueWatchingRepository.permitted(getContext())) {
             continueRequest++; continueCandidates = continueItems = Collections.emptyList(); continueLoadedAt = 0;
         } else if (System.currentTimeMillis() - continueLoadedAt > 15_000) {
@@ -119,9 +124,14 @@ public final class HomePreviewView extends View {
                             () -> Cards.load(Cards.storeFile(context)), leanback), none) : none;
                     adapter.reload(CardFeature.run(() -> Cards.shown(cards), none), leanback);
                     List<AppAdapter.Entry> entries = adapter.previewEntries();
+                    int firstColor = entries.isEmpty() ? 0xFF0A84FF : adapter.ambientColorAt(0);
                     for (int i = 0; i < Math.min(35, entries.size()); i++) loaded.add(new Tile(entries.get(i), 128));
                     AppAdapter.Entry target = selectedApp == null ? null : adapter.previewApp(selectedApp);
                     if (target != null) selected = new Tile(target, 256);
+                    int resolvedColor = firstColor;
+                    Tile result = selected;
+                    post(() -> { if (token == artworkRequest) { tiles = loaded; app = result; previewGlowColor = resolvedColor; invalidate(); } });
+                    return;
                 } catch (RuntimeException | OutOfMemoryError ignored) { /* A package may disappear during loading. */ }
                 Tile result = selected;
                 post(() -> { if (token == artworkRequest) { tiles = loaded; app = result; invalidate(); } });
@@ -136,7 +146,7 @@ public final class HomePreviewView extends View {
         removeCallbacks(tick); artworkRequest++; wallpaperRequest++; artworkKey = wallpaperKey = null;
         continueRequest++; continueLoadedAt = 0;
         wallpaper = null; tiles = Collections.emptyList(); app = null;
-        sky.releaseMemory();
+        if (glowMask != null) { glowMask.recycle(); glowMask = null; glowMaskStyle = null; }
         super.onDetachedFromWindow();
     }
 
@@ -162,7 +172,18 @@ public final class HomePreviewView extends View {
             if (!Config.WALLPAPER_AURORA.equals(config.wallpaperChoice) && config.wallpaperDim > 0)
                 canvas.drawColor((config.wallpaperDim * 255 / 100) << 24);
         }
-        sky.drawBackdrop(canvas, getWidth(), getHeight());
+        boolean glowActive = !Config.GLOW_OFF.equals(config.glowStyle) && config.glowIntensity > 0;
+        if (config.ambientGlow && glowActive) {
+            if (glowMask == null || !config.glowStyle.equals(glowMaskStyle)) {
+                if (glowMask != null) glowMask.recycle();
+                glowMask = AmbientGlow.createMask(config.glowStyle);
+                glowMaskStyle = config.glowStyle;
+            }
+            glowPaint.setColorFilter(new PorterDuffColorFilter(0xFF000000 | previewGlowColor, PorterDuff.Mode.SRC_IN));
+            glowPaint.setAlpha(Math.round(255 * config.glowIntensity / 100f));
+            bounds.set(0, 0, getWidth(), getHeight());
+            canvas.drawBitmap(glowMask, null, bounds, glowPaint);
+        }
         canvas.save(); canvas.scale(getWidth() / 960f, getHeight() / 540f);
         if (appPackage != null) {
             if (app != null) { tile(canvas, app, new RectF(300, 158, 660, 374)); text(canvas, app.label, 480, 420, 26, Paint.Align.CENTER, 0xFFFFFFFF); }
@@ -182,6 +203,11 @@ public final class HomePreviewView extends View {
                 int index = row * config.columns + col; if (index >= tiles.size()) break;
                 float x = 24 + col * (912f / config.columns) + (912f / config.columns - width) / 2;
                 float y = top + row * itemHeight;
+                if (index == 0 && config.tileGlow && glowActive) {
+                    int haloAlpha = Math.round(160 * config.glowIntensity / 100f);
+                    rounded(canvas, new RectF(x - 6, y - 6, x + width + 6, y + height + 6), 16,
+                            (haloAlpha << 24) | (previewGlowColor & 0x00FFFFFF));
+                }
                 tile(canvas, tiles.get(index), new RectF(x, y, x + width, y + height));
                 if (config.alwaysShowNames) text(canvas, tiles.get(index).label, x + width / 2f, y + height + 16, 11, Paint.Align.CENTER, 0xCCFFFFFF);
             }

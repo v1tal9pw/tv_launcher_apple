@@ -11,6 +11,21 @@ final class FolderBackdrop {
         return capture(home, new android.graphics.Rect(0, 0, home.getWidth(), home.getHeight()), width, height, 5);
     }
 
+    /** Downscales and blurs an existing bitmap off the UI thread for instant Control Center glass. */
+    static Bitmap fromBitmap(Bitmap source, int width, int height, int radius) {
+        if (source == null || source.isRecycled() || width <= 0 || height <= 0) return null;
+        Bitmap small = Bitmap.createScaledBitmap(source, width, height, true);
+        if (small == source) {
+            small = small.copy(Bitmap.Config.ARGB_8888, true);
+        } else if (small.getConfig() != Bitmap.Config.ARGB_8888) {
+            Bitmap argb = small.copy(Bitmap.Config.ARGB_8888, true);
+            small.recycle();
+            small = argb;
+        }
+        if (small == null) return null;
+        return soften(small, radius);
+    }
+
     /** Capture only the material's footprint, so neighbouring app text cannot show through sharply. */
     static Bitmap capture(View home, android.graphics.Rect region, int width, int height, int radius) {
         Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);

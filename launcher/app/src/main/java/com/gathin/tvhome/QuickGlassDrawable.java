@@ -1,23 +1,29 @@
 package com.gathin.tvhome;
 
 import android.graphics.Bitmap;
+import android.graphics.BitmapShader;
 import android.graphics.Canvas;
 import android.graphics.ColorFilter;
 import android.graphics.LinearGradient;
+import android.graphics.Matrix;
 import android.graphics.Paint;
-import android.graphics.Path;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.drawable.Drawable;
 
-/** A capsule cut from one shared, tiny blurred Home snapshot, with a luminous glass rim. */
+/**
+ * A capsule sampled from a pre-blurred backdrop via hardware BitmapShader (no clipPath stencil pass),
+ * with a luminous glass rim.
+ */
 final class QuickGlassDrawable extends Drawable {
     private final Bitmap backdrop;
+    private final BitmapShader backdropShader;
+    private final Matrix shaderMatrix = new Matrix();
     private final Rect source = new Rect();
     private final RectF shape = new RectF();
-    private final Path clip = new Path();
+    private final RectF glowRect = new RectF();
     private final Paint image = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint rim = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -30,9 +36,13 @@ final class QuickGlassDrawable extends Drawable {
     private float radius;
 
     QuickGlassDrawable(Bitmap backdrop, float unit) {
-        this.backdrop = backdrop;
+        this.backdrop = backdrop != null && !backdrop.isRecycled() ? backdrop : null;
+        this.backdropShader = this.backdrop != null
+                ? new BitmapShader(this.backdrop, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP) : null;
+        if (backdropShader != null) image.setShader(backdropShader);
         this.unit = unit;
         rim.setStyle(Paint.Style.STROKE);
+        rim.setStrokeWidth(unit * .8f);
         focusRim.setStyle(Paint.Style.STROKE);
         focusRim.setStrokeWidth(unit);
         focusGlow.setStyle(Paint.Style.STROKE);
@@ -41,19 +51,33 @@ final class QuickGlassDrawable extends Drawable {
     }
 
     void setRegion(Rect region, int homeWidth, int homeHeight) {
-        source.set(Math.max(0, region.left * backdrop.getWidth() / homeWidth),
-                Math.max(0, region.top * backdrop.getHeight() / homeHeight),
-                Math.min(backdrop.getWidth(), Math.max(1, region.right * backdrop.getWidth() / homeWidth)),
-                Math.min(backdrop.getHeight(), Math.max(1, region.bottom * backdrop.getHeight() / homeHeight)));
+        if (backdrop == null || backdropShader == null || homeWidth <= 0 || homeHeight <= 0) return;
+        int l = Math.max(0, region.left * backdrop.getWidth() / homeWidth);
+        int t = Math.max(0, region.top * backdrop.getHeight() / homeHeight);
+        int r = Math.min(backdrop.getWidth(), Math.max(l + 1, region.right * backdrop.getWidth() / homeWidth));
+        int b = Math.min(backdrop.getHeight(), Math.max(t + 1, region.bottom * backdrop.getHeight() / homeHeight));
+        if (source.left == l && source.top == t && source.right == r && source.bottom == b) return;
+        source.set(l, t, r, b);
+        updateShaderMatrix();
         invalidateSelf();
+    }
+
+    private void updateShaderMatrix() {
+        if (backdropShader == null || source.isEmpty() || shape.isEmpty()) return;
+        float sx = shape.width() / Math.max(1f, source.width());
+        float sy = shape.height() / Math.max(1f, source.height());
+        shaderMatrix.reset();
+        shaderMatrix.setTranslate(-source.left, -source.top);
+        shaderMatrix.postScale(sx, sy);
+        shaderMatrix.postTranslate(shape.left, shape.top);
+        backdropShader.setLocalMatrix(shaderMatrix);
     }
 
     @Override protected void onBoundsChange(Rect bounds) {
         shape.set(bounds);
         shape.inset(unit, unit);
         radius = Math.min(shape.height() / 2f, 22f * unit);
-        clip.reset();
-        clip.addRoundRect(shape, radius, radius, Path.Direction.CW);
+        updateShaderMatrix();
         fill.setShader(new LinearGradient(0, 0, bounds.width(), bounds.height(),
                 new int[]{0x64D5DFF2, 0x3EAAB9D2, 0x589AAAC6}, null, Shader.TileMode.CLAMP));
         rim.setShader(new LinearGradient(0, 0, bounds.width(), bounds.height(),
@@ -73,33 +97,45 @@ final class QuickGlassDrawable extends Drawable {
     }
 
     @Override public void draw(Canvas canvas) {
-        int save = canvas.save();
-        canvas.clipPath(clip);
-        if (!source.isEmpty()) canvas.drawBitmap(backdrop, source, shape, image);
+        if (backdropShader != null && !source.isEmpty()) {
+            canvas.drawRoundRect(shape, radius, radius, image);
+        }
         canvas.drawRoundRect(shape, radius, radius, fill);
         if (focused) {
             light.setAlpha(alpha * 32 / 255);
             canvas.drawRoundRect(shape, radius, radius, light);
-            // Diffuse the blue inward, keeping the halo inside the capsule so it cannot
-            // be clipped by the adjacent tile or a scroll edge on TV hardware.
-            focusGlow.setStrokeWidth(6f * unit);
-            focusGlow.setAlpha(alpha * 10 / 255);
-            canvas.drawRoundRect(shape, radius, radius, focusGlow);
-            focusGlow.setStrokeWidth(3.5f * unit);
-            focusGlow.setAlpha(alpha * 16 / 255);
-            canvas.drawRoundRect(shape, radius, radius, focusGlow);
-            focusGlow.setStrokeWidth(2f * unit);
-            focusGlow.setAlpha(alpha * 24 / 255);
-            canvas.drawRoundRect(shape, radius, radius, focusGlow);
+            // Diffuse the blue strictly inward without expensive clipPath masks.
+            drawInnerGlow(canvas, 3.0f * unit, 10);
+            drawInnerGlow(canvas, 1.75f * unit, 16);
+            drawInnerGlow(canvas, 1.0f * unit, 24);
         }
-        canvas.restoreToCount(save);
         Paint edge = focused ? focusRim : rim;
-        rim.setStrokeWidth(unit * .8f);
         edge.setAlpha(alpha);
         canvas.drawRoundRect(shape, radius, radius, edge);
     }
 
-    @Override public void setAlpha(int alpha) { this.alpha = alpha; image.setAlpha(alpha); fill.setAlpha(alpha); invalidateSelf(); }
-    @Override public void setColorFilter(ColorFilter filter) { image.setColorFilter(filter); fill.setColorFilter(filter); }
+    private void drawInnerGlow(Canvas canvas, float strokeWidth, int strength) {
+        float inset = strokeWidth * 0.5f;
+        glowRect.set(shape);
+        glowRect.inset(inset, inset);
+        float innerRadius = Math.max(0f, radius - inset);
+        focusGlow.setStrokeWidth(strokeWidth);
+        focusGlow.setAlpha(alpha * strength / 255);
+        canvas.drawRoundRect(glowRect, innerRadius, innerRadius, focusGlow);
+    }
+
+    @Override public void setAlpha(int alpha) {
+        if (this.alpha == alpha) return;
+        this.alpha = alpha;
+        image.setAlpha(alpha);
+        fill.setAlpha(alpha);
+        invalidateSelf();
+    }
+
+    @Override public void setColorFilter(ColorFilter filter) {
+        image.setColorFilter(filter);
+        fill.setColorFilter(filter);
+    }
+
     @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
 }

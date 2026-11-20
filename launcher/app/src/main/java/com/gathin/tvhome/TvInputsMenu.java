@@ -201,6 +201,7 @@ final class TvInputsMenu {
             more.findViewById(R.id.dot).setVisibility(View.GONE);
             more.setSoundEffectsEnabled(navigationSounds);
             more.setOnClickListener(v -> {
+                NavSound.play(navigationSounds);
                 for (View f : folded) f.setVisibility(View.VISIBLE);
                 rows.removeView(more);
                 for (View f : folded) {
@@ -276,6 +277,7 @@ final class TvInputsMenu {
         }
         row.setSoundEffectsEnabled(navigationSounds);
         row.setOnClickListener(v -> {
+            NavSound.play(navigationSounds);
             if (dismissBeforeAction != null) dismissBeforeAction.run();
             action.run();
         });

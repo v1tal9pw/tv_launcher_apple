@@ -594,7 +594,10 @@ final class AppLibraryDialog {
         row.setFocusable(true);
         row.setClickable(true);
         row.setSoundEffectsEnabled(sounds);
-        row.setOnClickListener(v -> action.run());
+        row.setOnClickListener(v -> {
+            NavSound.play(sounds);
+            action.run();
+        });
         // The release of the long press that opened this menu must not activate its first row.
         final boolean[] pressed = {false};
         row.setOnKeyListener((v, key, event) -> {
@@ -605,13 +608,21 @@ final class AppLibraryDialog {
                 }
                 boolean activate = pressed[0] && !event.isCanceled();
                 pressed[0] = false;
-                if (activate) action.run();
+                if (activate) {
+                    NavSound.play(sounds);
+                    action.run();
+                }
                 return true;
             }
-            int index = rows.indexOfChild(v);
+            if (event.getAction() == KeyEvent.ACTION_DOWN && (key == KeyEvent.KEYCODE_DPAD_UP || key == KeyEvent.KEYCODE_DPAD_DOWN)) {
+                int index = rows.indexOfChild(v);
+                if (key == KeyEvent.KEYCODE_DPAD_UP && index == 1
+                        || key == KeyEvent.KEYCODE_DPAD_DOWN && index == rows.getChildCount() - 1) return true;
+                NavSound.play(sounds);
+                return false;
+            }
             return event.getAction() == KeyEvent.ACTION_DOWN && (key == KeyEvent.KEYCODE_DPAD_LEFT
-                    || key == KeyEvent.KEYCODE_DPAD_RIGHT || key == KeyEvent.KEYCODE_DPAD_UP && index == 1
-                    || key == KeyEvent.KEYCODE_DPAD_DOWN && index == rows.getChildCount() - 1);
+                    || key == KeyEvent.KEYCODE_DPAD_RIGHT);
         });
         rows.addView(row, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         return row;
@@ -708,6 +719,7 @@ final class AppLibraryDialog {
             card.setScaleX(focused ? CARD_FOCUS_SCALE : 1f);
             card.setScaleY(focused ? CARD_FOCUS_SCALE : 1f);
             card.setOnClickListener(v -> {
+                NavSound.play(sounds);
                 if (selectionMode) changeHome(app, !onHome.test(pkg));
                 else if (LibraryApps.okOpens(false, openAll, onHome.test(pkg))) open(app);
                 else changeHome(app, true);
@@ -725,6 +737,7 @@ final class AppLibraryDialog {
                     v.setScaleY(scale);
                 }
                 if (gained) {
+                    if (highlightShown && !pkg.equals(selectedPackage)) NavSound.play(sounds);
                     selectedPackage = pkg;
                     instructions.setText(openAll || onHome.test(pkg)
                             ? R.string.library_hint_open : R.string.library_hint_add);

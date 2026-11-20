@@ -54,9 +54,20 @@ final class WallpaperPlayer {
     private final Random random = new Random();
     private final int width;
     private final int height;
+    private static final class Decoded {
+        final Bitmap full;
+        final Bitmap blurred;
+        Decoded(Bitmap full, Bitmap blurred) { this.full = full; this.blurred = blurred; }
+        void recycle() {
+            if (full != null) full.recycle();
+            if (blurred != null) blurred.recycle();
+        }
+    }
+
     /** The opening picture while it decodes, from the constructor until the first start() shows it. */
-    private CompletableFuture<Bitmap> first;
+    private CompletableFuture<Decoded> first;
     private File firstFile;
+    private volatile Bitmap quickBackdrop;
     private boolean active;
     private boolean closed;
     private boolean loading;
@@ -137,12 +148,12 @@ final class WallpaperPlayer {
         if(aurora && first==null && image.getDrawable()==null)
             first=CompletableFuture.supplyAsync(() -> decode(null),decoder);
         if (first != null) {
-            CompletableFuture<Bitmap> pending = first;
+            CompletableFuture<Decoded> pending = first;
             File opening = firstFile;
-            Bitmap bitmap = null;
+            Decoded decoded = null;
             boolean completed = false;
             try {
-                bitmap = pending.get(80, java.util.concurrent.TimeUnit.MILLISECONDS);
+                decoded = pending.get(80, java.util.concurrent.TimeUnit.MILLISECONDS);
                 completed = true;
             } catch (java.util.concurrent.TimeoutException slow) {
                 // Keep Home responsive if decoding a large image takes longer than a few frames.
@@ -152,20 +163,20 @@ final class WallpaperPlayer {
             if (completed) {
                 first = null;
                 firstFile = null;
-                applyOpening(bitmap, opening);
+                applyOpening(decoded, opening);
             } else {
-                pending.whenComplete((decoded, err) -> root.post(() -> {
+                pending.whenComplete((result, err) -> root.post(() -> {
                     if (first != pending) {
-                        if (decoded != null) decoded.recycle();
+                        if (result != null) result.recycle();
                         return;
                     }
                     first = null;
                     firstFile = null;
                     if (closed || !active) {
-                        if (decoded != null) decoded.recycle();
+                        if (result != null) result.recycle();
                         return;
                     }
-                    applyOpening(err == null ? decoded : null, opening);
+                    applyOpening(err == null ? result : null, opening);
                     update();
                 }));
             }
@@ -174,9 +185,9 @@ final class WallpaperPlayer {
         if (video != null) video.start();
     }
 
-    private void applyOpening(Bitmap bitmap, File opening) {
-        if (bitmap != null) {
-            show(bitmap);
+    private void applyOpening(Decoded decoded, File opening) {
+        if (decoded != null && decoded.full != null) {
+            show(decoded);
             if (opening != null) remember(opening, preferences.getString("image", ""), false);
         } else if (opening != null) {
             files.remove(opening);   // unreadable or over 4K: update() tries another
@@ -207,20 +218,20 @@ final class WallpaperPlayer {
         File next = selected;
         loading = true;
         decoder.execute(() -> {
-            Bitmap bitmap = decode(next);
+            Decoded decoded = decode(next);
             root.post(() -> {
                 loading = false;
                 if (closed || !active) {
-                    if (bitmap != null) bitmap.recycle();
+                    if (decoded != null) decoded.recycle();
                     return;
                 }
-                if (bitmap == null) {
+                if (decoded == null || decoded.full == null) {
                     files.remove(next);
                     Log.w("TvHome.Wallpaper", "Skipping unreadable image: " + next.getName());
                     update();
                     return;
                 }
-                show(bitmap);
+                show(decoded);
                 remember(next, previous, changed == 0);
             });
         });
@@ -235,14 +246,21 @@ final class WallpaperPlayer {
         }
     }
 
-    private void show(Bitmap bitmap) {
+    private void show(Decoded decoded) {
         // The previous picture is left to the garbage collector: the render thread may still draw it this frame.
-        image.setImageBitmap(bitmap);
+        quickBackdrop = decoded.blurred;
+        image.setImageBitmap(decoded.full);
         if (mirror != null) mirror.invalidate();
         if (onChanged != null) onChanged.run();
         // CENTER_CROP covers the whole screen, so the colour under an opaque picture would be one more
         // full-screen pass every frame. A picture with transparency keeps the colour behind it.
-        if (!bitmap.hasAlpha()) root.setBackground(null);
+        if (!decoded.full.hasAlpha()) root.setBackground(null);
+    }
+
+    /** Pre-blurred tiny copy of the active wallpaper for zero-stutter Control Center glass. */
+    Bitmap quickBackdrop() {
+        Bitmap b = quickBackdrop;
+        return b != null && !b.isRecycled() ? b : null;
     }
 
     private List<File> activeFiles() {
@@ -255,6 +273,7 @@ final class WallpaperPlayer {
 
     void releaseMemory() {
         if(active) return;
+        quickBackdrop = null;
         image.setImageDrawable(null);displayed="";root.setBackgroundColor(backgroundColor);
         if(mirror!=null)mirror.invalidate();
     }
@@ -281,7 +300,7 @@ final class WallpaperPlayer {
      * to it, so any picture, however wide or tall, costs a screen-sized bitmap (about 4 MB at 1080p), which is the
      * price of a wallpaper on a 1 GB TV. A picture whose decoded part would still be over 4K is refused (#166).
      */
-    private Bitmap decode(File file) {
+    private Decoded decode(File file) {
         try {
             BitmapFactory.Options opts = new BitmapFactory.Options();
             opts.inJustDecodeBounds = true;
@@ -332,11 +351,15 @@ final class WallpaperPlayer {
                 bmp = fitted;
             }
             if(dimColor!=0){
-                if(!bmp.isMutable()){Bitmap mutable=bmp.copy(bitmapConfig,true);if(mutable==null)return bmp;bmp.recycle();bmp=mutable;}
+                if(!bmp.isMutable()){Bitmap mutable=bmp.copy(bitmapConfig,true);if(mutable==null)return new Decoded(bmp,null);bmp.recycle();bmp=mutable;}
                 new Canvas(bmp).drawColor(dimColor);
             }
             bmp.prepareToDraw();
-            return bmp;
+            int bw = 120;
+            int bh = Math.max(1, bw * height / Math.max(1, width));
+            Bitmap blurred = FolderBackdrop.fromBitmap(bmp, bw, bh, 4);
+            if (blurred != null) blurred.prepareToDraw();
+            return new Decoded(bmp, blurred);
         } catch (Exception | OutOfMemoryError e) {
             // A bad or huge picture must never take the home screen down; the plain colour stays.
             return null;

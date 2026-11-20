@@ -6,6 +6,7 @@ import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
@@ -16,15 +17,14 @@ import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.SoundEffectConstants;
 import android.view.ViewTreeObserver;
 import android.view.animation.PathInterpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
-import android.widget.TextView;
 import android.widget.TextClock;
+import android.widget.TextView;
 
 import java.util.ArrayList;
 
@@ -37,6 +37,10 @@ final class QuickSettingsPanel extends FrameLayout {
         default boolean onLauncherMenu() { return false; }
     }
 
+    private static final PathInterpolator OPEN_INTERPOLATOR = new PathInterpolator(0.16f, 1f, 0.3f, 1f);
+    private static final PathInterpolator CLOSE_INTERPOLATOR = new PathInterpolator(0.32f, 0f, 0.67f, 0f);
+    private static final PathInterpolator FOCUS_INTERPOLATOR = new PathInterpolator(0.2f, 0f, 0f, 1f);
+
     private final android.content.Context activity;
     private final ViewGroup home;
     private final Listener listener;
@@ -45,20 +49,23 @@ final class QuickSettingsPanel extends FrameLayout {
     private final boolean reducedMotion;
     private final boolean animationsEnabled;
     private final boolean navigationSounds;
+    private final View dimmer;
     private final LinearLayout content;
     private final ScrollView scroll;
-    private final ColorDrawable scrim = new ColorDrawable(0xFF030C1A);
     private final View homeShortcuts;
     private final float shortcutAlpha;
     private final int shortcutLayer;
     private final View previousFocus;
     private final ArrayList<HomeChildState> homeChildren = new ArrayList<>();
+    private final Rect tempRegion = new Rect();
     private TextView launcherSettingsLabel, allSettingsLabel, closeLabel;
     private ValueAnimator transition;
     private ViewTreeObserver.OnPreDrawListener entryDraw;
+    private Runnable pendingEntryAnimation;
     private final int[] settingsKeycodes;
     private float progress;
     private boolean closing;
+    private boolean suppressFocusAnimation;
     private boolean backDown;
     private boolean settingsDown;
     private Runnable afterClose;
@@ -67,6 +74,11 @@ final class QuickSettingsPanel extends FrameLayout {
 
     QuickSettingsPanel(android.content.Context activity, View home, boolean reducedMotion, boolean animations,
                        boolean navigationSounds, Listener listener) {
+        this(activity, home, null, reducedMotion, animations, navigationSounds, listener);
+    }
+
+    QuickSettingsPanel(android.content.Context activity, View home, Bitmap prebuiltBackdrop,
+                       boolean reducedMotion, boolean animations, boolean navigationSounds, Listener listener) {
         super(activity);
         this.activity = activity;
         this.home = (ViewGroup) home;
@@ -79,22 +91,22 @@ final class QuickSettingsPanel extends FrameLayout {
         animationsEnabled = animations && ValueAnimator.areAnimatorsEnabled();
         this.reducedMotion = reducedMotion || !animationsEnabled;
         this.navigationSounds = navigationSounds;
+        if (navigationSounds) NavSound.prepare();
         unit = Math.min(home.getWidth() / 960f, home.getHeight() / 540f);
         fontScale = activity.getResources().getConfiguration().fontScale;
         homeShortcuts = home.findViewById(R.id.topButtons);
         shortcutAlpha = homeShortcuts.getAlpha();
         shortcutLayer = homeShortcuts.getLayerType();
         previousFocus = home.findFocus();
-        homeShortcuts.setAlpha(0f);
-        try { backdrop = FolderBackdrop.capture(home); }
-        finally { homeShortcuts.setAlpha(shortcutAlpha); }
+        // Use the pre-blurred wallpaper backdrop directly so opening never stalls the UI thread.
+        this.backdrop = prebuiltBackdrop != null && !prebuiltBackdrop.isRecycled() ? prebuiltBackdrop : null;
         FrameLayout overlay = this;
-        scrim.setAlpha(0);
         overlay.setOnClickListener(v -> dismiss());
         overlay.setSoundEffectsEnabled(navigationSounds);
         overlay.setFocusable(false);
-        View dimmer = new View(activity);
-        dimmer.setBackground(scrim);
+        dimmer = new View(activity);
+        dimmer.setBackground(new ColorDrawable(0x50030C1A));
+        dimmer.setAlpha(0f);
         dimmer.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         overlay.addView(dimmer, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
@@ -132,19 +144,39 @@ final class QuickSettingsPanel extends FrameLayout {
             homeChildren.add(new HomeChildState(home.getChildAt(i)));
         home.addView(this, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        // One window submits both the real shortcuts and the panel in the same frame. A
-        // second window with a translucent copy can double-draw the pills during handoff.
+        // One window submits both the real shortcuts and the panel in the same frame.
         homeShortcuts.setLayerType(View.LAYER_TYPE_HARDWARE, null);
-        focus(focus);
+        // Apply initial focus synchronously without running a child scale animation that would
+        // invalidate scroll's hardware layer on every frame of the entrance slide.
+        suppressFocusAnimation = true;
+        try { focus(focus); }
+        finally { suppressFocusAnimation = false; }
+        if (animationsEnabled) scroll.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         entryDraw = new ViewTreeObserver.OnPreDrawListener() {
             @Override public boolean onPreDraw() {
                 if (content.getWidth() == 0) return true;
                 removeEntryListener();
-                if (isShowing() && !closing) {
-                    focus(focus);
+                if (!isShowing() || closing) return true;
+                scroll.setPivotX(scroll.getWidth());
+                scroll.setPivotY(Math.min(content.getHeight(), scroll.getHeight()) * 0.5f);
+                suppressFocusAnimation = true;
+                try { focus(focus); }
+                finally { suppressFocusAnimation = false; }
+                applyProgress(0f);
+                if (!animationsEnabled) {
+                    applyProgress(1f);
+                    post(() -> { if (isShowing() && !closing) listener.onOpened(); });
+                    return true;
+                }
+                // Let frame 0 upload scroll's hardware layer cleanly while alpha=0, then start
+                // the VSync-aligned animation on the next frame with zero frame-0 hitch.
+                pendingEntryAnimation = () -> {
+                    pendingEntryAnimation = null;
+                    if (!isShowing() || closing) return;
                     animateTo(1f);
                     post(() -> { if (isShowing() && !closing) listener.onOpened(); });
-                }
+                };
+                postOnAnimation(pendingEntryAnimation);
                 return true;
             }
         };
@@ -154,8 +186,17 @@ final class QuickSettingsPanel extends FrameLayout {
     private void applyProgress(float value) {
         progress = value;
         scroll.setAlpha(value);
-        scroll.setTranslationX(reducedMotion ? 0f : px(24) * (1f - value));
-        scrim.setAlpha(Math.round(0x50 * value));
+        if (!reducedMotion) {
+            scroll.setTranslationX(px(36) * (1f - value));
+            float scale = 0.97f + 0.03f * value;
+            scroll.setScaleX(scale);
+            scroll.setScaleY(scale);
+        } else {
+            scroll.setTranslationX(0f);
+            scroll.setScaleX(1f);
+            scroll.setScaleY(1f);
+        }
+        dimmer.setAlpha(value);
         homeShortcuts.setAlpha(shortcutAlpha * (1f - value));
     }
 
@@ -164,18 +205,17 @@ final class QuickSettingsPanel extends FrameLayout {
         float distance = Math.abs(target - progress);
         if (!animationsEnabled || distance < .001f) {
             applyProgress(target);
+            scroll.setLayerType(View.LAYER_TYPE_NONE, null);
             if (target == 0f) finishDismiss();
             return;
         }
-        // Composite one cached layer during motion instead of redrawing each glass capsule.
-        scroll.setLayerType(View.LAYER_TYPE_HARDWARE, null);
-        scroll.buildLayer();
-        long duration = reducedMotion ? (target == 1f ? 180 : 140) : (target == 1f ? 320 : 220);
+        if (scroll.getLayerType() != View.LAYER_TYPE_HARDWARE) {
+            scroll.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        }
+        long duration = reducedMotion ? (target == 1f ? 180 : 140) : (target == 1f ? 340 : 210);
         transition = ValueAnimator.ofFloat(progress, target);
         transition.setDuration(Math.max(90, Math.round(duration * distance)));
-        transition.setInterpolator(target == 1f
-                ? new PathInterpolator(.22f, .61f, .36f, 1f)
-                : new PathInterpolator(.4f, 0f, 1f, 1f));
+        transition.setInterpolator(target == 1f ? OPEN_INTERPOLATOR : CLOSE_INTERPOLATOR);
         transition.addUpdateListener(animation -> applyProgress((float) animation.getAnimatedValue()));
         transition.addListener(new AnimatorListenerAdapter() {
             @Override public void onAnimationEnd(Animator animation) {
@@ -189,6 +229,10 @@ final class QuickSettingsPanel extends FrameLayout {
     }
 
     private void cancelTransition() {
+        if (pendingEntryAnimation != null) {
+            removeCallbacks(pendingEntryAnimation);
+            pendingEntryAnimation = null;
+        }
         ValueAnimator previous = transition;
         transition = null;
         if (previous != null) {
@@ -209,6 +253,10 @@ final class QuickSettingsPanel extends FrameLayout {
         if (!isShowing() || closing) return;
         closing = true;
         removeEntryListener();
+        if (pendingEntryAnimation != null) {
+            removeCallbacks(pendingEntryAnimation);
+            pendingEntryAnimation = null;
+        }
         if (activity instanceof Activity && (((Activity) activity).isFinishing() || ((Activity) activity).isDestroyed())) finishDismiss();
         else animateTo(0f);
     }
@@ -284,9 +332,9 @@ final class QuickSettingsPanel extends FrameLayout {
             if (current == null) focus(selected);
             else {
                 View next = current.focusSearch(direction);
-                if (next != null && next != current && contains(next) && next.requestFocus(direction)
-                        && navigationSounds)
-                    playSoundEffect(SoundEffectConstants.CLICK);
+                if (next != null && next != current && contains(next) && next.requestFocus(direction)) {
+                    NavSound.play(navigationSounds);
+                }
             }
         }
         return true;
@@ -508,15 +556,20 @@ final class QuickSettingsPanel extends FrameLayout {
     private void glass(View view) {
         QuickGlassDrawable glass = new QuickGlassDrawable(backdrop, unit);
         view.setBackground(glass);
+        if (backdrop == null) return;
         view.addOnLayoutChangeListener((v, l, t, r, b, oldL, oldT, oldR, oldB) -> {
-            int[] here = new int[2], origin = new int[2];
-            v.getLocationOnScreen(here);
-            home.getLocationOnScreen(origin);
-            // The snapshot belongs to the resting layout, independent of the entrance slide.
-            here[0] -= Math.round(scroll.getTranslationX());
-            glass.setRegion(new Rect(here[0] - origin[0], here[1] - origin[1],
-                    here[0] - origin[0] + v.getWidth(), here[1] - origin[1] + v.getHeight()),
-                    home.getWidth(), home.getHeight());
+            if (v.getWidth() == 0 || home.getWidth() == 0) return;
+            // Walk pure layout coordinates up to home so scale/translation during entry never skews the crop.
+            int left = 0, top = 0;
+            View cursor = v;
+            while (cursor != null && cursor != home) {
+                left += cursor.getLeft() - cursor.getScrollX();
+                top += cursor.getTop() - cursor.getScrollY();
+                if (!(cursor.getParent() instanceof View)) break;
+                cursor = (View) cursor.getParent();
+            }
+            tempRegion.set(left, top, left + v.getWidth(), top + v.getHeight());
+            glass.setRegion(tempRegion, home.getWidth(), home.getHeight());
         });
     }
 
@@ -529,6 +582,7 @@ final class QuickSettingsPanel extends FrameLayout {
         view.setOnClickListener(v -> {
             if (closing) return;
             selected = v.getId();
+            NavSound.play(navigationSounds);
             action.run();
         });
         view.setOnFocusChangeListener((v, focused) -> {
@@ -539,8 +593,15 @@ final class QuickSettingsPanel extends FrameLayout {
                 allSettingsLabel.setVisibility(focused ? View.VISIBLE : View.INVISIBLE);
             if (v.getId() == R.id.quickClose && closeLabel != null)
                 closeLabel.setVisibility(focused ? View.VISIBLE : View.INVISIBLE);
-            if (!reducedMotion) v.animate().scaleX(focused ? 1.025f : 1f).scaleY(focused ? 1.025f : 1f)
-                    .setDuration(130).start();
+            float scale = !reducedMotion && focused ? 1.025f : 1f;
+            if (reducedMotion || suppressFocusAnimation) {
+                v.animate().cancel();
+                v.setScaleX(scale);
+                v.setScaleY(scale);
+            } else {
+                v.animate().scaleX(scale).scaleY(scale)
+                        .setDuration(150).setInterpolator(FOCUS_INTERPOLATOR).start();
+            }
         });
     }
 
@@ -566,15 +627,17 @@ final class QuickSettingsPanel extends FrameLayout {
     }
 
     private int panelWidth() {
-        // Measure translated labels at the actual font scale: Russian titles need more room
-        // than English. Keep the same proportions at 720p, 1080p and 4K window sizes.
+        // Measure translated labels at the actual font scale using a single Paint instead of
+        // allocating a dozen throwaway TextViews on every panel open.
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        paint.setTextSize(14 * unit * fontScale);
+        paint.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         float widest = 0;
         for (int label : new int[]{R.string.quick_bluetooth, R.string.quick_audio_output,
                 R.string.quick_picture, R.string.quick_sound, R.string.quick_screensaver,
                 R.string.quick_apps, R.string.inputs, R.string.wifi, R.string.quick_accessibility, R.string.quick_accessories,
                 R.string.settings, R.string.quick_start_now}) {
-            TextView sample = text(activity.getString(label), 14, 600, Color.WHITE);
-            widest = Math.max(widest, sample.getPaint().measureText(sample.getText().toString()));
+            widest = Math.max(widest, paint.measureText(activity.getString(label)));
         }
         // Each tile: icon 38 + padding 24 + gap 9. Panel: padding 20 + column gap 10.
         int desired = 2 * ((int) Math.ceil(widest) + px(38) + 2 * px(12) + px(9) + px(2))

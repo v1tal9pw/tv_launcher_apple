@@ -239,12 +239,16 @@ final class Config {
     final int cinematicScrim;
     /** A rotating collection's groups by time of day, as file names (config.xml, wallpaper_moods); empty rotates through all of it. */
     final Map<String, Set<String>> wallpaperMoods;
-    /** Shape of the glow behind the focused app (config.xml, glow_style): {@link #GLOW_RADIAL} or {@link #GLOW_HORIZON}. */
+    /** Shape of the glow behind the focused app (config.xml, glow_style): {@link #GLOW_RADIAL}, {@link #GLOW_HORIZON}, {@link #GLOW_EDGE}, or {@link #GLOW_OFF}. */
     final String glowStyle;
+    /** Strength of the focused app's glow, 0 to 100 percent (0 disables glow completely). */
+    final int glowIntensity;
+    /** Whether the focused tile keeps its app-coloured halo around the card. */
+    final boolean tileGlow;
     /** The focus highlight's look (config.xml, glass_style): {@link #GLASS_DEFAULT}, {@link #GLASS_RIM} or {@link #GLASS_HALO}. */
     final String glassStyle;
 
-    static final String GLOW_RADIAL = "radial", GLOW_HORIZON = "horizon";
+    static final String GLOW_RADIAL = "radial", GLOW_HORIZON = "horizon", GLOW_EDGE = "edge", GLOW_OFF = "off";
     static final String GLASS_DEFAULT = "glass", GLASS_RIM = "rim", GLASS_HALO = "halo";
     /** Show each rotating wallpaper's name from wallpapers/captions.txt (config.xml / theme wallpaper_captions). */
     final boolean wallpaperCaptions;
@@ -282,7 +286,7 @@ final class Config {
                    int wallpaperRotationMinutes, int wallpaperDim, int dockOpacity, String wallpaperOrder, boolean overlayApplied,
                    Festival festival, int[] inputKeycodes, List<String> appKeys, String stockHomeRedirect,
                    List<RaceWeekend.Race> raceCalendar, boolean cinematicHome, boolean ambientGlow, boolean appGlow, boolean fadeRows, int homeIdleClockMinutes,
-                   boolean keyFilter, boolean dockGlass, String glowStyle, boolean wallpaperCaptions,
+                   boolean keyFilter, boolean dockGlass, String glowStyle, int glowIntensity, boolean tileGlow, boolean wallpaperCaptions,
                    boolean handleViewInputs, boolean tileMenu, boolean dockEvenPadding, boolean dockBand, boolean cinematicDots, boolean cinematicWhiteFocus, boolean wifiStatusColor, int cinematicScrim, int cinematicArt,
                    Map<String, Set<String>> wallpaperMoods, boolean gamepadPassthrough, boolean consumeVolumeKeys, boolean powerOnHome, boolean homeLongPressHome, boolean wifiStatusWarnings, List<String> topBarApps, boolean showGreeting, boolean headerWhite, boolean clockWallpaper, int clockWallpaperDim, boolean clockGlow, String glassStyle, boolean singleRow, boolean dockBandAll, boolean lunarDate, int lunarUtcOffset, boolean dateBelowClock, boolean vpnPill, String locale, boolean powerOnHomeAlways, boolean inputsConnectedOnly,
                    int openOnStartNetworkWait, boolean navigationSounds, boolean continueWatching,
@@ -399,13 +403,20 @@ final class Config {
         this.singleRow = singleRow;
         this.dockBandAll = dockBandAll;
         this.glowStyle = glowStyle(glowStyle);
+        this.glowIntensity = Math.max(0, Math.min(100, glowIntensity));
+        this.tileGlow = tileGlow;
         this.wallpaperCaptions = wallpaperCaptions;
         this.glassStyle = glassStyle(glassStyle);
     }
 
     /** A known glow_style, or radial (the default) for anything else. */
     static String glowStyle(String value) {
-        return value != null && GLOW_HORIZON.equalsIgnoreCase(value.trim()) ? GLOW_HORIZON : GLOW_RADIAL;
+        if (value == null) return GLOW_RADIAL;
+        String v = value.trim();
+        if (GLOW_HORIZON.equalsIgnoreCase(v)) return GLOW_HORIZON;
+        if (GLOW_EDGE.equalsIgnoreCase(v)) return GLOW_EDGE;
+        if (GLOW_OFF.equalsIgnoreCase(v)) return GLOW_OFF;
+        return GLOW_RADIAL;
     }
 
     /** A known glass_style, or glass (the default) for anything else. */
@@ -515,6 +526,8 @@ final class Config {
         int cinematicScrim = res.getInteger(R.integer.cinematic_scrim);
         Map<String, Set<String>> wallpaperMoods = moods(res.getString(R.string.wallpaper_moods));
         String glowStyle = res.getString(R.string.glow_style);
+        int glowIntensity = 100;
+        boolean tileGlow = true;
         boolean wifiStatusWarnings = res.getBoolean(R.bool.wifi_status_warnings);
         boolean dateBelowClock = res.getBoolean(R.bool.date_below_clock);
         boolean vpnPill = res.getBoolean(R.bool.vpn_pill);
@@ -641,6 +654,8 @@ final class Config {
             singleRow = bool(json, "single_row", singleRow);
             dockBandAll = bool(json, "dock_band_all", dockBandAll);
             glowStyle = string(json, "glow_style", glowStyle);
+            glowIntensity = integer(json, "glow_intensity", glowIntensity, 0, 100);
+            tileGlow = bool(json, "tile_glow", tileGlow);
             glassStyle = string(json, "glass_style", glassStyle);
         }
         // Keep Home/folder membership stable: the fork's top-bar shortcuts do not erase layout entries.
@@ -741,7 +756,7 @@ final class Config {
                 Math.max(0, Math.min(100, skyIntensity)), settingsKeycodes, settingsKeyPanel, restoreKeyServices, wallpaperEnabled, wallpaper,
                 wallpapers, rotationMinutes, wallpaperDim, dockOpacity, wallpaperOrder, applied, festival, inputKeycodes, appKeys, stockHomeRedirect,
                 Collections.emptyList(), cinematic, ambientGlow, appGlow, fadeRows,
-                Math.max(0, idleClockMinutes), keyFilter, dockGlass, glowStyle, wallpaperCaptions, handleViewInputs, tileMenu, dockEvenPadding,
+                Math.max(0, idleClockMinutes), keyFilter, dockGlass, glowStyle, glowIntensity, tileGlow, wallpaperCaptions, handleViewInputs, tileMenu, dockEvenPadding,
                 dockBand, cinematicDots, cinematicWhiteFocus, wifiStatusColor, cinematicScrim, cinematicArt, wallpaperMoods, gamepadPassthrough,
                 consumeVolumeKeys, powerOnHome, homeLongPressHome, wifiStatusWarnings, topBarApps, showGreeting, headerWhite, clockWallpaper,
                 Math.max(0, Math.min(90, clockWallpaperDim)), clockGlow, glassStyle, singleRow && dockRow, dockBandAll, lunar, lunarOffset,

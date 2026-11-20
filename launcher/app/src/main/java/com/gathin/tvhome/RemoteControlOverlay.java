@@ -181,16 +181,15 @@ final class RemoteControlOverlay {
             owner = service;
             activePanel = null;
             activeInputsOverlay = null;
-            panelRoot.post(new Runnable() {
-                public void run() {
-                    if (root != panelRoot) return;
-                    if (panelRoot.getWidth() == 0) {
-                        panelRoot.postDelayed(this, 16);
-                        return;
-                    }
-                    Config config = Config.load(service);
+            Config config = Config.load(service);
+            if (config.navigationSounds) NavSound.prepare();
+            Runnable attachPanel = new Runnable() {
+                private boolean opened;
+                @Override public void run() {
+                    if (opened || root != panelRoot || panelRoot.getWidth() == 0) return;
+                    opened = true;
                     QuickSettingsPanel panel = new QuickSettingsPanel(LauncherLocale.wrap(service), panelRoot,
-                            config.reducedMotion, config.animations, config.navigationSounds,
+                            null, config.reducedMotion, config.animations, config.navigationSounds,
                             new QuickSettingsPanel.Listener() {
                                 public void onAction(int control) {
                                     if (control == R.id.quickClearAll) {
@@ -242,7 +241,16 @@ final class RemoteControlOverlay {
                     activePanel = panel;
                     panel.open(focusControl);
                 }
+            };
+            panelRoot.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+                @Override public void onLayoutChange(View v, int l, int t, int r, int b,
+                                                     int oldL, int oldT, int oldR, int oldB) {
+                    if (v.getWidth() == 0) return;
+                    v.removeOnLayoutChangeListener(this);
+                    attachPanel.run();
+                }
             });
+            panelRoot.post(attachPanel);
         } catch (RuntimeException unavailable) {
             // Some firmware refuses accessibility overlays; open the launcher's panel instead.
             open(service, new Intent(service, MainActivity.class)
@@ -314,8 +322,17 @@ final class RemoteControlOverlay {
                     return true;
                 }
                 if (code == KeyEvent.KEYCODE_DPAD_RIGHT && event.getAction() == KeyEvent.ACTION_DOWN) {
+                    NavSound.play(config.navigationSounds);
                     dismissInputsOverlay(panelRoot, panel);
                     return true;
+                }
+                if (config.navigationSounds && event.getAction() == KeyEvent.ACTION_DOWN
+                        && NavSound.isDpadDirection(code)) {
+                    View before = findFocus();
+                    boolean handled = super.dispatchKeyEvent(event);
+                    View after = findFocus();
+                    if (after != null && after != before) NavSound.play(true);
+                    return handled;
                 }
                 return super.dispatchKeyEvent(event);
             }

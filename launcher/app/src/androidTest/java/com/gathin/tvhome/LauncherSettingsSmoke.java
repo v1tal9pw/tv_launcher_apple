@@ -186,7 +186,7 @@ public final class LauncherSettingsSmoke extends Instrumentation {
         java.util.List<Integer> rows = new java.util.ArrayList<>();
         rows.add(R.id.wallpaperChoice);
         rows.add(R.id.rowsChoice);
-        rows.add(R.id.skyChoice);
+        rows.add(R.id.glowChoice);
         rows.add(R.id.animationsChoice);
         if (settings.findViewById(R.id.advancedChoice).isEnabled()) rows.add(R.id.advancedChoice);
         rows.add(R.id.soundsChoice);

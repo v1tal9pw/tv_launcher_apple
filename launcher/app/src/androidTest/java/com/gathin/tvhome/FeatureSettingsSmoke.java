@@ -69,19 +69,16 @@ public final class FeatureSettingsSmoke extends Instrumentation {
             close();
 
             FeaturePreferences.importSettings(context, new JSONObject().put("city", "Fixture city").put("latitude", "17.385")
-                    .put("longitude", "78.4867").put("sky_intensity", 50).put("races_enabled", true));
-            open(FeatureSettingsActivity.SKY);
-            check(Config.load(context).skyIntensity == 50, "Sky intensity can override a theme");
+                    .put("longitude", "78.4867").put("glow_style", "edge").put("glow_intensity", 60).put("races_enabled", true));
+            open(FeatureSettingsActivity.GLOW);
+            check(Config.GLOW_EDGE.equals(Config.load(context).glowStyle) && Config.load(context).glowIntensity == 60,
+                    "App glow style and intensity can override a theme");
             java.lang.reflect.Method sun = SkyView.class.getDeclaredMethod("sunTimes"); sun.setAccessible(true);
             check(sun.invoke(new SkyView(context, null)) != null, "Saved city coordinates reach local sunrise calculation");
-            int season = RaceCalendarStore.load(context).optInt("season");
-            if (season == java.time.LocalDate.now().getYear()) check(!Config.load(context).raceCalendar.isEmpty(), "Bundled calendar is usable without downloading");
-            click("races_enabled");
-            check(Config.load(context).raceCalendar.isEmpty(), "Race panel can be turned off without deleting its calendar");
             boolean rejected = false;
-            try { FeaturePreferences.importSettings(context, new JSONObject().put("sky_intensity", 75).put("longitude", "999")); }
+            try { FeaturePreferences.importSettings(context, new JSONObject().put("glow_intensity", 80).put("longitude", "999")); }
             catch (Exception expected) { rejected = true; }
-            check(rejected && Config.load(context).skyIntensity == 50, "Invalid setup does not partially change choices");
+            check(rejected && Config.load(context).glowIntensity == 60, "Invalid setup does not partially change choices");
             close();
 
             open(FeatureSettingsActivity.CLOCK);

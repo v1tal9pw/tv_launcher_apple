@@ -235,7 +235,7 @@ public final class ContinueWatchingView extends LinearLayout {
         if (code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT) {
             if (event.getAction() == KeyEvent.ACTION_DOWN) {
                 int target = Math.max(0, Math.min(items.size() - 1, selected + (code == KeyEvent.KEYCODE_DPAD_RIGHT ? 1 : -1)));
-                if (target != selected) { focus(target); if (sounds) playSoundEffect(android.view.SoundEffectConstants.CLICK); }
+                if (target != selected) { focus(target); NavSound.play(sounds); }
             }
             return true;
         }

@@ -7,13 +7,6 @@
     android:layout_height="match_parent"
     android:background="#FF000000">
 
-    <!-- Time-of-day backdrop, drawn once a minute (config.xml sky_intensity; 0 keeps it hidden). -->
-    <com.gathin.tvhome.SkyView
-        android:id="@+id/sky"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:importantForAccessibility="no" />
-
     <!-- Optional cinematic artwork; the regular glass Home keeps these layers gone. -->
     <ImageView android:id="@+id/heroArt" android:layout_width="match_parent" android:layout_height="match_parent"
         android:scaleType="fitXY" android:alpha="0" android:visibility="gone" android:importantForAccessibility="no" />
