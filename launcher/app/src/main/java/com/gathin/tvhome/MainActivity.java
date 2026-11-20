@@ -111,7 +111,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     static volatile boolean remotePanelForeground;
     private static MainActivity foregroundInstance;
     private static final int LAUNCHER_SETTINGS_REQUEST = 42;
-    private static final int BLUETOOTH_PERMISSION_REQUEST = 43;
 
     /** Tiles per row and dock slots (res/values/config.xml, columns). Set in onCreate. */
     static int COLUMNS = 4;
@@ -190,7 +189,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private int quickSettingsFocus = R.id.quickAllSettings;
     private boolean openInputsAfterPanel;
     private boolean quickSettingsAwaitingLayout;
-    private boolean pendingBluetoothLaunch;
     private TextView shamsiDate;
     private boolean shamsi;
     /** Optional time-of-day backdrop (config.xml, sky_intensity); 0 keeps it hidden. */
@@ -403,10 +401,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             @Override public void leave(int keyCode) {
                 if (paused || adapter != homeAdapter) return;
                 if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
-                    focusRequest++; requestedFocusKey = null;
                     View header = firstTopButton();
-                    if (header == root) openQuickSettings();
-                    else header.requestFocusFromTouch();
+                    if (header != root) {
+                        focusRequest++; requestedFocusKey = null;
+                        header.requestFocusFromTouch();
+                    }
                 } else focusTile(Math.min(lastFocused, COLUMNS - 1));
             }
         }, cfg);
@@ -736,12 +735,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             if (adapter == homeAdapter) for (String key : homeAdapter.keys()) {
                 if (homeAdapter.folder(key) != null) { prepareFolder(key); break; }
             }
-            if (pendingBluetoothLaunch && !paused) {
-                pendingBluetoothLaunch = false;
-                launchQuickIntent(R.id.quickBluetooth,
-                        QuickSettingsActions.intent(this, R.id.quickBluetooth)
-                                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP), false);
-            } else if (resumeQuickSettings && !paused) showQuickSettings();
+            if (resumeQuickSettings && !paused) showQuickSettings();
             else showCardPrompt();
         });
     }
@@ -852,16 +846,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         super.onActivityResult(requestCode, resultCode, data);
         // Launcher preferences are read once, in onCreate; settings reports when any choice changed.
         if (requestCode == LAUNCHER_SETTINGS_REQUEST && resultCode == RESULT_OK) recreate();
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == BLUETOOTH_PERMISSION_REQUEST) {
-            quickSettingsFocus = R.id.quickBluetooth;
-            resumeQuickSettings = true;
-            pendingBluetoothLaunch = true;
-        }
     }
 
     @Override
@@ -1253,12 +1237,18 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 playNavigationSound(keyCode);
                 return true;
             }
-            focusRequest++;
-            requestedFocusKey = null;
-            if (continueShelf.isShown() && continueShelf.focusRemembered()) { playNavigationSound(keyCode); return true; }
+            if (continueShelf.isShown() && continueShelf.focusRemembered()) {
+                focusRequest++;
+                requestedFocusKey = null;
+                playNavigationSound(keyCode);
+                return true;
+            }
             View header = firstTopButton();
-            if (header == root) openQuickSettings();
-            else if (header.requestFocusFromTouch()) playNavigationSound(keyCode);
+            if (header != root) {
+                focusRequest++;
+                requestedFocusKey = null;
+                if (header.requestFocusFromTouch()) playNavigationSound(keyCode);
+            }
             return true;
         }
         int target = adapter.activeFolder() == null ? AppOrder.target(position, count, columns, direction)
@@ -1691,7 +1681,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (event.getAction() != KeyEvent.ACTION_DOWN) return true;
         int code = event.getKeyCode();
         if (code == KeyEvent.KEYCODE_DPAD_UP) {
-            openQuickSettings();
             return true;
         }
         if (code == KeyEvent.KEYCODE_DPAD_DOWN) {
@@ -2373,7 +2362,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             return;
         }
         quickSettingsWasOpenOnPause = false;
-        pendingBluetoothLaunch = false;
         resumeQuickSettings = false;
         restoreContinueFocus = false;
         onlyPaused = false;
@@ -3017,19 +3005,25 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (control == R.id.quickInputs) { showInputs(); return; }
         if (control == R.id.quickClearAll) {
             quickSettingsFocus = control;
-            resumeQuickSettings = true;
-            Runnable clean = () -> QuickSettingsActions.clearBackground(this);
-            if (quickSettings != null) quickSettings.closeForAction(clean);
-            else clean.run();
+            QuickSettingsActions.clearBackground(this, null, () -> {
+                if (paused || isFinishing() || isDestroyed()) return;
+                Intent setup = new Intent(this, OptimizationActivity.class);
+                Runnable openSetup = () -> launchQuickIntent(control, setup, false);
+                if (quickSettings != null) quickSettings.closeForAction(openSetup);
+                else openSetup.run();
+            });
             return;
         }
-        if (control == R.id.quickBluetooth && QuickSettingsActions.needsBluetoothConnectPermission(this)) {
+        if (control == R.id.quickBluetooth) {
             quickSettingsFocus = control;
-            resumeQuickSettings = true;
-            Runnable ask = () -> requestPermissions(
-                    new String[]{android.Manifest.permission.BLUETOOTH_CONNECT}, BLUETOOTH_PERMISSION_REQUEST);
-            if (quickSettings != null) quickSettings.closeForAction(ask);
-            else ask.run();
+            QuickSettingsActions.resolveBluetooth(this, resolved -> {
+                if (paused || isFinishing() || isDestroyed()) return;
+                Intent btIntent = resolved.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                resumeQuickSettings = true;
+                Runnable launch = () -> launchQuickIntent(control, btIntent, false);
+                if (quickSettings != null) quickSettings.closeForAction(launch);
+                else launch.run();
+            });
             return;
         }
         // Keep launched settings in Home's task (CLEAR_TOP without NEW_TASK) so Back always pops

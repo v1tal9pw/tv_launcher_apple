@@ -2,12 +2,19 @@ package com.gathin.tvhome;
 
 import android.accessibilityservice.AccessibilityService;
 import android.content.ActivityNotFoundException;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.PixelFormat;
 import android.os.SystemClock;
+import android.view.Gravity;
+import android.view.KeyEvent;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
+import android.widget.LinearLayout;
+import android.widget.Toast;
 
 /** A control panel over the current app, hosted by the enabled accessibility service. */
 final class RemoteControlOverlay {
@@ -17,6 +24,7 @@ final class RemoteControlOverlay {
     private static WindowManager windows;
     private static FrameLayout root;
     private static QuickSettingsPanel activePanel;
+    private static View activeInputsOverlay;
 
     /** Foreground non-settings package observed before opening the overlay. */
     private static String currentHostPackage = "";
@@ -29,6 +37,10 @@ final class RemoteControlOverlay {
     static void toggle(AccessibilityService service) {
         clearPendingReturn();
         if (root != null) {
+            if (activeInputsOverlay != null) {
+                close();
+                return;
+            }
             if (activePanel != null && activePanel.isShowing()) activePanel.dismiss();
             else close();
             return;
@@ -39,7 +51,23 @@ final class RemoteControlOverlay {
                     .setAction(MainActivity.ACTION_QUICK_SETTINGS));
             return;
         }
-        show(service, R.id.quickAllSettings);
+        show(service, R.id.quickAllSettings, false);
+    }
+
+    static void showInputs(AccessibilityService service) {
+        clearPendingReturn();
+        if (root != null && activePanel != null && activePanel.isShowing()) {
+            if (activeInputsOverlay == null) {
+                openInputsOverlay(service, root, activePanel, Config.load(service));
+            }
+            return;
+        }
+        if (MainActivity.remotePanelForeground) {
+            open(service, new Intent(service, MainActivity.class)
+                    .setAction(MainActivity.ACTION_VIEW_INPUTS));
+            return;
+        }
+        show(service, R.id.quickInputs, true);
     }
 
     static void closeFor(AccessibilityService service) {
@@ -95,7 +123,7 @@ final class RemoteControlOverlay {
                         .setAction(MainActivity.ACTION_QUICK_SETTINGS)
                         .putExtra(MainActivity.EXTRA_QUICK_FOCUS, control));
             } else {
-                show(service, control);
+                show(service, control, false);
             }
         } else if (!recentBack) {
             clearPendingReturn();
@@ -130,7 +158,7 @@ final class RemoteControlOverlay {
                 || "com.xiaomi.mitv.settings".equals(pkg);
     }
 
-    private static void show(AccessibilityService service, int focusControl) {
+    private static void show(AccessibilityService service, int focusControl, boolean openInputsImmediately) {
         WindowManager manager = service.getSystemService(WindowManager.class);
         if (manager == null) return;
         final String host = currentHostPackage;
@@ -152,6 +180,7 @@ final class RemoteControlOverlay {
             root = panelRoot;
             owner = service;
             activePanel = null;
+            activeInputsOverlay = null;
             panelRoot.post(new Runnable() {
                 public void run() {
                     if (root != panelRoot) return;
@@ -165,16 +194,27 @@ final class RemoteControlOverlay {
                             new QuickSettingsPanel.Listener() {
                                 public void onAction(int control) {
                                     if (control == R.id.quickClearAll) {
-                                        armPendingReturn(control, host);
-                                        close();
-                                        QuickSettingsActions.clearBackground(service);
+                                        QuickSettingsActions.clearBackground(service, host, () -> {
+                                            armPendingReturn(control, host);
+                                            close();
+                                            open(service, new Intent(service, OptimizationActivity.class));
+                                        });
                                         return;
                                     }
                                     if (control == R.id.quickInputs) {
-                                        clearPendingReturn();
-                                        close();
-                                        open(service, new Intent(service, MainActivity.class)
-                                                .setAction(MainActivity.ACTION_VIEW_INPUTS));
+                                        openInputsOverlay(service, panelRoot, activePanel, config);
+                                        return;
+                                    }
+                                    if (control == R.id.quickBluetooth) {
+                                        QuickSettingsActions.resolveBluetooth(service, resolved -> {
+                                            if (root != panelRoot) return;
+                                            armPendingReturn(control, host);
+                                            close();
+                                            if (!open(service, resolved.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))) {
+                                                clearPendingReturn();
+                                                show(service, control, false);
+                                            }
+                                        });
                                         return;
                                     }
                                     armPendingReturn(control, host);
@@ -185,7 +225,13 @@ final class RemoteControlOverlay {
                                             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
                                     if (!open(service, action)) {
                                         clearPendingReturn();
-                                        show(service, control);
+                                        show(service, control, false);
+                                    }
+                                }
+
+                                @Override public void onOpened() {
+                                    if (openInputsImmediately && root == panelRoot && activePanel != null) {
+                                        openInputsOverlay(service, panelRoot, activePanel, config);
                                     }
                                 }
 
@@ -200,8 +246,141 @@ final class RemoteControlOverlay {
         } catch (RuntimeException unavailable) {
             // Some firmware refuses accessibility overlays; open the launcher's panel instead.
             open(service, new Intent(service, MainActivity.class)
-                    .setAction(MainActivity.ACTION_QUICK_SETTINGS)
+                    .setAction(openInputsImmediately ? MainActivity.ACTION_VIEW_INPUTS : MainActivity.ACTION_QUICK_SETTINGS)
                     .putExtra(MainActivity.EXTRA_QUICK_FOCUS, focusControl));
+        }
+    }
+
+    /**
+     * Shows the glass Inputs selector inside the existing accessibility overlay over the active app,
+     * so choosing or cancelling Inputs never launches MainActivity or closes the foreground app.
+     */
+    private static void openInputsOverlay(AccessibilityService service, FrameLayout panelRoot,
+                                          QuickSettingsPanel panel, Config config) {
+        if (root != panelRoot || panel == null || activeInputsOverlay != null) return;
+        Context localized = LauncherLocale.wrap(service);
+        if (TvInputsMenu.prefersDirectSourcePanel(localized, config)) {
+            clearPendingReturn();
+            close();
+            TvInputsMenu.openSourcePanel(localized, config);
+            return;
+        }
+        float density = localized.getResources().getDisplayMetrics().density;
+        View card = LayoutInflater.from(localized).inflate(R.layout.popup_inputs, panelRoot, false);
+        card.setBackgroundResource(R.drawable.quick_panel_background);
+        LinearLayout rows = card.findViewById(R.id.rows);
+        if (!TvInputsMenu.populate(localized, LayoutInflater.from(localized), rows, config,
+                density, config.navigationSounds, () -> {
+                    clearPendingReturn();
+                    close();
+                })) {
+            Toast.makeText(localized, R.string.no_inputs, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        int[] settingsKeycodes;
+        try { settingsKeycodes = localized.getResources().getIntArray(R.array.settings_key_keycodes); }
+        catch (RuntimeException ignored) { settingsKeycodes = new int[0]; }
+        final int[] gearKeys = settingsKeycodes;
+
+        FrameLayout backdrop = new FrameLayout(localized) {
+            private boolean backDown;
+            private boolean gearDown;
+
+            private boolean isGear(int code) {
+                if (code == KeyEvent.KEYCODE_SETTINGS) return true;
+                for (int listed : gearKeys) if (listed == code) return true;
+                return false;
+            }
+
+            @Override public boolean dispatchKeyEvent(KeyEvent event) {
+                int code = event.getKeyCode();
+                if (code == KeyEvent.KEYCODE_BACK) {
+                    if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) backDown = true;
+                    else if (event.getAction() == KeyEvent.ACTION_UP) {
+                        boolean dismiss = backDown && !event.isCanceled();
+                        backDown = false;
+                        if (dismiss) dismissInputsOverlay(panelRoot, panel);
+                    }
+                    return true;
+                }
+                if (isGear(code)) {
+                    if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) gearDown = true;
+                    else if (event.getAction() == KeyEvent.ACTION_UP) {
+                        boolean closeAll = gearDown && !event.isCanceled();
+                        gearDown = false;
+                        if (closeAll) close();
+                    }
+                    return true;
+                }
+                if (code == KeyEvent.KEYCODE_DPAD_RIGHT && event.getAction() == KeyEvent.ACTION_DOWN) {
+                    dismissInputsOverlay(panelRoot, panel);
+                    return true;
+                }
+                return super.dispatchKeyEvent(event);
+            }
+        };
+        backdrop.setClickable(true);
+        backdrop.setOnClickListener(v -> dismissInputsOverlay(panelRoot, panel));
+
+        int minWidth = Math.round(210 * density);
+        int maxWidth = Math.round(360 * density);
+        card.measure(View.MeasureSpec.makeMeasureSpec(maxWidth, View.MeasureSpec.AT_MOST),
+                View.MeasureSpec.makeMeasureSpec(panelRoot.getHeight(), View.MeasureSpec.AT_MOST));
+        int width = Math.max(minWidth, Math.min(card.getMeasuredWidth(), maxWidth));
+        int height = card.getMeasuredHeight();
+
+        View quickPanel = panel.findViewById(R.id.quickPanel);
+        View anchor = panel.findViewById(R.id.quickInputs);
+        int margin = Math.round(14 * density);
+        int left;
+        int top;
+        if (quickPanel != null && anchor != null) {
+            int[] panelLoc = new int[2], anchorLoc = new int[2], rootLoc = new int[2];
+            quickPanel.getLocationOnScreen(panelLoc);
+            anchor.getLocationOnScreen(anchorLoc);
+            panelRoot.getLocationOnScreen(rootLoc);
+            left = panelLoc[0] - rootLoc[0] - width - margin;
+            top = anchorLoc[1] - rootLoc[1];
+        } else {
+            left = panelRoot.getWidth() - width - Math.round(360 * density);
+            top = Math.round(120 * density);
+        }
+        left = Math.max(margin, Math.min(panelRoot.getWidth() - width - margin, left));
+        top = Math.max(margin, Math.min(panelRoot.getHeight() - height - margin, top));
+
+        FrameLayout.LayoutParams cardParams = new FrameLayout.LayoutParams(
+                width, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.LEFT);
+        cardParams.leftMargin = left;
+        cardParams.topMargin = top;
+        backdrop.addView(card, cardParams);
+
+        panel.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+        activeInputsOverlay = backdrop;
+        panelRoot.addView(backdrop, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        card.setAlpha(0f);
+        card.setTranslationX(10 * density);
+        card.animate().alpha(1f).translationX(0f)
+                .setDuration(config.animations && !config.reducedMotion ? 180 : 0).start();
+        for (int i = 0; i < rows.getChildCount(); i++) {
+            View child = rows.getChildAt(i);
+            if (child.getVisibility() == View.VISIBLE && child.isFocusable()) {
+                child.requestFocus();
+                break;
+            }
+        }
+    }
+
+    private static void dismissInputsOverlay(FrameLayout panelRoot, QuickSettingsPanel panel) {
+        if (activeInputsOverlay != null) {
+            panelRoot.removeView(activeInputsOverlay);
+            activeInputsOverlay = null;
+        }
+        if (panel != null && panel.isShowing()) {
+            panel.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
+            View inputs = panel.findViewById(R.id.quickInputs);
+            if (inputs != null) inputs.requestFocusFromTouch();
         }
     }
 
@@ -210,8 +389,7 @@ final class RemoteControlOverlay {
             service.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
             return true;
         } catch (ActivityNotFoundException | SecurityException unavailable) {
-            android.widget.Toast.makeText(LauncherLocale.wrap(service), R.string.not_available,
-                    android.widget.Toast.LENGTH_SHORT).show();
+            Toast.makeText(LauncherLocale.wrap(service), R.string.not_available, Toast.LENGTH_SHORT).show();
             return false;
         }
     }
@@ -220,6 +398,7 @@ final class RemoteControlOverlay {
         if (root != null && windows != null) {
             try { windows.removeView(root); } catch (RuntimeException ignored) { }
         }
+        activeInputsOverlay = null;
         activePanel = null;
         root = null;
         windows = null;

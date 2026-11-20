@@ -29,9 +29,9 @@
     <string name="home_default_unavailable">This TV firmware does not expose the standard Home selection dialog. Opening Google TV does not make this launcher the default. Home must be configured separately for this TV, for example through ADB. The remote button helper does not change the default Home.</string>
     <string name="feature_back">Press Back to return</string>
     <string name="feature_wallpapers">Wallpapers</string>
-    <string name="feature_wallpaper_help">Choose a background, rotate the six built-in Apple TV style landscapes, or use your own theme pictures. Changes apply when you return Home.</string>
+    <string name="feature_wallpaper_help">Choose a background, rotate the six built-in Apple-style 4K wallpapers, or use your own theme pictures. Changes apply when you return Home.</string>
     <string name="feature_source">Background</string>
-    <string name="feature_scenes">Apple TV style landscapes</string>
+    <string name="feature_scenes">Apple-style 4K wallpapers</string>
     <string name="feature_rotation">Change picture</string>
     <string name="feature_order">Playback order</string>
     <string name="feature_sequential">In order</string>
@@ -41,7 +41,7 @@
     <string name="feature_dim">Wallpaper dimming</string>
     <string name="feature_minutes">%1$d minutes</string>
     <string name="feature_sky_races">Sky backdrop</string>
-    <string name="installed_changes">Version 3.55 is prepared for TCL C6K. Removed temporary button-helper diagnostics and the manual ADB Home hint from launcher settings. Remote buttons, Quick Settings, updates and TV cleanup remain available.</string>
+    <string name="installed_changes">Version 3.59 for TCL C6K. Added local ADB system cleanup, six built-in Apple-style 4K wallpapers, disabled DPAD Up opening Control Center on Home, moved in-app Inputs into the overlay without closing the active app, and routed Bluetooth to Remotes and Accessories.</string>
     <string name="update_check_button">Check for updates</string>
     <string name="weather_show_city">Show city name</string>
     <string name="weather_show_details">Show feels-like temperature and wind</string>

@@ -6,12 +6,15 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.List;
 
-/** Bundled, offline Scenes. Extract once so the existing cropped wallpaper decoder handles every source. */
+/** Bundled, offline 4K Apple-style scenes. Extract once so the cropped wallpaper decoder handles every source. */
 final class SceneFiles {
-    static final String AURORA_ASSET = "scenes/04-northern-lights.webp";
+    static final String DEFAULT_SCENE = "01-apple-aurora.webp";
+    static final String AURORA_ASSET = "scenes/" + DEFAULT_SCENE;
+    private static final String DIR_NAME = "scenes-v4-apple-4k";
 
     static synchronized List<File> images(Context context) {
-        File dir = new File(context.getFilesDir(), "scenes-v3-fhd");
+        cleanupLegacy(new File(context.getFilesDir(), "scenes-v3-fhd"));
+        File dir = new File(context.getFilesDir(), DIR_NAME);
         try {
             if (!dir.isDirectory() && !dir.mkdirs()) return java.util.Collections.emptyList();
             String[] names = context.getAssets().list("scenes");
@@ -29,6 +32,13 @@ final class SceneFiles {
             }
         } catch (Exception ignored) { }
         return WallpaperRotation.images(dir);
+    }
+
+    private static void cleanupLegacy(File legacyDir) {
+        if (!legacyDir.isDirectory()) return;
+        File[] old = legacyDir.listFiles();
+        if (old != null) for (File file : old) file.delete();
+        legacyDir.delete();
     }
 
     static File find(Context context, String name) {

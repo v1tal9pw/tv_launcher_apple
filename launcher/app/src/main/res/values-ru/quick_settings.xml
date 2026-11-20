@@ -17,4 +17,12 @@
     <string name="quick_sound">Звук</string>
     <string name="quick_clear_background">Системная очистка</string>
     <string name="quick_system_cleaner_unavailable">Встроенный очиститель отключён или его экран недоступен. Включите его в настройках приложения или завершите приложения вручную.</string>
+    <string name="quick_cleanup_running">Выполняется системная очистка через ADB…</string>
+    <string name="quick_cleanup_done_full">Очистка (ADB): закрыто %1$d прил., свободно +%2$d МБ RAM</string>
+    <string name="quick_cleanup_done_apps">Очистка (ADB): закрыто %1$d прил., кеш очищен</string>
+    <string name="quick_cleanup_done_ram">Очистка (ADB): освобождено %1$d МБ RAM, кеш очищен</string>
+    <string name="quick_cleanup_done_cache">Очистка (ADB): фоновые процессы и кеш очищены</string>
+    <string name="quick_cleanup_adb_closed">Локальный ADB (порт 5555) выключен. Включите отладку по ADB или подключите в «Оптимизация ТВ».</string>
+    <string name="quick_cleanup_adb_auth">Подтвердите запрос доступа ADB на экране ТВ и повторите очистку.</string>
+    <string name="quick_cleanup_adb_error">Ошибка очистки ADB: %1$s</string>
 </resources>

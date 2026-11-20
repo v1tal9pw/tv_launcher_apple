@@ -715,6 +715,13 @@ final class Config {
             if (rotationMinutes > 0 && dir != null && wallpaperEnabled)
                 wallpapers.addAll(WallpaperRotation.images(new File(dir, "wallpapers")));
             if (wallpapers.isEmpty() && wallpaper != null) wallpapers.add(wallpaper);
+            if (wallpapers.isEmpty() && wallpaperEnabled) {
+                File bundled = SceneFiles.find(ctx, SceneFiles.DEFAULT_SCENE);
+                if (bundled != null) {
+                    wallpaper = bundled;
+                    wallpapers.add(bundled);
+                }
+            }
         } else if (WALLPAPER_AURORA.equals(wallpaperChoice) || WALLPAPER_OFF.equals(wallpaperChoice)) {
             wallpaper = null;
             wallpaperEnabled = WALLPAPER_AURORA.equals(wallpaperChoice);

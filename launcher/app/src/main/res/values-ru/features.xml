@@ -29,9 +29,9 @@
     <string name="home_default_unavailable">Прошивка телевизора не предоставляет стандартное окно выбора главного экрана. Открытие Google TV не назначает этот лаунчер по умолчанию. Главный экран нужно настроить отдельно для телевизора, например через ADB. Помощник кнопок пульта не меняет главный экран по умолчанию.</string>
     <string name="feature_back">Нажмите «Назад», чтобы вернуться</string>
     <string name="feature_wallpapers">Обои</string>
-    <string name="feature_wallpaper_help">Выберите фон, включите смену шести встроенных пейзажей в стиле Apple TV или используйте изображения своей темы. Изменения применятся при возвращении на главный экран.</string>
+    <string name="feature_wallpaper_help">Выберите фон, включите смену шести встроенных 4K-обоев в стиле Apple или используйте изображения своей темы. Изменения применятся при возвращении на главный экран.</string>
     <string name="feature_source">Фон</string>
-    <string name="feature_scenes">Пейзажи в стиле Apple TV</string>
+    <string name="feature_scenes">Обои в стиле Apple 4K</string>
     <string name="feature_rotation">Смена изображения</string>
     <string name="feature_order">Порядок показа</string>
     <string name="feature_sequential">По порядку</string>
@@ -41,7 +41,7 @@
     <string name="feature_dim">Затемнение обоев</string>
     <string name="feature_minutes">Минут: %1$d</string>
     <string name="feature_sky_races">Небо на фоне</string>
-    <string name="installed_changes">• Версия 3.55 подготовлена для TCL C6K.\n• Из настроек убраны временная диагностика помощника кнопок и ручная подсказка ADB для Home.\n• Настройка пульта, Quick Settings, обновления и очистка ТВ сохранены.</string>
+    <string name="installed_changes">• Версия 3.59 для TCL C6K.\n• Системная очистка памяти и кэша через локальный ADB прямо из панели управления.\n• 6 встроенных 4K-обоев в стиле Apple (3840×2160, полноцветный режим).\n• «Вверх» на главном экране больше не открывает панель управления.\n• «Источники» поверх приложений открываются в оверлее без закрытия активного приложения.\n• Bluetooth открывает «Пульты и аксессуары» вместо экрана поиска.</string>
     <string name="update_check_button">Проверить обновления</string>
     <string name="weather_show_city">Показывать название города</string>
     <string name="weather_show_details">Показывать ощущаемую температуру и ветер</string>

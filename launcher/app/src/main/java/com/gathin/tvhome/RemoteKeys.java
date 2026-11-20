@@ -407,6 +407,10 @@ final class RemoteKeys {
         if (!"back".equalsIgnoreCase(pkg)) RemoteControlOverlay.clearPendingReturn();
         if (runAction(ctx, pkg)) return;
         if (INPUTS.equals(pkg)) {
+            if (!MainActivity.remotePanelForeground && HomeKeyService.running != null) {
+                RemoteControlOverlay.showInputs(HomeKeyService.running);
+                return;
+            }
             // This launcher's own Inputs menu, as InputsRequestActivity opens it: addressed to Home directly, so a
             // vendor input picker that also answers VIEW_INPUTS never turns it into a chooser.
             try {

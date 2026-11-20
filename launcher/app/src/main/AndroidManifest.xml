@@ -56,13 +56,14 @@
             <action android:name="android.settings.BLUETOOTH_SETTINGS" />
         </intent>
         <intent>
+            <action android:name="com.android.tv.settings.CONNECTED_DEVICES" />
+        </intent>
+        <intent>
             <action android:name="android.settings.SLICE_SETTINGS" />
         </intent>
+        <provider android:authorities="com.android.tv.settings.accessories.sliceprovider" />
         <intent>
-            <action android:name="com.google.android.intent.action.CONNECT_INPUT" />
-        </intent>
-        <intent>
-            <action android:name="android.bluetooth.devicepicker.action.LAUNCH" />
+            <action android:name="android.net.VpnService" />
         </intent>
         <intent>
             <action android:name="android.settings.DISPLAY_SETTINGS" />

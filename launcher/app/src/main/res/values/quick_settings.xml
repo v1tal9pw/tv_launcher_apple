@@ -19,4 +19,12 @@
     <string name="quick_sound">Sound</string>
     <string name="quick_clear_background">System cleanup</string>
     <string name="quick_system_cleaner_unavailable">The built-in cleaner is disabled or has no accessible screen. Enable it in app settings, or close apps manually there.</string>
+    <string name="quick_cleanup_running">Running ADB system cleanup…</string>
+    <string name="quick_cleanup_done_full">ADB cleanup: closed %1$d apps, freed %2$d MB RAM</string>
+    <string name="quick_cleanup_done_apps">ADB cleanup: closed %1$d apps, caches trimmed</string>
+    <string name="quick_cleanup_done_ram">ADB cleanup: freed %1$d MB RAM, caches trimmed</string>
+    <string name="quick_cleanup_done_cache">ADB cleanup: background processes and caches cleared</string>
+    <string name="quick_cleanup_adb_closed">Local ADB (port 5555) is off. Enable ADB debugging or connect in TV Optimization.</string>
+    <string name="quick_cleanup_adb_auth">Approve the ADB debugging prompt on the TV screen and try again.</string>
+    <string name="quick_cleanup_adb_error">ADB cleanup failed: %1$s</string>
 </resources>
