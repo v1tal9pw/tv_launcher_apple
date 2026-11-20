@@ -493,7 +493,7 @@ public class HomeKeyService extends AccessibilityService {
     }
 
     private void openHome() {
-        RemoteControlOverlay.clearPendingReturn();
+        RemoteControlOverlay.closeFor(this);
         Intent open = stockHomeStays() ? new Intent(this, MainActivity.class)
                 : new Intent(Intent.ACTION_MAIN).setPackage(getPackageName());
         startActivity(open.addCategory(Intent.CATEGORY_HOME)

@@ -145,13 +145,13 @@ final class QuickSettingsPanel extends FrameLayout {
         home.addView(this, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         // One window submits both the real shortcuts and the panel in the same frame.
-        homeShortcuts.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        if (home.isHardwareAccelerated()) homeShortcuts.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         // Apply initial focus synchronously without running a child scale animation that would
         // invalidate scroll's hardware layer on every frame of the entrance slide.
         suppressFocusAnimation = true;
         try { focus(focus); }
         finally { suppressFocusAnimation = false; }
-        if (animationsEnabled) scroll.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        if (animationsEnabled && home.isHardwareAccelerated()) scroll.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         entryDraw = new ViewTreeObserver.OnPreDrawListener() {
             @Override public boolean onPreDraw() {
                 if (content.getWidth() == 0) return true;
@@ -176,7 +176,8 @@ final class QuickSettingsPanel extends FrameLayout {
                     animateTo(1f);
                     post(() -> { if (isShowing() && !closing) listener.onOpened(); });
                 };
-                postOnAnimation(pendingEntryAnimation);
+                if (isAttachedToWindow()) postOnAnimation(pendingEntryAnimation);
+                else post(pendingEntryAnimation);
                 return true;
             }
         };
@@ -209,7 +210,7 @@ final class QuickSettingsPanel extends FrameLayout {
             if (target == 0f) finishDismiss();
             return;
         }
-        if (scroll.getLayerType() != View.LAYER_TYPE_HARDWARE) {
+        if (scroll.isHardwareAccelerated() && scroll.getLayerType() != View.LAYER_TYPE_HARDWARE) {
             scroll.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         }
         long duration = reducedMotion ? (target == 1f ? 180 : 140) : (target == 1f ? 340 : 210);

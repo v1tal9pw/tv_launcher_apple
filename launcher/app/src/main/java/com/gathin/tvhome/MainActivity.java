@@ -654,6 +654,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         super.onResume();
         remotePanelForeground = true;
         foregroundInstance = this;
+        RemoteControlOverlay.closeIfShowing();
         quickSettingsWasOpenOnPause = false;
         android.content.SharedPreferences prefs = getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE);
         long revision = prefs.getLong(Config.SETTINGS_REVISION_KEY, 0);

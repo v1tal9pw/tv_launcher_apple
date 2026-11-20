@@ -88,13 +88,37 @@ final class RemoteButtonMapper {
 
     private static void launch(Context context, String target) {
         if (target.isEmpty()) return;
-        if (HOME.equals(target) || CONTROL.equals(target) || INPUTS.equals(target)) {
-            String action = CONTROL.equals(target) ? MainActivity.ACTION_QUICK_SETTINGS
-                    : INPUTS.equals(target) ? MainActivity.ACTION_VIEW_INPUTS : Intent.ACTION_MAIN;
-            try {
-                context.startActivity(new Intent(context, MainActivity.class).setAction(action)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP));
-            } catch (android.content.ActivityNotFoundException | SecurityException ignored) { }
-        } else RemoteKeys.launch(context, target);
+        android.accessibilityservice.AccessibilityService service = HomeKeyService.running;
+        if (CONTROL.equals(target)) {
+            if (service != null) {
+                RemoteControlOverlay.toggle(service);
+                return;
+            }
+            if (MainActivity.toggleForegroundPanel()) return;
+            startHomeAction(context, MainActivity.ACTION_QUICK_SETTINGS);
+            return;
+        }
+        if (INPUTS.equals(target)) {
+            if (service != null) {
+                RemoteControlOverlay.showInputs(service);
+                return;
+            }
+            startHomeAction(context, MainActivity.ACTION_VIEW_INPUTS);
+            return;
+        }
+        if (HOME.equals(target)) {
+            if (service != null) RemoteControlOverlay.closeFor(service);
+            else RemoteControlOverlay.clearPendingReturn();
+            startHomeAction(service != null ? service : context, Intent.ACTION_MAIN);
+            return;
+        }
+        RemoteKeys.launch(service != null ? service : context, target);
+    }
+
+    private static void startHomeAction(Context context, String action) {
+        try {
+            context.startActivity(new Intent(context, MainActivity.class).setAction(action)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP));
+        } catch (android.content.ActivityNotFoundException | SecurityException ignored) { }
     }
 }

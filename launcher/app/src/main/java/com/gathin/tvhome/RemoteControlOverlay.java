@@ -77,6 +77,13 @@ final class RemoteControlOverlay {
         }
     }
 
+    static void closeIfShowing() {
+        if (root != null) {
+            clearPendingReturn();
+            close();
+        }
+    }
+
     static void clearPendingReturn() {
         pendingReturnControl = 0;
         pendingHostPackage = "";
@@ -162,7 +169,16 @@ final class RemoteControlOverlay {
         WindowManager manager = service.getSystemService(WindowManager.class);
         if (manager == null) return;
         final String host = currentHostPackage;
-        FrameLayout panelRoot = new FrameLayout(service);
+        FrameLayout panelRoot = new FrameLayout(service) {
+            @Override public boolean dispatchKeyEvent(KeyEvent event) {
+                if (activeInputsOverlay == null && (activePanel == null || !activePanel.isShowing())
+                        && event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
+                    if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) close();
+                    return true;
+                }
+                return super.dispatchKeyEvent(event);
+            }
+        };
         panelRoot.setFocusableInTouchMode(true);
         panelRoot.setOnClickListener(v -> {
             if (activePanel != null && activePanel.isShowing()) activePanel.dismiss();
@@ -173,7 +189,9 @@ final class RemoteControlOverlay {
         panelRoot.addView(shortcuts, new FrameLayout.LayoutParams(1, 1));
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(-1, -1,
                 WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN, PixelFormat.TRANSLUCENT);
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                        | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+                PixelFormat.TRANSLUCENT);
         try {
             manager.addView(panelRoot, params);
             windows = manager;
@@ -188,58 +206,65 @@ final class RemoteControlOverlay {
                 @Override public void run() {
                     if (opened || root != panelRoot || panelRoot.getWidth() == 0) return;
                     opened = true;
-                    QuickSettingsPanel panel = new QuickSettingsPanel(LauncherLocale.wrap(service), panelRoot,
-                            null, config.reducedMotion, config.animations, config.navigationSounds,
-                            new QuickSettingsPanel.Listener() {
-                                public void onAction(int control) {
-                                    if (control == R.id.quickClearAll) {
-                                        QuickSettingsActions.clearBackground(service, host, () -> {
-                                            armPendingReturn(control, host);
-                                            close();
-                                            open(service, new Intent(service, OptimizationActivity.class));
-                                        });
-                                        return;
+                    try {
+                        QuickSettingsPanel panel = new QuickSettingsPanel(LauncherLocale.wrap(service), panelRoot,
+                                null, config.reducedMotion, config.animations, config.navigationSounds,
+                                new QuickSettingsPanel.Listener() {
+                                    public void onAction(int control) {
+                                        if (control == R.id.quickClearAll) {
+                                            QuickSettingsActions.clearBackground(service, host, () -> {
+                                                armPendingReturn(control, host);
+                                                close();
+                                                open(service, new Intent(service, OptimizationActivity.class));
+                                            });
+                                            return;
+                                        }
+                                        if (control == R.id.quickInputs) {
+                                            openInputsOverlay(service, panelRoot, activePanel, config);
+                                            return;
+                                        }
+                                        if (control == R.id.quickBluetooth) {
+                                            QuickSettingsActions.resolveBluetooth(service, resolved -> {
+                                                if (root != panelRoot) return;
+                                                armPendingReturn(control, host);
+                                                close();
+                                                if (!open(service, resolved.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))) {
+                                                    clearPendingReturn();
+                                                    show(service, control, false);
+                                                }
+                                            });
+                                            return;
+                                        }
+                                        armPendingReturn(control, host);
+                                        close();
+                                        Intent action = control == R.id.quickLauncherSettings
+                                                ? new Intent(service, LauncherSettingsActivity.class)
+                                                : QuickSettingsActions.intent(service, control)
+                                                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                                        if (!open(service, action)) {
+                                            clearPendingReturn();
+                                            show(service, control, false);
+                                        }
                                     }
-                                    if (control == R.id.quickInputs) {
-                                        openInputsOverlay(service, panelRoot, activePanel, config);
-                                        return;
-                                    }
-                                    if (control == R.id.quickBluetooth) {
-                                        QuickSettingsActions.resolveBluetooth(service, resolved -> {
-                                            if (root != panelRoot) return;
-                                            armPendingReturn(control, host);
-                                            close();
-                                            if (!open(service, resolved.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))) {
-                                                clearPendingReturn();
-                                                show(service, control, false);
-                                            }
-                                        });
-                                        return;
-                                    }
-                                    armPendingReturn(control, host);
-                                    close();
-                                    Intent action = control == R.id.quickLauncherSettings
-                                            ? new Intent(service, LauncherSettingsActivity.class)
-                                            : QuickSettingsActions.intent(service, control)
-                                            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                                    if (!open(service, action)) {
-                                        clearPendingReturn();
-                                        show(service, control, false);
-                                    }
-                                }
 
-                                @Override public void onOpened() {
-                                    if (openInputsImmediately && root == panelRoot && activePanel != null) {
-                                        openInputsOverlay(service, panelRoot, activePanel, config);
+                                    @Override public void onOpened() {
+                                        if (openInputsImmediately && root == panelRoot && activePanel != null) {
+                                            openInputsOverlay(service, panelRoot, activePanel, config);
+                                        }
                                     }
-                                }
 
-                                public void onClosed(boolean restoreFocus) {
-                                    close();
-                                }
-                            });
-                    activePanel = panel;
-                    panel.open(focusControl);
+                                    public void onClosed(boolean restoreFocus) {
+                                        close();
+                                    }
+                                });
+                        activePanel = panel;
+                        panel.open(focusControl);
+                    } catch (RuntimeException error) {
+                        close();
+                        open(service, new Intent(service, MainActivity.class)
+                                .setAction(openInputsImmediately ? MainActivity.ACTION_VIEW_INPUTS : MainActivity.ACTION_QUICK_SETTINGS)
+                                .putExtra(MainActivity.EXTRA_QUICK_FOCUS, focusControl));
+                    }
                 }
             };
             panelRoot.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
@@ -247,11 +272,12 @@ final class RemoteControlOverlay {
                                                      int oldL, int oldT, int oldR, int oldB) {
                     if (v.getWidth() == 0) return;
                     v.removeOnLayoutChangeListener(this);
-                    attachPanel.run();
+                    v.post(attachPanel);
                 }
             });
             panelRoot.post(attachPanel);
         } catch (RuntimeException unavailable) {
+            close();
             // Some firmware refuses accessibility overlays; open the launcher's panel instead.
             open(service, new Intent(service, MainActivity.class)
                     .setAction(openInputsImmediately ? MainActivity.ACTION_VIEW_INPUTS : MainActivity.ACTION_QUICK_SETTINGS)
