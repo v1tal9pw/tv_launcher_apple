@@ -106,6 +106,10 @@ public final class FeatureSettingsActivity extends Activity {
     }
 
     private void render() {
+        if (WALLPAPER.equals(page) && PersonalWallpapers.pruneMissing(this) > 0) {
+            markChanged();
+            Toast.makeText(this, R.string.personal_wallpaper_source_gone, Toast.LENGTH_SHORT).show();
+        }
         config = Config.load(this); sounds = config.navigationSounds;
         if (sounds) NavSound.prepare();
         rows.removeAllViews(); group = null;
@@ -178,6 +182,11 @@ public final class FeatureSettingsActivity extends Activity {
                 () -> choosePersonalWallpaper(false));
         row("personal_video", R.string.personal_wallpaper_video, "", R.drawable.ic_quick_screensaver, 0xFF0A84FF,
                 () -> choosePersonalWallpaper(true));
+        List<File> personalFiles = PersonalWallpapers.listExisting(this);
+        if (!personalFiles.isEmpty()) {
+            row("personal_delete", R.string.personal_wallpaper_delete, String.valueOf(personalFiles.size()),
+                    R.drawable.ic_quick_close, 0xFFFF453A, this::deletePersonalWallpaper);
+        }
         row("personal_help", R.string.personal_wallpaper_limits, "", R.drawable.ic_quick_picture, 0xFF0A84FF,
                 () -> message(R.string.personal_wallpaper_help));
         int[] minutes = {0, 5, 15, 30, 60, 120};
@@ -197,12 +206,8 @@ public final class FeatureSettingsActivity extends Activity {
     }
 
     private String wallpaperLabel(String value) {
-        if (PersonalWallpapers.COAST_VIDEO.equals(value)) return getString(R.string.personal_wallpaper_coast);
-        if (value.startsWith(PersonalWallpapers.PREFIX)) {
-            File file = PersonalWallpapers.file(this, value);
-            String label = getString(PersonalWallpapers.video(value) ? R.string.personal_wallpaper_video : R.string.personal_wallpaper_photo);
-            return file == null ? label : label + " · " + java.text.DateFormat.getDateTimeInstance(
-                    java.text.DateFormat.SHORT, java.text.DateFormat.SHORT).format(new java.util.Date(file.lastModified()));
+        if (PersonalWallpapers.COAST_VIDEO.equals(value) || value.startsWith(PersonalWallpapers.PREFIX)) {
+            return PersonalWallpapers.label(this, value);
         }
         if (FeaturePreferences.SCENES.equals(value)) return getString(R.string.feature_scenes);
         if (value.startsWith(FeaturePreferences.SCENE_PREFIX)) return SceneFiles.label(value.substring(FeaturePreferences.SCENE_PREFIX.length()));
@@ -219,7 +224,8 @@ public final class FeatureSettingsActivity extends Activity {
         for (File file : PersonalWallpapers.list(this)) values.add(PersonalWallpapers.PREFIX + file.getName());
         File dir = Config.dir(this);
         if (dir != null) {
-            File single = new File(dir, Config.WALLPAPER_NAME); if (single.isFile()) values.add(single.getName());
+            File single = new File(dir, Config.WALLPAPER_NAME);
+            if (single.isFile() && single.length() > 0) values.add(single.getName());
             for (File file : WallpaperRotation.images(new File(dir, "wallpapers"))) values.add(file.getName());
         }
         String[] labels = new String[values.size()]; for (int i = 0; i < labels.length; i++) labels[i] = wallpaperLabel(values.get(i));
@@ -230,6 +236,34 @@ public final class FeatureSettingsActivity extends Activity {
             if (FeaturePreferences.SCENES.equals(value) && config.wallpaperRotationMinutes == 0)
                 features.edit().putInt("wallpaper_rotation_minutes", 60).apply();
             markChanged(); render();
+        });
+    }
+
+    private void deletePersonalWallpaper() {
+        List<File> files = PersonalWallpapers.list(this);
+        if (files.isEmpty()) { render(); return; }
+        String[] labels = new String[files.size()];
+        for (int i = 0; i < files.size(); i++) {
+            labels[i] = wallpaperLabel(PersonalWallpapers.PREFIX + files.get(i).getName());
+        }
+        choose(getString(R.string.personal_wallpaper_delete), labels, -1, which -> {
+            String choice = PersonalWallpapers.PREFIX + files.get(which).getName();
+            String label = labels[which];
+            AlertDialog confirm = new AlertDialog.Builder(this)
+                    .setTitle(R.string.personal_wallpaper_delete)
+                    .setMessage(getString(R.string.personal_wallpaper_delete_confirm, label))
+                    .setPositiveButton(R.string.personal_wallpaper_delete_action, (d, btn) -> {
+                        PersonalWallpapers.delete(this, choice);
+                        if (choice.equals(choices.getString(Config.WALLPAPER_CHOICE_KEY, ""))) {
+                            choices.edit().remove(Config.WALLPAPER_CHOICE_KEY).apply();
+                        }
+                        Toast.makeText(this, R.string.personal_wallpaper_deleted, Toast.LENGTH_SHORT).show();
+                        markChanged();
+                        render();
+                    })
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show();
+            glass(confirm);
         });
     }
 
@@ -292,8 +326,8 @@ public final class FeatureSettingsActivity extends Activity {
         cityChoice();
         toggle("weather_city", R.string.weather_show_city, features.getBoolean("weather_city", true), R.drawable.ic_quick_picture, 0xFF64D2FF, 0);
         toggle("weather_details", R.string.weather_show_details, features.getBoolean("weather_details", true), R.drawable.ic_quick_picture, 0xFF64D2FF, 0);
-        integerChoice("weather_size", R.string.weather_text_size, features.getInt("weather_size", 16),
-                new int[]{14, 16, 20, 24}, new String[]{"14", "16", "20", "24"}, R.drawable.ic_settings_motion);
+        integerChoice("weather_size", R.string.weather_text_size, features.getInt("weather_size", WeatherFetcher.DEFAULT_TEXT_SIZE),
+                new int[]{8, 10, 12, 14, 16, 20, 24}, new String[]{"8", "10", "12", "14", "16", "20", "24"}, R.drawable.ic_settings_motion);
     }
 
     private void cityChoice() {
@@ -447,7 +481,8 @@ public final class FeatureSettingsActivity extends Activity {
     }
     private void choosePersonalWallpaper(boolean video) {
         Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT).setType(video ? "video/*" : "image/*")
-                .addCategory(Intent.CATEGORY_OPENABLE);
+                .addCategory(Intent.CATEGORY_OPENABLE)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         try { startActivityForResult(pick, video ? 22 : 21); }
         catch (ActivityNotFoundException unavailable) { message(R.string.feature_no_image_picker); }
     }
@@ -455,7 +490,8 @@ public final class FeatureSettingsActivity extends Activity {
         super.onActivityResult(requestCode, resultCode, data);
         if ((requestCode == 21 || requestCode == 22) && resultCode == RESULT_OK && data != null && data.getData() != null) {
             android.net.Uri uri = data.getData();
-            async(() -> PersonalWallpapers.importFile(getApplicationContext(), uri, requestCode == 22), value -> {
+            boolean persisted = PersonalWallpapers.tryPersistReadPermission(this, uri, data.getFlags());
+            async(() -> PersonalWallpapers.importFile(getApplicationContext(), uri, requestCode == 22, persisted), value -> {
                 choices.edit().putString(Config.WALLPAPER_CHOICE_KEY, value).apply();
                 markChanged(); render();
             }, R.string.personal_wallpaper_import_failed);

@@ -30,6 +30,7 @@ import javax.net.ssl.HttpsURLConnection;
  * minimal so it renders well at the small font size used under the clock.
  */
 final class WeatherFetcher {
+    static final int DEFAULT_TEXT_SIZE = 12;
     /** How long a successful response is reused before the next network call. */
     private static final long CACHE_TTL_MS = 30 * 60 * 1000L; // 30 min
     /** Minimum gap between two failed retries. */
@@ -74,7 +75,7 @@ final class WeatherFetcher {
         String lon = prefs.getString("longitude", "");
         String city = prefs.getBoolean("weather_city", true) ? prefs.getString("city", "") : "";
         boolean details = prefs.getBoolean("weather_details", true);
-        view.setTextSize(prefs.getInt("weather_size", 16));
+        view.setTextSize(Math.max(8, Math.min(24, prefs.getInt("weather_size", DEFAULT_TEXT_SIZE))));
         if (!prefs.getBoolean("weather_enabled", true) || lat.isEmpty() || lon.isEmpty()) {
             if (!lastLocation.isEmpty()) { lastLocation = ""; cachedLine = null; generation++; fetching = false; }
             view.setText(context.getString(R.string.weather_choose_city));

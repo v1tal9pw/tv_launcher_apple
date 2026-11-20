@@ -655,8 +655,16 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         remotePanelForeground = true;
         foregroundInstance = this;
         quickSettingsWasOpenOnPause = false;
-        long revision = getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE).getLong(Config.SETTINGS_REVISION_KEY, 0);
+        android.content.SharedPreferences prefs = getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE);
+        long revision = prefs.getLong(Config.SETTINGS_REVISION_KEY, 0);
         if (Config.settingsChanged(settingsRevision, revision)) { recreate(); return; }
+        String savedWallpaper = prefs.getString(Config.WALLPAPER_CHOICE_KEY, Config.WALLPAPER_THEME);
+        if (PersonalWallpapers.isUserImported(savedWallpaper)
+                && PersonalWallpapers.file(this, savedWallpaper) == null) {
+            prefs.edit().remove(Config.WALLPAPER_CHOICE_KEY).apply();
+            recreate();
+            return;
+        }
         // A festival that started or ended while Home was in the background: rebuild with or without it.
         if (festive != festival.active(LocalDate.now())) {
             recreate();

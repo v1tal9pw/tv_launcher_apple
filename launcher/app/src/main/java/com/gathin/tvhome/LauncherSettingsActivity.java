@@ -291,7 +291,9 @@ public final class LauncherSettingsActivity extends Activity {
         String wallpaperLabel = Config.WALLPAPER_AURORA.equals(wallpaper) ? getString(R.string.wallpaper_aurora)
                 : Config.WALLPAPER_OFF.equals(wallpaper) ? getString(R.string.off)
                 : Config.WALLPAPER_THEME.equals(wallpaper) ? getString(R.string.wallpaper_theme) : wallpaper;
-        if (FeaturePreferences.SCENES.equals(wallpaper)) wallpaperLabel = getString(R.string.feature_scenes);
+        if (PersonalWallpapers.COAST_VIDEO.equals(wallpaper) || wallpaper.startsWith(PersonalWallpapers.PREFIX)) {
+            wallpaperLabel = PersonalWallpapers.label(this, wallpaper);
+        } else if (FeaturePreferences.SCENES.equals(wallpaper)) wallpaperLabel = getString(R.string.feature_scenes);
         else if (wallpaper.startsWith(FeaturePreferences.SCENE_PREFIX)) wallpaperLabel = SceneFiles.label(wallpaper.substring(FeaturePreferences.SCENE_PREFIX.length()));
         wallpaperChoice.setValue(wallpaperLabel, true);
         rowsChoice.setValue(String.valueOf(rowsBelowDock), true);

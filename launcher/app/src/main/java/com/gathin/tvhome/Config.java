@@ -687,11 +687,18 @@ final class Config {
         // Keep Theme / Aurora / Off choices from this fork. A collection filename pins one external picture.
         if (wallpaperChoice.startsWith(PersonalWallpapers.PREFIX) || PersonalWallpapers.COAST_VIDEO.equals(wallpaperChoice)) {
             File personal = PersonalWallpapers.file(ctx, wallpaperChoice);
-            wallpaper = personal != null && PersonalWallpapers.video(wallpaperChoice)
+            File resolved = personal != null && PersonalWallpapers.video(wallpaperChoice)
                     ? PersonalWallpapers.poster(personal) : personal;
-            if (wallpaper != null && wallpaper.isFile()) wallpapers.add(wallpaper);
-            else wallpaper = null;
-            wallpaperEnabled = wallpaper != null;
+            if (resolved != null && resolved.isFile() && resolved.length() > 0) {
+                wallpaper = resolved;
+                wallpapers.add(resolved);
+                wallpaperEnabled = true;
+            } else {
+                if (PersonalWallpapers.isUserImported(wallpaperChoice)) {
+                    choices.edit().remove(WALLPAPER_CHOICE_KEY).apply();
+                }
+                wallpaperChoice = WALLPAPER_THEME;
+            }
         } else if (FeaturePreferences.SCENES.equals(wallpaperChoice)) {
             wallpapers.addAll(SceneFiles.images(ctx));
             wallpaper = wallpapers.isEmpty() ? null : wallpapers.get(0);
@@ -723,7 +730,10 @@ final class Config {
                 wallpaper = picked;
                 wallpaperEnabled = true;
                 wallpapers.add(picked);
-            } else wallpaperChoice = WALLPAPER_THEME;
+            } else {
+                choices.edit().remove(WALLPAPER_CHOICE_KEY).apply();
+                wallpaperChoice = WALLPAPER_THEME;
+            }
         }
         if (WALLPAPER_THEME.equals(wallpaperChoice)) {
             if (!wallpaperEnabled) wallpaper = null;

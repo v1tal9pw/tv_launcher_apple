@@ -7,6 +7,11 @@
     <string name="personal_wallpaper_help">Choose a file from this TV or a USB drive. Videos play silently only on Home. Up to Full HD, 30 fps and 200 MB. H.264 MP4 is recommended. A still frame appears if playback is unavailable. Imported files are stored privately on this TV.</string>
     <string name="personal_wallpaper_import_failed">Could not import wallpaper. Check the file and free storage. Video limits are Full HD, 30 fps and 200 MB.</string>
     <string name="personal_wallpaper_video_failed">Video wallpaper unavailable. Showing a still frame.</string>
+    <string name="personal_wallpaper_delete">Delete my wallpapers</string>
+    <string name="personal_wallpaper_delete_confirm">Delete “%1$s”? The copy stored by the launcher will be erased.</string>
+    <string name="personal_wallpaper_delete_action">Delete</string>
+    <string name="personal_wallpaper_deleted">Wallpaper deleted</string>
+    <string name="personal_wallpaper_source_gone">Wallpapers whose original file was deleted have been removed</string>
     <string name="remote_single">Single press (1×)</string>
     <string name="remote_double">Double press (2×)</string>
     <string name="remote_triple">Triple press (3×)</string>
@@ -50,7 +55,7 @@
     <string name="feature_glow_intensity">Intensity</string>
     <string name="feature_glow_tile">Focused tile halo</string>
     <string name="feature_glow_tile_help">Show a colored halo around the selected app tile. Turning glow style or intensity off disables all app glow completely.</string>
-    <string name="installed_changes">Version 3.60 for TCL C6K. Eliminated Control Center opening micro-stutter with fluid tvOS animation, added automatic category-based folder naming, enabled navigation sounds across Control Center and all launcher settings menus, added App Glow settings (intensity, screen-edge glow, and full off), and removed Sky backdrop.</string>
+    <string name="installed_changes">Version 3.61 for TCL C6K. Added deletion of user-imported wallpapers in Wallpaper settings, automatic source file verification that removes wallpapers deleted from TV storage with fallback to default, and smaller default weather text size (12) with new 8, 10, and 12 size options.</string>
     <string name="update_check_button">Check for updates</string>
     <string name="weather_show_city">Show city name</string>
     <string name="weather_show_details">Show feels-like temperature and wind</string>

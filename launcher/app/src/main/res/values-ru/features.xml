@@ -7,6 +7,11 @@
     <string name="personal_wallpaper_help">Выберите файл на телевизоре или флешке. Видео воспроизводится без звука только на рабочем столе. До Full HD, 30 кадров/с и 200 МБ. Рекомендуется MP4 с H.264. Если воспроизведение недоступно, показывается стоп-кадр. Импортированные файлы сохраняются на этом телевизоре.</string>
     <string name="personal_wallpaper_import_failed">Не удалось импортировать обои. Проверьте файл и свободное место. Ограничения видео — Full HD, 30 кадров/с и 200 МБ.</string>
     <string name="personal_wallpaper_video_failed">Видеообои недоступны. Показываем стоп-кадр.</string>
+    <string name="personal_wallpaper_delete">Удалить мои обои</string>
+    <string name="personal_wallpaper_delete_confirm">Удалить «%1$s»? Копия, сохранённая лаунчером, будет стёрта.</string>
+    <string name="personal_wallpaper_delete_action">Удалить</string>
+    <string name="personal_wallpaper_deleted">Обои удалены</string>
+    <string name="personal_wallpaper_source_gone">Обои, исходный файл которых удалён, убраны из списка</string>
     <string name="remote_single">Одинарное нажатие (1×)</string>
     <string name="remote_double">Двойное нажатие (2×)</string>
     <string name="remote_triple">Тройное нажатие (3×)</string>
@@ -50,7 +55,7 @@
     <string name="feature_glow_intensity">Интенсивность</string>
     <string name="feature_glow_tile">Свечение вокруг плитки</string>
     <string name="feature_glow_tile_help">Цветной ореол вокруг выбранной плитки приложения. При полном отключении или интенсивности 0% выключается любое свечение.</string>
-    <string name="installed_changes">• Версия 3.60 для TCL C6K.\n• Убраны микро-пролаги и сделана плавная tvOS-анимация открытия панели управления.\n• Автоматическое название папок по типу приложения при создании.\n• Звуки навигации работают в панели управления, настройках лаунчера и всех меню.\n• Новые настройки «Свечение от приложения»: интенсивность, свечение по краю экрана и полное отключение.\n• Удалено «Небо на фоне».</string>
+    <string name="installed_changes">• Версия 3.61 для TCL C6K.\n• В настройках обоев добавлено удаление пользовательских фото и видеообоев с подтверждением.\n• Автопроверка пути обоев: если исходный файл удалён в «Файлах», он автоматически убирается из списка обоев.\n• Уменьшен размер текста погоды по умолчанию (12) и добавлены варианты 8, 10 и 12.</string>
     <string name="update_check_button">Проверить обновления</string>
     <string name="weather_show_city">Показывать название города</string>
     <string name="weather_show_details">Показывать ощущаемую температуру и ветер</string>
