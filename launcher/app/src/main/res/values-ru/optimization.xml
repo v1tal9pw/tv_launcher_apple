@@ -40,12 +40,6 @@
     <string name="optimize_local_granted">Системное разрешение выдано</string>
     <string name="optimize_local_home">Назначить лаунчер главным экраном через ADB</string>
     <string name="optimize_local_close">Закрыть локальный порт ADB 5555</string>
-    <string name="optimize_connect">Подключить Shizuku</string>
-    <string name="optimize_connected">Shizuku подключён</string>
-    <string name="optimize_adb_only">Запустите Shizuku через ADB. Root и дополнительные пользователи не поддерживаются.</string>
-    <string name="optimize_access_error">Нет доступа к Shizuku. Запустите его и разрешите доступ этому лаунчеру.</string>
-    <string name="optimize_setup">Установите Shizuku и выполните его настройку через ADB. Для сопряжения на телевизоре нужен пункт «Беспроводная отладка»; если прошивка его не предоставляет, для первого запуска понадобится компьютер. После перезагрузки Shizuku может потребоваться запустить снова. Затем вернитесь сюда и разрешите доступ. Закройте отладку после настройки, когда она больше не нужна.</string>
-    <string name="optimize_open_helper">Открыть Shizuku / скачать</string>
     <string name="optimize_cache">Хранилище и кэш — выбрать приложения</string>
     <string name="optimize_default_home">Выбрать главный экран в настройках лаунчера</string>
     <string name="optimize_refresh">Обновить список компонентов</string>

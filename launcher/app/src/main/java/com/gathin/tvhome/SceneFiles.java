@@ -8,6 +8,8 @@ import java.util.List;
 
 /** Bundled, offline Scenes. Extract once so the existing cropped wallpaper decoder handles every source. */
 final class SceneFiles {
+    static final String AURORA_ASSET = "scenes/04-northern-lights.webp";
+
     static synchronized List<File> images(Context context) {
         File dir = new File(context.getFilesDir(), "scenes-v3-fhd");
         try {

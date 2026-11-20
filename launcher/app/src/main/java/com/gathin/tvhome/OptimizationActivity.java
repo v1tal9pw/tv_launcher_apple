@@ -22,7 +22,7 @@ import org.json.JSONObject;
 /** Opt-in shell access; one package per confirmation, private backup before every change. */
 public final class OptimizationActivity extends Activity {
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
-    private volatile IOptimizationService remote;
+    private volatile LocalOptimizationService remote;
     private boolean busy;
     private volatile boolean preferLocal;
     private volatile boolean closed;
@@ -70,7 +70,7 @@ public final class OptimizationActivity extends Activity {
     }
     private void closeLocalAdb() {
         run(() -> {
-            try { LocalAdbClient.run(this, "settings put global adb_enabled 0"); }
+            try { LocalAdbClient.run(this, "settings put global adb_wifi_enabled 0; settings put global adb_enabled 0"); }
             catch (Exception ignored) { /* adbd may close its socket before replying. */ }
             Thread.sleep(600);
             if (LocalAdbClient.portOpen()) throw new IllegalStateException("ADB_PORT_STILL_OPEN");
@@ -172,7 +172,7 @@ public final class OptimizationActivity extends Activity {
     }
 
     private void changePackage(String pkg, boolean restore) throws Exception {
-        IOptimizationService service = remote;
+        LocalOptimizationService service = remote;
         if (service == null) throw new IllegalStateException("ACCESS_LOST");
         if (restore) {
             service.restore(pkg, journal.getInt(pkg, -1));

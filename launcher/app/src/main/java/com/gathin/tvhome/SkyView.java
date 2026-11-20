@@ -43,7 +43,9 @@ public class SkyView extends View {
     private int intensity;
     private int lastMinute = -1;
     private Bitmap texture;
+    private Canvas textureCanvas;
     private BitmapDrawable drawable;
+    private final Paint drawPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint backdropPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final android.graphics.Rect backdropBounds = new android.graphics.Rect();
 
@@ -57,17 +59,26 @@ public class SkyView extends View {
         setAlpha(intensity / 100f);
         setVisibility(intensity == 0 ? GONE : VISIBLE);
         if (intensity > 0) render(true);
+        else releaseMemory();
     }
 
     /** Picks up a new time of day; cheap and safe to call every minute. */
     public void update() {
         if (intensity == 0 || getVisibility() != VISIBLE) return;
-        render(false);
+        render(texture == null);
+    }
+
+    void releaseMemory() {
+        setBackground(null);
+        drawable = null;
+        textureCanvas = null;
+        texture = null;
+        lastMinute = -1;
     }
 
     /** Shares the small sky texture with folders and previews; no full-screen alpha layer is needed. */
     void drawBackdrop(Canvas canvas, int width, int height) {
-        if (intensity == 0 || texture == null) return;
+        if (intensity == 0 || texture == null || texture.isRecycled()) return;
         backdropPaint.setAlpha(Math.round(intensity * 2.55f));
         backdropBounds.set(0, 0, width, height);
         canvas.drawBitmap(texture, null, backdropBounds, backdropPaint);
@@ -99,29 +110,30 @@ public class SkyView extends View {
     private void render(boolean force) {
         Calendar now = Calendar.getInstance();
         int minute = Sky.minuteOfDay(now.get(Calendar.HOUR_OF_DAY), now.get(Calendar.MINUTE));
-        if (!force && minute == lastMinute) return;
+        if (!force && minute == lastMinute && texture != null) return;
         lastMinute = minute;
 
         int[] sun = sunTimes();
         Sky.Palette sky = sun == null ? Sky.at(minute) : Sky.at(minute, sun[0], sun[1]);
-        if (texture == null) texture = Bitmap.createBitmap(TEX_W, TEX_H, Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(texture);
-        canvas.drawColor(0, android.graphics.PorterDuff.Mode.CLEAR);
+        if (texture == null) {
+            texture = Bitmap.createBitmap(TEX_W, TEX_H, Bitmap.Config.ARGB_8888);
+            textureCanvas = new Canvas(texture);
+        }
+        textureCanvas.drawColor(0, android.graphics.PorterDuff.Mode.CLEAR);
 
-        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        paint.setShader(new LinearGradient(0f, 0f, 0f, TEX_H,
+        drawPaint.setShader(new LinearGradient(0f, 0f, 0f, TEX_H,
                 new int[]{sky.top, sky.mid, sky.bottom},
                 new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
-        canvas.drawRect(0f, 0f, TEX_W, TEX_H, paint);
+        textureCanvas.drawRect(0f, 0f, TEX_W, TEX_H, drawPaint);
 
         if (sky.sun > 0) {
             // A warm core low on the horizon, where the sun (or its afterglow) sits.
             int warm = Sky.lerpColor(sky.bottom, 0xFFFFD9A0, 0.65f);
-            paint.setShader(new RadialGradient(
+            drawPaint.setShader(new RadialGradient(
                     sky.sunX * TEX_W, TEX_H * 0.80f, TEX_W * 0.55f,
                     new int[]{(sky.sun << 24) | (warm & 0x00FFFFFF), warm & 0x00FFFFFF},
                     new float[]{0f, 1f}, Shader.TileMode.CLAMP));
-            canvas.drawRect(0f, 0f, TEX_W, TEX_H, paint);
+            textureCanvas.drawRect(0f, 0f, TEX_W, TEX_H, drawPaint);
         }
 
         if (drawable == null) {

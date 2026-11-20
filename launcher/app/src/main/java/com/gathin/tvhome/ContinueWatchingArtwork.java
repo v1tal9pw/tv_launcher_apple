@@ -25,6 +25,7 @@ final class ContinueWatchingArtwork {
     static { WORKER.allowCoreThreadTimeOut(true); }
     private static String key(ContinueWatchingRepository.Item item) { return item.pkg + '\n' + item.artwork; }
     static Bitmap cached(ContinueWatchingRepository.Item item) { return CACHE.get(key(item)); }
+    static void clearCache() { CACHE.evictAll(); }
     static void load(Context context, ContinueWatchingRepository.Item item, Consumer<Bitmap> ready) {
         Bitmap saved = cached(item);
         if (saved != null) { ready.accept(saved); return; }

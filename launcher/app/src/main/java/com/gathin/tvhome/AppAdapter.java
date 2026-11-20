@@ -432,7 +432,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         nameLp.width = w;
         nameLp.topMargin = h + Math.round(6 * density);
         name.setLayoutParams(nameLp);
-        return new Holder(v, listener, animations, advancedEffects, reducedMotion, focusOvershoot, restNameAlpha);
+        return new Holder(v, listener, this::launch, animations, advancedEffects, reducedMotion, focusOvershoot, restNameAlpha);
     }
 
     @Override public void onViewAttachedToWindow(@NonNull RecyclerView.ViewHolder holder) {
@@ -467,6 +467,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         if (!(holder instanceof Holder)) return;   // the App Library row has nothing to bind
         Holder h = (Holder) holder;
         Entry e = items.get(position);
+        h.bound = e;
         float d = ctx.getResources().getDisplayMetrics().density;
         RecyclerView parent = (RecyclerView) h.itemView.getParent();
         if (parent != null) {
@@ -529,21 +530,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 ? ctx.getString(R.string.unnamed_folder) : ctx.getString(R.string.folder_description, e.label) : e.label);
         boolean moving = e.key.equals(movingKey);
         h.card.setElevation((moving ? 9 : 3) * d);
-        h.card.setTranslationZ(focused ? 4 * d : 0f);
         h.card.setForeground(null);
-        h.card.setOnClickListener(v -> {
-            int pos = h.getBindingAdapterPosition();
-            if (pos == RecyclerView.NO_POSITION) return;
-            if (listener == null || !listener.onTileClicked()) {
-                if (e.component == null) { if (listener != null) listener.onFolderOpened(e.key); }
-                else launch(e);
-            }
-        });
-        h.card.setOnLongClickListener(v -> {
-            int pos = h.getBindingAdapterPosition();
-            if (listener != null && pos != RecyclerView.NO_POSITION) listener.onTileLongPressed(pos, v);
-            return true;
-        });
     }
 
     List<String> keys() {
@@ -792,9 +779,14 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     }
 
     static final class Holder extends RecyclerView.ViewHolder {
+        private static final DecelerateInterpolator DECELERATE = new DecelerateInterpolator();
+        private static final OvershootInterpolator OVERSHOOT_SOFT = new OvershootInterpolator(0.7f);
+        private static final OvershootInterpolator OVERSHOOT_STRONG = new OvershootInterpolator(1.6f);
+        private static final OvershootInterpolator OVERSHOOT_NONE = new OvershootInterpolator(0f);
         static final int BACKDROP_TILE = 0, BACKDROP_GLASS = 1, BACKDROP_GLYPH = 2, BACKDROP_NONE = 3;
         /** Which background the card has now; -1 until the first bind. */
         int backdrop = -1;
+        Entry bound;
         final View card;
         final ImageView banner;
         final ImageView icon;
@@ -804,7 +796,9 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         final float restNameAlpha;
         boolean suppressConfirmRelease;
 
-        Holder(View v, TileListener listener, boolean animations, boolean advancedEffects, boolean reducedMotion, boolean focusOvershoot, float restNameAlpha) {
+        Holder(View v, TileListener listener, java.util.function.Consumer<Entry> launcher,
+               boolean animations, boolean advancedEffects, boolean reducedMotion,
+               boolean focusOvershoot, float restNameAlpha) {
             super(v);
             card = v.findViewById(R.id.card);
             // The launcher draws its own app-colour focus light; avoid a platform fill behind glass.
@@ -831,6 +825,21 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 }
             });
             card.setClipToOutline(true);
+
+            card.setOnClickListener(view -> {
+                int pos = getBindingAdapterPosition();
+                Entry entry = bound;
+                if (pos == RecyclerView.NO_POSITION || entry == null) return;
+                if (listener == null || !listener.onTileClicked()) {
+                    if (entry.component == null) { if (listener != null) listener.onFolderOpened(entry.key); }
+                    else launcher.accept(entry);
+                }
+            });
+            card.setOnLongClickListener(view -> {
+                int pos = getBindingAdapterPosition();
+                if (listener != null && pos != RecyclerView.NO_POSITION) listener.onTileLongPressed(pos, view);
+                return true;
+            });
 
             card.setOnKeyListener((view, keyCode, event) -> {
                 boolean confirm = keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER
@@ -885,12 +894,11 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                             .translationY(lift).translationZ(depth)
                             .setUpdateListener(animation -> {
                                 if (listener != null && view.isFocused()) listener.onTileFocusFrame(view);
-                            })
-                            .withLayer();
+                            });
                     if (reducedMotion) {
                         // No overshoot: the extra frames redraw the banner and the dock band on a weak GPU.
                         zoom.setDuration(focused ? 120 : 80)
-                                .setInterpolator(new DecelerateInterpolator())
+                                .setInterpolator(DECELERATE)
                                 .start();
                         name.animate().alpha(focused ? 1f : restNameAlpha).setDuration(100).start();
                         // Same place as the full motion's slide ends: the layout's -6dp is only its starting point,
@@ -900,7 +908,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                     } else {
                         // Advanced effects settle with a softer overshoot: the lift already carries the motion.
                         zoom.setDuration(advancedEffects ? (focused ? 220 : 170) : (focused ? 260 : 180))
-                                .setInterpolator(new OvershootInterpolator(focused && focusOvershoot ? (advancedEffects ? 0.7f : 1.6f) : 0f))
+                                .setInterpolator(focused && focusOvershoot
+                                        ? (advancedEffects ? OVERSHOOT_SOFT : OVERSHOOT_STRONG) : OVERSHOOT_NONE)
                                 .start();
                         name.animate().alpha(focused ? 1f : restNameAlpha)
                                 .translationY(focused ? density * 4f : -density * 6f)

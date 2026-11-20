@@ -130,30 +130,45 @@ public final class UpdateActivity extends Activity {
     }
 
     private void install() {
-        if (downloaded == null || !downloaded.isFile()) { finish(); return; }
-        try {
-            PackageInstaller installer = getPackageManager().getPackageInstaller();
-            PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(
-                    PackageInstaller.SessionParams.MODE_FULL_INSTALL);
-            params.setAppPackageName(getPackageName());
-            params.setSize(downloaded.length());
-            int id = installer.createSession(params);
-            try (PackageInstaller.Session session = installer.openSession(id)) {
-                try (InputStream in = new FileInputStream(downloaded);
-                     OutputStream out = session.openWrite("base.apk", 0, downloaded.length())) {
-                    byte[] bytes = new byte[8192]; int count;
-                    while ((count = in.read(bytes)) != -1) out.write(bytes, 0, count);
-                    session.fsync(out);
+        File apk = downloaded;
+        if (apk == null || !apk.isFile()) { finish(); return; }
+        downloaded = null;
+        new Thread(() -> {
+            try {
+                PackageInstaller installer = getPackageManager().getPackageInstaller();
+                PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(
+                        PackageInstaller.SessionParams.MODE_FULL_INSTALL);
+                params.setAppPackageName(getPackageName());
+                params.setSize(apk.length());
+                int id = installer.createSession(params);
+                try (PackageInstaller.Session session = installer.openSession(id)) {
+                    try (InputStream in = new FileInputStream(apk);
+                         OutputStream out = session.openWrite("base.apk", 0, apk.length())) {
+                        byte[] bytes = new byte[8192]; int count;
+                        while ((count = in.read(bytes)) != -1) out.write(bytes, 0, count);
+                        session.fsync(out);
+                    }
+                    Intent callback = new Intent(this, UpdateInstallReceiver.class);
+                    PendingIntent pending = PendingIntent.getBroadcast(this, id, callback,
+                            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+                    session.commit(pending.getIntentSender());
                 }
-                Intent callback = new Intent(this, UpdateInstallReceiver.class);
-                PendingIntent pending = PendingIntent.getBroadcast(this, id, callback,
-                        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
-                session.commit(pending.getIntentSender());
+                runOnUiThread(() -> { if (!isFinishing() && !isDestroyed()) finish(); });
+            } catch (Exception error) {
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    Toast.makeText(this, R.string.update_failed, Toast.LENGTH_LONG).show();
+                    finish();
+                });
+            } finally {
+                apk.delete();
             }
-            finish();
-        } catch (Exception error) {
-            Toast.makeText(this, R.string.update_failed, Toast.LENGTH_LONG).show();
-            finish();
-        }
+        }, "tvhome-install").start();
+    }
+
+    @Override protected void onDestroy() {
+        if (progress != null && progress.isShowing()) progress.dismiss();
+        progress = null;
+        super.onDestroy();
     }
 }

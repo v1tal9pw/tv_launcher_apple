@@ -56,8 +56,11 @@ final class QuickSettingsPanel extends FrameLayout {
     private TextView launcherSettingsLabel, allSettingsLabel, closeLabel;
     private ValueAnimator transition;
     private ViewTreeObserver.OnPreDrawListener entryDraw;
+    private final int[] settingsKeycodes;
     private float progress;
     private boolean closing;
+    private boolean backDown;
+    private boolean settingsDown;
     private Runnable afterClose;
     private int selected = R.id.quickAllSettings;
     private boolean restoreFocus = true;
@@ -68,6 +71,10 @@ final class QuickSettingsPanel extends FrameLayout {
         this.activity = activity;
         this.home = (ViewGroup) home;
         this.listener = listener;
+        int[] keycodes;
+        try { keycodes = activity.getResources().getIntArray(R.array.settings_key_keycodes); }
+        catch (RuntimeException ignored) { keycodes = new int[0]; }
+        this.settingsKeycodes = keycodes;
         // Launcher settings' Animations off, like the system's animator scale at 0, opens and closes in place.
         animationsEnabled = animations && ValueAnimator.areAnimatorsEnabled();
         this.reducedMotion = reducedMotion || !animationsEnabled;
@@ -118,6 +125,8 @@ final class QuickSettingsPanel extends FrameLayout {
 
     void open(int focus) {
         selected = focus;
+        backDown = false;
+        settingsDown = false;
         applyProgress(0f);
         for (int i = 0; i < home.getChildCount(); i++)
             homeChildren.add(new HomeChildState(home.getChildAt(i)));
@@ -234,15 +243,35 @@ final class QuickSettingsPanel extends FrameLayout {
 
     int selectedControl() { return selected; }
 
+    private boolean isSettingsKey(int code) {
+        if (code == KeyEvent.KEYCODE_SETTINGS) return true;
+        for (int listed : settingsKeycodes) if (listed == code) return true;
+        return false;
+    }
+
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
         if (closing) return true;
-        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
-            if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) dismiss();
+        int code = event.getKeyCode();
+        if (code == KeyEvent.KEYCODE_BACK) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) backDown = true;
+            else if (event.getAction() == KeyEvent.ACTION_UP) {
+                boolean shouldClose = backDown && !event.isCanceled();
+                backDown = false;
+                if (shouldClose) dismiss();
+            }
             return true;
         }
-        if (event.getKeyCode() == KeyEvent.KEYCODE_SETTINGS) return true;
+        if (isSettingsKey(code)) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) settingsDown = true;
+            else if (event.getAction() == KeyEvent.ACTION_UP) {
+                boolean shouldClose = settingsDown && !event.isCanceled();
+                settingsDown = false;
+                if (shouldClose) dismiss();
+            }
+            return true;
+        }
         int direction;
-        switch (event.getKeyCode()) {
+        switch (code) {
             case KeyEvent.KEYCODE_DPAD_LEFT: direction = View.FOCUS_LEFT; break;
             case KeyEvent.KEYCODE_DPAD_RIGHT: direction = View.FOCUS_RIGHT; break;
             case KeyEvent.KEYCODE_DPAD_UP: direction = View.FOCUS_UP; break;

@@ -13,6 +13,8 @@ public class RemotePanelKeysTest {
         assertTrue(RemotePanelKeys.isPanelKey(82, 82));
         assertFalse(RemotePanelKeys.isPanelKey(82, 176));
         assertFalse(RemotePanelKeys.isPanelKey(82, 183));
+        assertTrue(RemotePanelKeys.isPanelKey(176, 83, new int[]{83}));
+        assertFalse(RemotePanelKeys.isPanelKey(82, 83, new int[]{83}));
     }
 
     @Test public void playPauseStaysWithVideoUntilExplicitlyEnabledOutsideLauncher() {

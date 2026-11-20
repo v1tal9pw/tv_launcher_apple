@@ -6,11 +6,20 @@ import java.io.InputStream;
 import java.net.URL;
 import javax.net.ssl.HttpsURLConnection;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /** Only public calendar and city lookups; no accounts, analytics or background location. */
 final class FeatureNetwork {
-    static final ExecutorService WORKER = Executors.newSingleThreadExecutor();
+    static final ExecutorService WORKER = worker();
+
+    private static ExecutorService worker() {
+        ThreadPoolExecutor pool = new ThreadPoolExecutor(
+                3, 3, 30, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
+        pool.allowCoreThreadTimeOut(true);
+        return pool;
+    }
     static JSONObject get(String address) throws Exception {
         URL url = new URL(address);
         if (!url.getProtocol().equals("https") || !(url.getHost().equals("api.jolpi.ca")

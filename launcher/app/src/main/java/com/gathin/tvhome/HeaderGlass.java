@@ -38,7 +38,14 @@ final class HeaderGlass {
 
     void schedule() {
         root.removeCallbacks(refresh);
-        if (active) root.postDelayed(refresh, 650);
+        if (active && hasVisibleChild()) root.postDelayed(refresh, 650);
+    }
+
+    private boolean hasVisibleChild() {
+        if (!buttons.isShown()) return false;
+        for (int i = 0; i < buttons.getChildCount(); i++)
+            if (buttons.getChildAt(i).getVisibility() == View.VISIBLE) return true;
+        return false;
     }
 
     private void capture() {
@@ -59,7 +66,7 @@ final class HeaderGlass {
         if (visible.isEmpty()) return;
         int padding = Math.round(36 * density);
         capture.inset(-padding, -padding);
-        capture.intersect(0, 0, root.getWidth(), root.getHeight());
+        if (!capture.intersect(0, 0, root.getWidth(), root.getHeight()) || capture.isEmpty()) return;
         scene.layout(0, 0, root.getWidth(), root.getHeight());
         // One tiny strip, shared by every capsule. No controls, labels or old glass are captured.
         Bitmap backdrop = FolderBackdrop.capture(scene, capture, Math.max(1, capture.width() / 8),

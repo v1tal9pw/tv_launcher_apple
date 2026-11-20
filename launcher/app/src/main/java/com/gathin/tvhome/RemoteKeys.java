@@ -403,7 +403,9 @@ final class RemoteKeys {
      *  switches to that TV input (an HDMI port) instead, an action word runs that action, and a
      *  "package/.Activity" target opens that activity. */
     static void launch(Context ctx, String pkg) {
-        if (pkg == null || runAction(ctx, pkg)) return;
+        if (pkg == null) return;
+        if (!"back".equalsIgnoreCase(pkg)) RemoteControlOverlay.clearPendingReturn();
+        if (runAction(ctx, pkg)) return;
         if (INPUTS.equals(pkg)) {
             // This launcher's own Inputs menu, as InputsRequestActivity opens it: addressed to Home directly, so a
             // vendor input picker that also answers VIEW_INPUTS never turns it into a chooser.

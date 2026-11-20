@@ -309,7 +309,7 @@ public final class ContinueWatchingSmoke extends Instrumentation {
                 .setData(Uri.parse("continue-fixture://movie/" + id)).putExtra("continue_fixture", true);
         ContentValues values = new ContentValues(); values.put("type", 0); values.put("title", "Continue fixture " + id);
         values.put("content_id", id); values.put("internal_provider_id", "fixture-" + id);
-        values.put("intent_uri", intent.toUri(Intent.URI_INTENT_SCHEME)); values.put("poster_art_uri", "android.resource://" + context.getPackageName() + "/raw/aurora_wallpaper");
+        values.put("intent_uri", intent.toUri(Intent.URI_INTENT_SCHEME)); values.put("poster_art_uri", "android.resource://" + context.getPackageName() + "/drawable/banner");
         values.put("last_playback_position_millis", position); values.put("duration_millis", duration);
         if (next) { values.put("watch_next_type", kind); values.put("last_engagement_time_utc_millis", System.currentTimeMillis() - 600_000 + recent * 1000); }
         Uri uri = context.getContentResolver().insert(next ? ContinueWatchingRepository.WATCH_NEXT : ContinueWatchingRepository.PREVIEW, values);

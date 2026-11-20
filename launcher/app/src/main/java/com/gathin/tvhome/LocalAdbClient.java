@@ -36,9 +36,8 @@ final class LocalAdbClient {
     private LocalAdbClient() { }
 
     static boolean portOpen() {
-        if (portOpen("127.0.0.1")) return true;
-        String local = localLanIp();
-        return local != null && portOpen(local);
+        for (String host : localHosts()) if (portOpen(host)) return true;
+        return false;
     }
 
     private static boolean portOpen(String host) {
@@ -48,23 +47,42 @@ final class LocalAdbClient {
         } catch (Exception ignored) { return false; }
     }
 
-    private static String localLanIp() {
+    private static java.util.List<String> localHosts() {
+        java.util.List<String> hosts = new java.util.ArrayList<>();
+        hosts.add("127.0.0.1");
         try {
             for (NetworkInterface network : java.util.Collections.list(NetworkInterface.getNetworkInterfaces())) {
                 if (!network.isUp() || network.isLoopback()) continue;
+                String name = network.getName();
+                if (name != null && (name.startsWith("tun") || name.startsWith("tap")
+                        || name.startsWith("ppp") || name.startsWith("wg")
+                        || name.startsWith("rmnet") || name.startsWith("dummy"))) continue;
                 for (InetAddress address : java.util.Collections.list(network.getInetAddresses()))
-                    if (address instanceof Inet4Address && !address.isLoopbackAddress()) return address.getHostAddress();
+                    if (address instanceof Inet4Address && !address.isLoopbackAddress()) {
+                        String ip = address.getHostAddress();
+                        if (ip != null && !hosts.contains(ip)) hosts.add(ip);
+                    }
             }
         } catch (Exception ignored) { }
-        return null;
+        return hosts;
+    }
+
+    private static Socket connectLocal() {
+        for (String host : localHosts()) {
+            Socket socket = new Socket();
+            try {
+                socket.connect(new InetSocketAddress(host, 5555), 1000);
+                return socket;
+            } catch (Exception ignored) {
+                try { socket.close(); } catch (Exception closeIgnored) { }
+            }
+        }
+        throw new IllegalStateException("ADB_PORT_5555_CLOSED");
     }
 
     static String run(Context context, String command) throws Exception {
         KeyPair keys = keys(context);
-        String host = portOpen("127.0.0.1") ? "127.0.0.1" : localLanIp();
-        if (host == null || !portOpen(host)) throw new IllegalStateException("ADB_PORT_5555_CLOSED");
-        try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(host, 5555), 1500);
+        try (Socket socket = connectLocal()) {
             socket.setSoTimeout(35000); // The TV may ask to trust this app's ADB key.
             DataInputStream input = new DataInputStream(socket.getInputStream());
             OutputStream output = socket.getOutputStream();
@@ -89,7 +107,7 @@ final class LocalAdbClient {
             send(output, OPEN, 1, 0, ("shell:" + command + "; echo __TVHOME_EXIT__$?\0")
                     .getBytes(StandardCharsets.UTF_8));
             StringBuilder result = new StringBuilder();
-            for (int packets = 0; packets < 128; packets++) {
+            for (int packets = 0; packets < 4096; packets++) {
                 Packet packet = read(input);
                 if (packet.command == WRTE) {
                     send(output, OKAY, 1, packet.arg0, null);

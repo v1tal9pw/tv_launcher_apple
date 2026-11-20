@@ -40,12 +40,6 @@
     <string name="optimize_local_granted">System settings permission granted</string>
     <string name="optimize_local_home">Set this launcher as Home via ADB</string>
     <string name="optimize_local_close">Close local ADB port 5555</string>
-    <string name="optimize_connect">Connect Shizuku</string>
-    <string name="optimize_connected">Shizuku connected</string>
-    <string name="optimize_adb_only">Start Shizuku with ADB. Root and secondary users are not supported.</string>
-    <string name="optimize_access_error">Shizuku access is unavailable. Start it and authorize this launcher.</string>
-    <string name="optimize_setup">Install Shizuku and follow its ADB setup instructions. Wireless pairing needs Wireless debugging on the TV; if the firmware lacks it, initial startup needs a computer. After a restart, Shizuku may need starting again. Return here and grant access. Close debugging after setup when no longer needed.</string>
-    <string name="optimize_open_helper">Open Shizuku / download</string>
     <string name="optimize_cache">Storage and app cache — choose apps</string>
     <string name="optimize_default_home">Choose default launcher in launcher settings</string>
     <string name="optimize_refresh">Refresh component list</string>

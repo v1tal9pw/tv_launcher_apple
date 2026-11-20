@@ -110,6 +110,7 @@ public class HomeKeyService extends AccessibilityService {
             AccessibilityServiceInfo info = getServiceInfo();
             if (info != null) {
                 info.flags |= AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS;
+                info.eventTypes |= AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED;
                 setServiceInfo(info);
                 Log.i(TAG, "Key filtering requested flags=0x" + Integer.toHexString(info.flags));
             }
@@ -283,7 +284,12 @@ public class HomeKeyService extends AccessibilityService {
 
     private boolean handleKeyEvent(KeyEvent event) {
         if (RemoteLearning.handle(event)) return true;
-        if (RemotePanelKeys.handle(this, event)) return true;
+        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK && event.getAction() == KeyEvent.ACTION_DOWN)
+            RemoteControlOverlay.noteBackKey();
+        if (event.getKeyCode() == KeyEvent.KEYCODE_HOME && event.getAction() == KeyEvent.ACTION_DOWN
+                && event.getRepeatCount() == 0)
+            RemoteControlOverlay.clearPendingReturn();
+        if (RemotePanelKeys.handle(this, event, settingsKeycodes)) return true;
         if (event.getKeyCode() == KeyEvent.KEYCODE_HOME
                 && featureChoices != null && featureChoices.getBoolean(RemotePanelKeys.LONG_HOME, false)) {
             if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
@@ -309,15 +315,18 @@ public class HomeKeyService extends AccessibilityService {
         // A scancode entry is more specific than any keycode, so it goes first.
         if (RemoteKeys.handle(this, event, inFront(appScancodes, frontAppScancodes, event.getScanCode()),
                 holdAppScancodes.get(event.getScanCode()))) return true;
-        // The stock launcher handled the remote's Settings button; with it disabled the button does nothing.
+        // The stock launcher handled the remote's Settings button; toggle the control panel like long-press Home.
         if (isSettingsKey(event)) {
             if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
-                Intent open = settingsPanel ? new Intent(this, MainActivity.class).setAction(MainActivity.ACTION_QUICK_SETTINGS)
-                        : SystemSettings.intent(this, Settings.ACTION_SETTINGS);
-                try {
-                    startActivity(open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-                } catch (ActivityNotFoundException | SecurityException unavailable) {
-                    Toast.makeText(this, R.string.not_available, Toast.LENGTH_SHORT).show();
+                if (settingsPanel) {
+                    RemoteControlOverlay.toggle(this);
+                } else {
+                    try {
+                        startActivity(SystemSettings.intent(this, Settings.ACTION_SETTINGS)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                    } catch (ActivityNotFoundException | SecurityException unavailable) {
+                        Toast.makeText(this, R.string.not_available, Toast.LENGTH_SHORT).show();
+                    }
                 }
             }
             return true;
@@ -371,6 +380,7 @@ public class HomeKeyService extends AccessibilityService {
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
         if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
+        RemoteControlOverlay.onWindowChanged(this, event.getPackageName(), event.getClassName());
         // app_keys "front:" entries: only activities count, so a toast or the volume bar doesn't change the app in front.
         if ((!frontAppKeys.isEmpty() || !frontAppScancodes.isEmpty())
                 && event.getPackageName() != null && event.getClassName() != null) {
@@ -483,6 +493,7 @@ public class HomeKeyService extends AccessibilityService {
     }
 
     private void openHome() {
+        RemoteControlOverlay.clearPendingReturn();
         Intent open = stockHomeStays() ? new Intent(this, MainActivity.class)
                 : new Intent(Intent.ACTION_MAIN).setPackage(getPackageName());
         startActivity(open.addCategory(Intent.CATEGORY_HOME)

@@ -107,8 +107,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private List<String> inputSources;
     private boolean coocaaSources, inputsConnectedOnly;
     static final String ACTION_QUICK_SETTINGS = "com.gathin.tvhome.action.QUICK_SETTINGS";
+    static final String EXTRA_QUICK_FOCUS = "com.gathin.tvhome.extra.QUICK_FOCUS";
     static volatile boolean remotePanelForeground;
+    private static MainActivity foregroundInstance;
     private static final int LAUNCHER_SETTINGS_REQUEST = 42;
+    private static final int BLUETOOTH_PERMISSION_REQUEST = 43;
 
     /** Tiles per row and dock slots (res/values/config.xml, columns). Set in onCreate. */
     static int COLUMNS = 4;
@@ -183,9 +186,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private TextView btnWifi;
     private QuickSettingsPanel quickSettings;
     private boolean resumeQuickSettings;
+    private boolean quickSettingsWasOpenOnPause;
     private int quickSettingsFocus = R.id.quickAllSettings;
     private boolean openInputsAfterPanel;
     private boolean quickSettingsAwaitingLayout;
+    private boolean pendingBluetoothLaunch;
     private TextView shamsiDate;
     private boolean shamsi;
     /** Optional time-of-day backdrop (config.xml, sky_intensity); 0 keeps it hidden. */
@@ -350,8 +355,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         resumeQuickSettings = savedInstanceState != null
                 ? savedInstanceState.getBoolean("quick_settings_open", false)
                 : ACTION_QUICK_SETTINGS.equals(getIntent().getAction());
-        if (savedInstanceState != null)
+        if (savedInstanceState != null) {
             quickSettingsFocus = savedInstanceState.getInt("quick_settings_focus", R.id.quickAllSettings);
+        } else if (ACTION_QUICK_SETTINGS.equals(getIntent().getAction())) {
+            quickSettingsFocus = getIntent().getIntExtra(EXTRA_QUICK_FOCUS, R.id.quickAllSettings);
+        }
         // config.xml, overlaid by config.json from a pushed theme (see Config and tools/theme.sh).
         Config cfg = Config.load(this);
         integrationConfig = cfg;
@@ -644,6 +652,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     protected void onResume() {
         super.onResume();
         remotePanelForeground = true;
+        foregroundInstance = this;
+        quickSettingsWasOpenOnPause = false;
         long revision = getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE).getLong(Config.SETTINGS_REVISION_KEY, 0);
         if (Config.settingsChanged(settingsRevision, revision)) { recreate(); return; }
         // A festival that started or ended while Home was in the background: rebuild with or without it.
@@ -726,7 +736,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             if (adapter == homeAdapter) for (String key : homeAdapter.keys()) {
                 if (homeAdapter.folder(key) != null) { prepareFolder(key); break; }
             }
-            if (resumeQuickSettings && !paused) showQuickSettings();
+            if (pendingBluetoothLaunch && !paused) {
+                pendingBluetoothLaunch = false;
+                launchQuickIntent(R.id.quickBluetooth,
+                        QuickSettingsActions.intent(this, R.id.quickBluetooth)
+                                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP), false);
+            } else if (resumeQuickSettings && !paused) showQuickSettings();
             else showCardPrompt();
         });
     }
@@ -789,6 +804,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     protected void onPause() {
         super.onPause();
         remotePanelForeground = false;
+        if (foregroundInstance == this) foregroundInstance = null;
         paused = true;
         if (headerGlass != null) headerGlass.setActive(false);
         if (integration != null) integration.pause();
@@ -808,6 +824,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         wallpaperPlayer.stop();
         if (diya != null) diya.stop();
         if (appLibrary != null) appLibrary.close();
+        quickSettingsWasOpenOnPause = quickSettings != null;
         if (quickSettings != null) {
             resumeQuickSettings = true;
             quickSettingsFocus = quickSettings.selectedControl();
@@ -835,6 +852,16 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         super.onActivityResult(requestCode, resultCode, data);
         // Launcher preferences are read once, in onCreate; settings reports when any choice changed.
         if (requestCode == LAUNCHER_SETTINGS_REQUEST && resultCode == RESULT_OK) recreate();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == BLUETOOTH_PERMISSION_REQUEST) {
+            quickSettingsFocus = R.id.quickBluetooth;
+            resumeQuickSettings = true;
+            pendingBluetoothLaunch = true;
+        }
     }
 
     @Override
@@ -2135,6 +2162,16 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) RemoteKeys.launch(this, mapped);
             return true;
         }
+        if (isSettingsKey(event.getKeyCode())) {
+            // settings_key_panel (on by default): toggle the glass control panel, matching long-press Home;
+            // off, open the TV's own Settings (or close the panel if already open).
+            if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
+                if (quickSettings != null) quickSettings.dismiss();
+                else if (settingsKeyPanel) openQuickSettings();
+                else openSettings(Settings.ACTION_SETTINGS);
+            }
+            return true;
+        }
         if (quickSettings != null)
             return quickSettings.dispatchKeyEvent(event) || super.dispatchKeyEvent(event);
         if (continueShelf.hasFocus()) {
@@ -2156,15 +2193,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     onTileLongPressed(holder.getBindingAdapterPosition(), focused);
                 return true;
             }
-        }
-        if (isSettingsKey(code)) {
-            // settings_key_panel (on by default): the glass quick settings, as from the Settings pill;
-            // off, the TV's own Settings, the same choice InputKeyService makes while it runs.
-            if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
-                if (settingsKeyPanel) openQuickSettings();
-                else openSettings(Settings.ACTION_SETTINGS);
-            }
-            return true;
         }
         if (android.util.Log.isLoggable("TvHomeMotion", android.util.Log.DEBUG)
                 && event.getAction() == KeyEvent.ACTION_DOWN)
@@ -2327,13 +2355,25 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         super.onNewIntent(intent);
         setIntent(intent);
         if (ACTION_QUICK_SETTINGS.equals(intent.getAction())) {
-            if (paused) {
-                quickSettingsFocus = R.id.quickAllSettings;
+            boolean explicitFocus = intent.hasExtra(EXTRA_QUICK_FOCUS);
+            int focus = intent.getIntExtra(EXTRA_QUICK_FOCUS, R.id.quickAllSettings);
+            if (!explicitFocus && (quickSettings != null || (paused && quickSettingsWasOpenOnPause))) {
+                quickSettingsWasOpenOnPause = false;
+                resumeQuickSettings = false;
+                if (quickSettings != null) quickSettings.dismiss();
+            } else if (paused) {
+                quickSettingsFocus = focus;
                 resumeQuickSettings = true;
-            } else if (quickSettings != null) quickSettings.dismiss();
-            else openQuickSettings();
+            } else if (explicitFocus) {
+                quickSettingsFocus = focus;
+                if (quickSettings == null) showQuickSettings();
+            } else {
+                openQuickSettings();
+            }
             return;
         }
+        quickSettingsWasOpenOnPause = false;
+        pendingBluetoothLaunch = false;
         resumeQuickSettings = false;
         restoreContinueFocus = false;
         onlyPaused = false;
@@ -2899,6 +2939,17 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         open(systemIntent(this, action).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP));
     }
 
+    static boolean toggleForegroundPanel() {
+        MainActivity current = foregroundInstance;
+        if (current == null || current.paused || current.isFinishing() || current.isDestroyed()) return false;
+        current.handler.post(() -> {
+            if (current.paused || current.isFinishing() || current.isDestroyed()) return;
+            if (current.quickSettings != null) current.quickSettings.dismiss();
+            else current.openQuickSettings();
+        });
+        return true;
+    }
+
     void openQuickSettings() {
         openInputsAfterPanel = false;
         quickSettingsFocus = R.id.quickAllSettings;
@@ -2972,26 +3023,40 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             else clean.run();
             return;
         }
-        // Launcher settings is ours: it stays in Home's task and reports a change back (onActivityResult).
+        if (control == R.id.quickBluetooth && QuickSettingsActions.needsBluetoothConnectPermission(this)) {
+            quickSettingsFocus = control;
+            resumeQuickSettings = true;
+            Runnable ask = () -> requestPermissions(
+                    new String[]{android.Manifest.permission.BLUETOOTH_CONNECT}, BLUETOOTH_PERMISSION_REQUEST);
+            if (quickSettings != null) quickSettings.closeForAction(ask);
+            else ask.run();
+            return;
+        }
+        // Keep launched settings in Home's task (CLEAR_TOP without NEW_TASK) so Back always pops
+        // directly back to MainActivity.onResume() and reopens the panel on the selected control.
         boolean launcherSettings = control == R.id.quickLauncherSettings;
         Intent intent = launcherSettings ? new Intent(this, LauncherSettingsActivity.class)
                 : QuickSettingsActions.intent(this, control)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
         if (launcherSettings) intent.putExtra(HomePreviewView.DOCK_PACKAGE, continueShelf.focusedPackage());
         quickSettingsFocus = control;
         resumeQuickSettings = true;
-        Runnable launch = () -> {
-            try {
-                if (launcherSettings) startActivityForResult(intent, LAUNCHER_SETTINGS_REQUEST);
-                else startActivity(intent);
-            } catch (ActivityNotFoundException | SecurityException unavailable) {
-                resumeQuickSettings = false;
-                Toast.makeText(this, R.string.not_available, Toast.LENGTH_LONG).show();
-                handler.post(this::showQuickSettings);
-            }
-        };
+        Runnable launch = () -> launchQuickIntent(control, intent, launcherSettings);
         if (quickSettings != null) quickSettings.closeForAction(launch);
         else launch.run();
+    }
+
+    private void launchQuickIntent(int control, Intent intent, boolean launcherSettings) {
+        quickSettingsFocus = control;
+        resumeQuickSettings = true;
+        try {
+            if (launcherSettings) startActivityForResult(intent, LAUNCHER_SETTINGS_REQUEST);
+            else startActivity(intent);
+        } catch (ActivityNotFoundException | SecurityException unavailable) {
+            resumeQuickSettings = false;
+            Toast.makeText(this, R.string.not_available, Toast.LENGTH_LONG).show();
+            handler.post(this::showQuickSettings);
+        }
     }
 
     /** Standard settings first, with optional firmware destinations supplied by config.xml or a theme. */
@@ -3761,6 +3826,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 || level == TRIM_MEMORY_RUNNING_CRITICAL;
         if (!due || started || homeAdapter == null) return;
         wallpaperPlayer.releaseMemory();
+        if (sky != null) sky.releaseMemory();
+        ContinueWatchingArtwork.clearCache();
         if (adapter != homeAdapter) adapter.clear();
         if (preparedFolderAdapter != null) preparedFolderAdapter.clear();
         preparedFolderAdapter = null;

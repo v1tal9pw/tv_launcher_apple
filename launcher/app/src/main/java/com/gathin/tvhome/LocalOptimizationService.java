@@ -9,7 +9,8 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 /** Runs the existing guarded cleanup flow through an explicitly paired local ADB connection. */
-final class LocalOptimizationService extends IOptimizationService.Stub {
+final class LocalOptimizationService {
+    private static final String SEP = "__TVHOME_SEP__";
     private final Context context;
     private final Map<String, Integer> prepared = new HashMap<>();
     private boolean tclProfile;
@@ -19,10 +20,14 @@ final class LocalOptimizationService extends IOptimizationService.Stub {
     private String run(String... args) throws Exception { return LocalAdbClient.run(context, String.join(" ", args)); }
 
     private void shellUser() throws Exception {
-        if (!"2000".equals(run("id", "-u")) || !"0".equals(run("am", "get-current-user")))
+        String reply = LocalAdbClient.run(context,
+                "id -u; echo " + SEP + "; am get-current-user; echo " + SEP
+                        + "; getprop ro.product.model; echo " + SEP
+                        + "; getprop ro.product.device; echo " + SEP + "; getprop ro.product.name");
+        String[] parts = reply.split(SEP, -1);
+        if (parts.length < 5 || !"2000".equals(parts[0].trim()) || !"0".equals(parts[1].trim()))
             throw new IllegalStateException("ADB_USER_REQUIRED");
-        tclProfile = OptimizationPolicy.tclC6k(run("getprop", "ro.product.model"),
-                run("getprop", "ro.product.device"), run("getprop", "ro.product.name"));
+        tclProfile = OptimizationPolicy.tclC6k(parts[2].trim(), parts[3].trim(), parts[4].trim());
     }
 
     private int state(String pkg) throws Exception {
@@ -52,18 +57,27 @@ final class LocalOptimizationService extends IOptimizationService.Stub {
         if (!foreground) throw new IllegalStateException("OPEN_LAUNCHER_FIRST");
     }
 
-    @Override public synchronized String inventory() {
+    synchronized String inventory() {
         try {
             shellUser(); JSONArray list = new JSONArray();
-            String installed = run("pm", "list", "packages", "--user", "0");
-            for (String pkg : OptimizationPolicy.candidates(tclProfile))
-                if (java.util.Arrays.asList(installed.split("\\s+")).contains("package:" + pkg))
-                    list.put(new JSONObject().put("package", pkg).put("state", state(pkg)));
+            String reply = LocalAdbClient.run(context,
+                    "pm list packages --user 0; echo " + SEP + "; pm list packages -d --user 0");
+            String[] parts = reply.split(SEP, -1);
+            java.util.Set<String> installed = new java.util.HashSet<>(
+                    java.util.Arrays.asList(parts[0].trim().split("\\s+")));
+            java.util.Set<String> disabled = parts.length > 1
+                    ? new java.util.HashSet<>(java.util.Arrays.asList(parts[1].trim().split("\\s+")))
+                    : java.util.Collections.emptySet();
+            for (String pkg : OptimizationPolicy.candidates(tclProfile)) {
+                String entry = "package:" + pkg;
+                if (installed.contains(entry))
+                    list.put(new JSONObject().put("package", pkg).put("state", disabled.contains(entry) ? 3 : 0));
+            }
             return list.toString();
         } catch (Exception e) { throw failure(e); }
     }
 
-    @Override public synchronized String prepare(String pkg) {
+    synchronized String prepare(String pkg) {
         try {
             shellUser(); int before = state(pkg);
             if (before != 0 && before != 1) throw new IllegalStateException("ALREADY_DISABLED");
@@ -81,7 +95,7 @@ final class LocalOptimizationService extends IOptimizationService.Stub {
         } catch (Exception e) { throw failure(e); }
     }
 
-    @Override public synchronized void freeze(String pkg) {
+    synchronized void freeze(String pkg) {
         try {
             shellUser(); Integer expected = prepared.remove(pkg);
             if (expected == null || expected != state(pkg)) throw new IllegalStateException("PREPARE_REQUIRED");
@@ -91,7 +105,7 @@ final class LocalOptimizationService extends IOptimizationService.Stub {
         } catch (Exception e) { throw failure(e); }
     }
 
-    @Override public synchronized void restore(String pkg, int originalState) {
+    synchronized void restore(String pkg, int originalState) {
         try {
             shellUser(); state(pkg);
             if (originalState != 0 && originalState != 1) throw new SecurityException("INVALID_ORIGINAL_STATE");
@@ -104,5 +118,5 @@ final class LocalOptimizationService extends IOptimizationService.Stub {
         return new IllegalStateException(error.getMessage() == null ? "OPERATION_FAILED" : error.getMessage());
     }
 
-    @Override public void destroy() { prepared.clear(); }
+    void destroy() { prepared.clear(); }
 }

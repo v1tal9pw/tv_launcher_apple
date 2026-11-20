@@ -21,7 +21,10 @@ final class ReleaseUpdater {
     static final String GITHUB_URL = "https://github.com/" + REPOSITORY;
     private static final String API = "https://api.github.com/repos/" + REPOSITORY + "/releases/latest";
     private static final long DAY_MS = 24L * 60 * 60 * 1000;
+    private static final long FAILURE_RETRY_MS = 15L * 60 * 1000;
     private static final String LAST_CHECK = "release_last_check";
+    private static volatile long retryAfterMs;
+    private static volatile boolean checking;
 
     static final class Release {
         final int code;
@@ -83,7 +86,8 @@ final class ReleaseUpdater {
         long now = System.currentTimeMillis();
         long last = prefs.getLong(LAST_CHECK, 0);
         if (!shouldCheck(last, now, force)) return;
-        prefs.edit().putLong(LAST_CHECK, now).apply();
+        if (!force && (checking || now < retryAfterMs)) return;
+        checking = true;
         Context context = activity.getApplicationContext();
         FeatureNetwork.WORKER.execute(() -> {
             Release release = null;
@@ -91,7 +95,14 @@ final class ReleaseUpdater {
             try {
                 release = fetch(context);
                 checked = true;
-            } catch (Exception ignored) { /* Offline Home remains usable. */ }
+                prefs.edit().putLong(LAST_CHECK, System.currentTimeMillis()).apply();
+                retryAfterMs = 0;
+            } catch (Exception ignored) {
+                /* Offline Home remains usable; retry later instead of skipping a full day. */
+                retryAfterMs = System.currentTimeMillis() + FAILURE_RETRY_MS;
+            } finally {
+                checking = false;
+            }
             Release result = release;
             boolean succeeded = checked;
             new Handler(Looper.getMainLooper()).post(() -> completed.accept(result, succeeded));

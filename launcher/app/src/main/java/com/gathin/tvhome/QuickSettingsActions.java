@@ -1,5 +1,7 @@
 package com.gathin.tvhome;
 
+import android.Manifest;
+import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -8,6 +10,7 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.net.Uri;
+import android.os.Build;
 import android.provider.Settings;
 import android.widget.Toast;
 
@@ -20,6 +23,13 @@ import java.util.function.Predicate;
 /** Resolve optional configured firmware destinations, then fall back to public Android settings. */
 final class QuickSettingsActions {
     static final String SYSTEM_CLEANER = "com.tcl.guard";
+    static final String ACTION_CONNECT_INPUT = "com.google.android.intent.action.CONNECT_INPUT";
+    static final String ACTION_BLUETOOTH_PICKER = "android.bluetooth.devicepicker.action.LAUNCH";
+    private static final String[] VENDOR_BLUETOOTH_COMPONENTS = {
+            "com.tcl.settings/.bluetooth.BluetoothActivity",
+            "com.tcl.settings/com.tcl.settings.bluetooth.BluetoothActivity",
+            "com.tcl.settings/.accessories.AccessoriesActivity"
+    };
 
     static boolean nativeCleanerEnabled(int flags, boolean enabled) {
         return enabled && (flags & (ApplicationInfo.FLAG_SYSTEM | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0;
@@ -49,9 +59,31 @@ final class QuickSettingsActions {
                 target = new Intent(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS);
             }
         }
-        try { context.startActivity(target.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP)); }
+        int flags = Intent.FLAG_ACTIVITY_CLEAR_TOP;
+        if (!(context instanceof Activity)) flags |= Intent.FLAG_ACTIVITY_NEW_TASK;
+        try { context.startActivity(target.addFlags(flags)); }
         catch (android.content.ActivityNotFoundException | SecurityException unavailable) {
             Toast.makeText(context, R.string.not_available, Toast.LENGTH_LONG).show();
+        }
+    }
+
+    static boolean needsBluetoothConnectPermission(Context context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return false;
+        if (context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)
+                == PackageManager.PERMISSION_GRANTED) return false;
+        Map<String, String> routes = Config.load(context).settingsRoutes;
+        if (component(context, routes.get("quick_bluetooth_component")) != null) return false;
+        if (settingsSlice(context, routes, "quick_bluetooth_slice_resource") != null) return false;
+        if (action(context, Settings.ACTION_BLUETOOTH_SETTINGS) != null) return false;
+        try {
+            ResolveInfo resolved = context.getPackageManager().resolveActivity(
+                    new Intent(ACTION_CONNECT_INPUT), PackageManager.MATCH_DEFAULT_ONLY);
+            ActivityInfo info = resolved == null ? null : resolved.activityInfo;
+            return info != null && info.enabled && info.exported
+                    && info.applicationInfo != null && info.applicationInfo.enabled
+                    && Manifest.permission.BLUETOOTH_CONNECT.equals(info.permission);
+        } catch (RuntimeException unavailable) {
+            return false;
         }
     }
 
@@ -77,17 +109,23 @@ final class QuickSettingsActions {
         if (control == R.id.quickNetwork)
             return systemIntent(context, Settings.ACTION_WIFI_SETTINGS, routes);
         if (control == R.id.quickBluetooth) {
-            // Some firmware resolves BLUETOOTH_SETTINGS to its general settings screen.
-            // Prefer the configured accessory page before broad implicit actions.
+            // Prefer the configured accessory page or Settings slice, then public Android TV
+            // Bluetooth pairing/picker routes before falling back to general settings.
             Intent accessories = component(context, routes.get("quick_bluetooth_component"));
             if (accessories != null) return accessories;
             Intent slice = settingsSlice(context, routes, "quick_bluetooth_slice_resource");
             if (slice != null) return slice;
             Intent bluetooth = action(context, Settings.ACTION_BLUETOOTH_SETTINGS);
             if (bluetooth != null) return bluetooth;
-            // Let the caller report an unavailable Bluetooth page, rather than silently
-            // opening Wi-Fi or the general settings menu.
-            return new Intent(Settings.ACTION_BLUETOOTH_SETTINGS);
+            Intent connectInput = action(context, ACTION_CONNECT_INPUT);
+            if (connectInput != null) return connectInput;
+            Intent picker = action(context, ACTION_BLUETOOTH_PICKER);
+            if (picker != null) return picker;
+            for (String vendor : VENDOR_BLUETOOTH_COMPONENTS) {
+                Intent candidate = component(context, vendor);
+                if (candidate != null) return candidate;
+            }
+            return systemIntent(context, Settings.ACTION_SETTINGS, routes);
         }
         if (control == R.id.quickScreensaver) {
             Intent dream = action(context, routes.get("quick_screensaver_action"));

@@ -10,9 +10,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" tools:ignore="CoarseFineLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <queries>
         <package android:name="com.tcl.guard" />
-        <package android:name="moe.shizuku.privileged.api" />
         <provider android:authorities="android.media.tv" />
         <intent>
             <action android:name="android.intent.action.OPEN_DOCUMENT" />
@@ -56,6 +56,15 @@
             <action android:name="android.settings.BLUETOOTH_SETTINGS" />
         </intent>
         <intent>
+            <action android:name="android.settings.SLICE_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="com.google.android.intent.action.CONNECT_INPUT" />
+        </intent>
+        <intent>
+            <action android:name="android.bluetooth.devicepicker.action.LAUNCH" />
+        </intent>
+        <intent>
             <action android:name="android.settings.DISPLAY_SETTINGS" />
         </intent>
         <intent>
@@ -69,18 +78,6 @@
         </intent>
         <intent>
             <action android:name="android.settings.APPLICATION_SETTINGS" />
-        </intent>
-        <intent>
-            <action android:name="android.settings.SETTINGS" />
-        </intent>
-        <intent>
-            <action android:name="android.settings.WIFI_SETTINGS" />
-        </intent>
-        <intent>
-            <action android:name="android.settings.DISPLAY_SETTINGS" />
-        </intent>
-        <intent>
-            <action android:name="android.settings.MANAGE_APPLICATIONS_SETTINGS" />
         </intent>
         <intent>
             <action android:name="android.settings.APPLICATION_DETAILS_SETTINGS" />
@@ -97,7 +94,6 @@
     </queries>
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" tools:ignore="ProtectedPermissions" />
     <application android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:banner="@drawable/banner" android:theme="@style/Theme.TvHome" android:allowBackup="false" android:localeConfig="@xml/locales_config">
-        <provider android:name="rikka.shizuku.ShizukuProvider" android:authorities="${applicationId}.shizuku" android:multiprocess="false" android:exported="true" android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
         <activity android:name=".OptimizationActivity" android:exported="false" android:screenOrientation="landscape" android:excludeFromRecents="true" />
         <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTask" android:stateNotNeeded="true" android:excludeFromRecents="true" android:clearTaskOnLaunch="true" android:configChanges="orientation|screenSize|keyboard|keyboardHidden|uiMode" android:windowSoftInputMode="adjustNothing" android:screenOrientation="landscape">
             <intent-filter>

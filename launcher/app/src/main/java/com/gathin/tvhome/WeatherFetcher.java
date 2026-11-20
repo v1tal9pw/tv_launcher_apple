@@ -33,7 +33,7 @@ final class WeatherFetcher {
     /** How long a successful response is reused before the next network call. */
     private static final long CACHE_TTL_MS = 30 * 60 * 1000L; // 30 min
     /** Minimum gap between two failed retries. */
-    private static final long RETRY_MS = 60 * 1000L; // 5 min
+    private static final long RETRY_MS = 60 * 1000L; // 1 min
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final Context context;
@@ -42,6 +42,7 @@ final class WeatherFetcher {
     private long nextFetchMs;
     private boolean lastFailed;
     private String lastLocation = "";
+    private String cachedLine;
     private int generation;
     private boolean fetching;
     private Future<?> pending;
@@ -75,7 +76,7 @@ final class WeatherFetcher {
         boolean details = prefs.getBoolean("weather_details", true);
         view.setTextSize(prefs.getInt("weather_size", 16));
         if (!prefs.getBoolean("weather_enabled", true) || lat.isEmpty() || lon.isEmpty()) {
-            if (!lastLocation.isEmpty()) { lastLocation = ""; generation++; fetching = false; }
+            if (!lastLocation.isEmpty()) { lastLocation = ""; cachedLine = null; generation++; fetching = false; }
             view.setText(context.getString(R.string.weather_choose_city));
             view.setVisibility(prefs.getBoolean("weather_enabled", true)
                     ? android.view.View.VISIBLE : android.view.View.GONE);
@@ -84,6 +85,7 @@ final class WeatherFetcher {
         String location = lat + "," + lon + "," + city + details + context.getResources().getConfiguration().getLocales().toLanguageTags();
         if (!location.equals(lastLocation)) {
             lastLocation = location;
+            cachedLine = null;
             nextFetchMs = 0;
             generation++;
             fetching = false;
@@ -140,7 +142,11 @@ final class WeatherFetcher {
                 lastFailed = result == null;
                 if (view == null) return;
                 if (result != null) {
+                    cachedLine = result;
                     view.setText(result);
+                    view.setVisibility(android.view.View.VISIBLE);
+                } else if (cachedLine != null) {
+                    view.setText(cachedLine);
                     view.setVisibility(android.view.View.VISIBLE);
                 } else {
                     view.setText(context.getString(R.string.weather_unavailable));

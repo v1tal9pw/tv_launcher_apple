@@ -11,22 +11,31 @@ import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 import java.io.File;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 
 /** Muted local video. No decoder or playback survives leaving Home. */
 final class VideoWallpaper implements TextureView.SurfaceTextureListener {
+    private static final ExecutorService RELEASE_WORKER = Executors.newSingleThreadExecutor();
     private final Context context;
     private final File file;
+    private final int dim;
+    private final Consumer<Boolean> onVisible;
     private final TextureView texture;
     private final View dimmer;
     private MediaPlayer player;
     private Surface surface;
-    private boolean active, failed;
+    private boolean active, failed, releasing;
 
-    VideoWallpaper(Context context, FrameLayout root, File file, int dim) {
+    VideoWallpaper(Context context, FrameLayout root, File file, int dim, Consumer<Boolean> onVisible) {
         this.context = context;
         this.file = file;
+        this.dim = dim;
+        this.onVisible = onVisible;
         texture = new TextureView(context);
-        texture.setOpaque(false);
+        texture.setOpaque(true);
+        texture.setVisibility(View.INVISIBLE);
         texture.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         texture.setSurfaceTextureListener(this);
         root.addView(texture, 1, new FrameLayout.LayoutParams(-1, -1));
@@ -39,19 +48,24 @@ final class VideoWallpaper implements TextureView.SurfaceTextureListener {
 
     void start() {
         active = true;
-        if (!failed && texture.isAvailable()) prepare(texture.getSurfaceTexture());
+        if (!failed && !releasing && texture.isAvailable()) prepare(texture.getSurfaceTexture());
     }
 
     void stop() {
         active = false;
-        release();
-        texture.setAlpha(0f);
+        hideVideo();
+        releaseAsync(null);
+    }
+
+    private void hideVideo() {
+        texture.setVisibility(View.INVISIBLE);
         dimmer.setVisibility(View.GONE);
+        if (onVisible != null) onVisible.accept(false);
     }
 
     private void prepare(SurfaceTexture target) {
-        if (!active || failed || player != null || target == null) return;
-        texture.setAlpha(0f);
+        if (!active || failed || releasing || player != null || target == null) return;
+        texture.setVisibility(View.INVISIBLE);
         try {
             surface = new Surface(target);
             MediaPlayer next = new MediaPlayer();
@@ -67,8 +81,9 @@ final class VideoWallpaper implements TextureView.SurfaceTextureListener {
             });
             next.setOnInfoListener((media, what, extra) -> {
                 if (player == media && active && what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) {
-                    texture.setAlpha(1f);
-                    dimmer.setVisibility(View.VISIBLE);
+                    texture.setVisibility(View.VISIBLE);
+                    if (dim > 0) dimmer.setVisibility(View.VISIBLE);
+                    if (onVisible != null) onVisible.accept(true);
                 }
                 return false;
             });
@@ -79,9 +94,8 @@ final class VideoWallpaper implements TextureView.SurfaceTextureListener {
 
     private void fail() {
         failed = true;
-        release();
-        texture.setAlpha(0f);
-        dimmer.setVisibility(View.GONE);
+        hideVideo();
+        releaseAsync(null);
         Log.w("TvHome.Wallpaper", "Video wallpaper unavailable, showing its still image");
         Toast.makeText(context, R.string.personal_wallpaper_video_failed, Toast.LENGTH_LONG).show();
     }
@@ -95,15 +109,31 @@ final class VideoWallpaper implements TextureView.SurfaceTextureListener {
         texture.setTransform(transform);
     }
 
-    private void release() {
+    private boolean releaseAsync(SurfaceTexture destroySurfaceTexture) {
         MediaPlayer previous = player;
+        Surface previousSurface = surface;
         player = null;
-        if (previous != null) previous.release();
-        if (surface != null) { surface.release(); surface = null; }
+        surface = null;
+        if (previous == null && previousSurface == null) return false;
+        releasing = true;
+        RELEASE_WORKER.execute(() -> {
+            try { if (previous != null) previous.release(); } catch (Exception ignored) { }
+            try { if (previousSurface != null) previousSurface.release(); } catch (Exception ignored) { }
+            try { if (destroySurfaceTexture != null) destroySurfaceTexture.release(); } catch (Exception ignored) { }
+            texture.post(() -> {
+                releasing = false;
+                if (active && !failed && player == null && texture.isAvailable())
+                    prepare(texture.getSurfaceTexture());
+            });
+        });
+        return true;
     }
 
     @Override public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) { prepare(surface); }
-    @Override public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) { release(); return true; }
+    @Override public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
+        hideVideo();
+        return !releaseAsync(surface);
+    }
     @Override public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
         // The Activity is landscape-only, but its TV window can still resize.
         if (player != null) try { crop(player.getVideoWidth(), player.getVideoHeight()); }

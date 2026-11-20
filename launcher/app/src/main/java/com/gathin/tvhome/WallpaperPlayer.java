@@ -2,6 +2,7 @@ package com.gathin.tvhome;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.res.AssetManager;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -41,6 +42,7 @@ final class WallpaperPlayer {
     private final FrameLayout root;
     private final ImageView image;
     private final Resources resources;
+    private final AssetManager assets;
     private final List<File> files;
     /** Launcher settings chose Aurora: one bundled picture, no rotation. */
     private final boolean aurora;
@@ -71,6 +73,7 @@ final class WallpaperPlayer {
         latitude=features.getString("latitude",context.getString(R.string.latitude));
         longitude=features.getString("longitude",context.getString(R.string.longitude));
         resources = context.getResources();
+        assets = context.getAssets();
         aurora = Config.WALLPAPER_AURORA.equals(config.wallpaperChoice);
         backgroundColor = config.backgroundColor;
         dimColor = !aurora && config.wallpaperEnabled ? (config.wallpaperDim * 255 / 100) << 24 : 0;
@@ -101,9 +104,11 @@ final class WallpaperPlayer {
         image = new ImageView(context);
         image.setScaleType(ImageView.ScaleType.CENTER_CROP);
         image.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        File personal = PersonalWallpapers.file(context, config.wallpaperChoice);
-        boolean hasVideo = personal != null && personal.isFile() && PersonalWallpapers.video(config.wallpaperChoice);
-        video = hasVideo ? new VideoWallpaper(context, root, personal, config.wallpaperDim) : null;
+        File personal = PersonalWallpapers.video(config.wallpaperChoice)
+                ? PersonalWallpapers.file(context, config.wallpaperChoice) : null;
+        boolean hasVideo = personal != null && personal.isFile();
+        video = hasVideo ? new VideoWallpaper(context, root, personal, config.wallpaperDim,
+                playing -> image.setVisibility(playing ? View.INVISIBLE : View.VISIBLE)) : null;
         if (!aurora && (!config.wallpaperEnabled || files.isEmpty())) return;
         root.addView(image, 0, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
@@ -132,23 +137,50 @@ final class WallpaperPlayer {
         if(aurora && first==null && image.getDrawable()==null)
             first=CompletableFuture.supplyAsync(() -> decode(null),decoder);
         if (first != null) {
+            CompletableFuture<Bitmap> pending = first;
+            File opening = firstFile;
             Bitmap bitmap = null;
+            boolean completed = false;
             try {
-                bitmap = first.join();
-            } catch (RuntimeException ignored) {
-                // Never thrown by decode itself; the plain colour stays.
+                bitmap = pending.get(80, java.util.concurrent.TimeUnit.MILLISECONDS);
+                completed = true;
+            } catch (java.util.concurrent.TimeoutException slow) {
+                // Keep Home responsive if decoding a large image takes longer than a few frames.
+            } catch (Exception ignored) {
+                completed = true;
             }
-            first = null;
-            if (bitmap != null) {
-                show(bitmap);
-                if (firstFile != null) remember(firstFile, preferences.getString("image", ""), false);
-            } else if (firstFile != null) {
-                files.remove(firstFile);   // unreadable or over 4K: update() tries another
+            if (completed) {
+                first = null;
+                firstFile = null;
+                applyOpening(bitmap, opening);
+            } else {
+                pending.whenComplete((decoded, err) -> root.post(() -> {
+                    if (first != pending) {
+                        if (decoded != null) decoded.recycle();
+                        return;
+                    }
+                    first = null;
+                    firstFile = null;
+                    if (closed || !active) {
+                        if (decoded != null) decoded.recycle();
+                        return;
+                    }
+                    applyOpening(err == null ? decoded : null, opening);
+                    update();
+                }));
             }
-            firstFile = null;
         }
         update();
         if (video != null) video.start();
+    }
+
+    private void applyOpening(Bitmap bitmap, File opening) {
+        if (bitmap != null) {
+            show(bitmap);
+            if (opening != null) remember(opening, preferences.getString("image", ""), false);
+        } else if (opening != null) {
+            files.remove(opening);   // unreadable or over 4K: update() tries another
+        }
     }
 
     void stop() {
@@ -241,7 +273,7 @@ final class WallpaperPlayer {
 
     /** A null file selects the bundled Aurora picture. */
     private InputStream open(File file) throws IOException {
-        return file != null ? new FileInputStream(file) : resources.openRawResource(R.raw.aurora_wallpaper);
+        return file != null ? new FileInputStream(file) : assets.open(SceneFiles.AURORA_ASSET);
     }
 
     /**

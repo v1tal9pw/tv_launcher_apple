@@ -53,6 +53,7 @@ final class ClockScene {
     private boolean aurora;
     private int wallpaperShade;
     private Resources wallpaperRes;
+    private android.content.res.AssetManager wallpaperAssets;
     /** One number per decode request: a result whose number is no longer the current one is dropped. Main thread only. */
     private int wallpaperGeneration;
     /** clock_wallpaper with a collection: the pictures, how long each lasts, and how the next one is picked. */
@@ -149,23 +150,29 @@ final class ClockScene {
         }
         wallpaperShade = (cfg.clockWallpaperDim * 255 / 100) << 24;
         wallpaperRes = ctx.getResources();
+        wallpaperAssets = ctx.getAssets();
     }
 
     private void loadWallpaper() {
         File file = wallpaperFile;
         int shade = wallpaperShade;
         Resources res = wallpaperRes;
+        android.content.res.AssetManager assets = wallpaperAssets;
         DisplayMetrics dm = res.getDisplayMetrics();
         int w = dm.widthPixels, h = dm.heightPixels;
         int generation = ++wallpaperGeneration;
         new Thread(() -> {
             Bitmap bmp;
-            if(aurora) {
-                BitmapFactory.Options options=new BitmapFactory.Options();
-                options.inPreferredConfig=Bitmap.Config.ARGB_8888;
-                options.inScaled=false;
-                bmp=BitmapFactory.decodeResource(res,R.raw.aurora_wallpaper,options);
-            }else bmp=decode(file,w,h);
+            if (aurora) {
+                BitmapFactory.Options options = new BitmapFactory.Options();
+                options.inPreferredConfig = Bitmap.Config.ARGB_8888;
+                options.inScaled = false;
+                try (java.io.InputStream in = assets.open(SceneFiles.AURORA_ASSET)) {
+                    bmp = BitmapFactory.decodeStream(in, null, options);
+                } catch (Exception | OutOfMemoryError ignored) {
+                    bmp = null;
+                }
+            } else bmp = decode(file, w, h);
             final Bitmap picture=bmp;
             if (bmp == null) return;
             handler.post(() -> {

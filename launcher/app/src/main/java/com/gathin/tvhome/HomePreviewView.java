@@ -135,19 +135,21 @@ public final class HomePreviewView extends View {
     @Override protected void onDetachedFromWindow() {
         removeCallbacks(tick); artworkRequest++; wallpaperRequest++; artworkKey = wallpaperKey = null;
         continueRequest++; continueLoadedAt = 0;
+        wallpaper = null; tiles = Collections.emptyList(); app = null;
+        sky.releaseMemory();
         super.onDetachedFromWindow();
     }
 
     private Bitmap loadWallpaper(File picture, boolean aurora, boolean trueColor) {
         try {
             BitmapFactory.Options options = new BitmapFactory.Options(); options.inJustDecodeBounds = true;
-            if (aurora) try (java.io.InputStream in = getResources().openRawResource(R.raw.aurora_wallpaper)) { BitmapFactory.decodeStream(in, null, options); }
+            if (aurora) try (java.io.InputStream in = getContext().getAssets().open(SceneFiles.AURORA_ASSET)) { BitmapFactory.decodeStream(in, null, options); }
             else BitmapFactory.decodeFile(picture.getPath(), options);
             options.inSampleSize = 1;
             while (Math.max(options.outWidth, options.outHeight) / options.inSampleSize > 640) options.inSampleSize *= 2;
             options.inJustDecodeBounds = false;
             options.inPreferredConfig = trueColor ? Bitmap.Config.ARGB_8888 : Bitmap.Config.RGB_565;
-            if (aurora) try (java.io.InputStream in = getResources().openRawResource(R.raw.aurora_wallpaper)) { return BitmapFactory.decodeStream(in, null, options); }
+            if (aurora) try (java.io.InputStream in = getContext().getAssets().open(SceneFiles.AURORA_ASSET)) { return BitmapFactory.decodeStream(in, null, options); }
             return BitmapFactory.decodeFile(picture.getPath(), options);
         } catch (Exception | OutOfMemoryError ignored) { return null; }
     }
