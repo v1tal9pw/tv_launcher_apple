@@ -62,6 +62,7 @@ final class WallpaperPlayer {
     private final int backgroundColor, dimColor;
     private View mirror;
     private Runnable onChanged;
+    private final VideoWallpaper video;
 
     WallpaperPlayer(Context context, FrameLayout root, Config config) {
         this.root = root;
@@ -100,6 +101,9 @@ final class WallpaperPlayer {
         image = new ImageView(context);
         image.setScaleType(ImageView.ScaleType.CENTER_CROP);
         image.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        File personal = PersonalWallpapers.file(context, config.wallpaperChoice);
+        boolean hasVideo = personal != null && personal.isFile() && PersonalWallpapers.video(config.wallpaperChoice);
+        video = hasVideo ? new VideoWallpaper(context, root, personal, config.wallpaperDim) : null;
         if (!aurora && (!config.wallpaperEnabled || files.isEmpty())) return;
         root.addView(image, 0, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
@@ -144,15 +148,18 @@ final class WallpaperPlayer {
             firstFile = null;
         }
         update();
+        if (video != null) video.start();
     }
 
     void stop() {
         active = false;
+        if (video != null) video.stop();
     }
 
     void close() {
         active = false;
         closed = true;
+        if (video != null) video.stop();
         decoder.shutdownNow();
     }
 

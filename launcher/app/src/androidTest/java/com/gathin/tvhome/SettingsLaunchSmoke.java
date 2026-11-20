@@ -34,6 +34,10 @@ public final class SettingsLaunchSmoke extends Instrumentation {
         try {
             activity = (MainActivity) startActivitySync(new Intent(getTargetContext(), MainActivity.class)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            runOnMainSync(() -> {
+                activity.findViewById(R.id.btnWifi).setVisibility(View.VISIBLE);
+                activity.findViewById(R.id.btnSettings).setVisibility(View.VISIBLE);
+            });
             waitForIdleSync();
             SystemClock.sleep(700);
             vpnField = MainActivity.class.getDeclaredField("vpnApp");

@@ -73,7 +73,6 @@ public final class LauncherSmoke extends Instrumentation {
             check(dock.getTop() >= expandedGrid.getPaddingTop(), "Dock stays fully visible after expansion with many apps");
             capture("grid");
             key(KeyEvent.KEYCODE_DPAD_UP);
-            key(KeyEvent.KEYCODE_DPAD_UP);
             check(Boolean.FALSE.equals(field(activity, "expanded")), "Up from dock collapses grid");
 
             // Exercise the actual remote long-press path and guard its release from launching anything.

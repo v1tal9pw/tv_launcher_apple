@@ -294,9 +294,11 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         Map<String, Cards.Card> cardByPkg = new HashMap<>();
         for (Cards.Card c : cards) cardByPkg.put(c.pkg, c);
         List<ResolveInfo> shown = new ArrayList<>();
+        String defaultSettings = AppArtwork.defaultSettingsPackage(ctx);
         for (ResolveInfo ri : found) {
             if (ri.activityInfo == null || !ri.activityInfo.exported) continue;
             String pkg = ri.activityInfo.packageName;
+            if (AppArtwork.isSettingsPackage(pkg, defaultSettings)) continue;
             if (pkg.equals(ctx.getPackageName()) || !LibraryApps.visible(tvPackages.contains(pkg),
                     hidden.contains(pkg), added.contains(pkg), removed.contains(pkg))) continue;
             Cards.Card card = cardByPkg.get(pkg);

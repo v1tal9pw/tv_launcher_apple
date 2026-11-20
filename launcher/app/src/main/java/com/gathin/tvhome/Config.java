@@ -670,7 +670,14 @@ final class Config {
         if (!WallpaperRotation.validOrder(wallpaperOrder)) wallpaperOrder = WallpaperRotation.ORDER_SHUFFLE;
         List<File> wallpapers = new ArrayList<>();
         // Keep Theme / Aurora / Off choices from this fork. A collection filename pins one external picture.
-        if (FeaturePreferences.SCENES.equals(wallpaperChoice)) {
+        if (wallpaperChoice.startsWith(PersonalWallpapers.PREFIX) || PersonalWallpapers.COAST_VIDEO.equals(wallpaperChoice)) {
+            File personal = PersonalWallpapers.file(ctx, wallpaperChoice);
+            wallpaper = personal != null && PersonalWallpapers.video(wallpaperChoice)
+                    ? PersonalWallpapers.poster(personal) : personal;
+            if (wallpaper != null && wallpaper.isFile()) wallpapers.add(wallpaper);
+            else wallpaper = null;
+            wallpaperEnabled = wallpaper != null;
+        } else if (FeaturePreferences.SCENES.equals(wallpaperChoice)) {
             wallpapers.addAll(SceneFiles.images(ctx));
             wallpaper = wallpapers.isEmpty() ? null : wallpapers.get(0);
             wallpaperEnabled = wallpaper != null;

@@ -129,7 +129,7 @@ final class IntegrationController {
         handler.post(turn);
         if(MainActivity.ACTION_VIEW_INPUTS.equals(home.getIntent().getAction())) {
             home.getIntent().setAction(Intent.ACTION_MAIN);
-            root.postDelayed(()->{if(active)home.showInputs();},150);
+            root.postDelayed(()->{if(active)home.openSourceControls();},150);
         } else startAtBoot();
     }
     void pause(){active=false;pending=null;handler.removeCallbacksAndMessages(null);if(gameDay!=null)gameDay.stop();}

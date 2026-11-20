@@ -18,15 +18,20 @@ import java.io.InputStream;
 /** Bounded, private copies of user-picked app banners; no lasting document-provider permission is needed. */
 final class AppArtwork {
     static Drawable settingsIcon(Context context, ResolveInfo app) {
-        String pkg = app.activityInfo.packageName;
+        return isSettingsPackage(app.activityInfo.packageName, defaultSettingsPackage(context))
+                ? context.getDrawable(R.drawable.banner_ios_settings) : null;
+    }
+
+    static String defaultSettingsPackage(Context context) {
         ResolveInfo settings = context.getPackageManager().resolveActivity(
                 new Intent(Settings.ACTION_SETTINGS), PackageManager.MATCH_DEFAULT_ONLY);
-        if (settings != null && settings.activityInfo != null
-                && pkg.equals(settings.activityInfo.packageName)) return context.getDrawable(R.drawable.banner_ios_settings);
-        if (pkg.equals("com.android.settings") || pkg.equals("com.android.tv.settings")
+        return settings != null && settings.activityInfo != null ? settings.activityInfo.packageName : null;
+    }
+
+    static boolean isSettingsPackage(String pkg, String defaultSettings) {
+        return pkg.equals(defaultSettings) || pkg.equals("com.android.settings") || pkg.equals("com.android.tv.settings")
                 || pkg.equals("com.google.android.tv.settings") || pkg.equals("com.tcl.settings")
-                || pkg.equals("com.tcl.tv.settings")) return context.getDrawable(R.drawable.banner_ios_settings);
-        return null;
+                || pkg.equals("com.tcl.tv.settings");
     }
     static final String APP_ICON_PREFIX = "app_icon:";
     static boolean isAppIcon(String artwork) { return artwork != null && artwork.startsWith(APP_ICON_PREFIX); }

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="quick_accessibility">Спецвозможности</string>
     <string name="quick_settings">Быстрые настройки</string>
     <string name="quick_all_settings">Открыть все настройки</string>
     <string name="quick_launcher_settings">Открыть настройки главного экрана</string>
@@ -14,4 +15,8 @@
     <string name="quick_off">Выкл.</string>
     <string name="quick_audio_output">Аудиовыход</string>
     <string name="quick_sound">Звук</string>
+    <string name="quick_clear_background">Закрыть фоновые приложения</string>
+    <string name="quick_background_clearing">Закрываем фоновые приложения…</string>
+    <string name="quick_background_cleared">Android завершил доступные фоновые процессы</string>
+    <string name="quick_background_adb_required">Не удалось закрыть фоновые приложения. Проверьте локальный ADB в настройках лаунчера.</string>
 </resources>

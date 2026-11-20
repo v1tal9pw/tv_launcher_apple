@@ -37,7 +37,8 @@ public final class QuickSettingsSmoke extends Instrumentation {
                     "Controls and Home shortcuts share one composited window");
             check(activity.findViewById(R.id.topButtons).getAlpha() == 0f,
                     "Actual Home shortcuts are hidden while controls are open");
-            check(!(activity.findViewById(R.id.btnSettings) instanceof TextView), "Settings entry is icon only");
+            for (int id : new int[]{R.id.btnSettings, R.id.btnWifi, R.id.btnInputs})
+                check(activity.findViewById(id).getVisibility() == View.GONE, "Home shortcut is hidden " + id);
             View initialGear = panel().findViewById(R.id.quickAllSettings);
             check(currentFocus() == R.id.quickAllSettings, "Panel starts on All Settings for a second OK; focus="
                     + panel().getCurrentFocus() + ", gear=" + initialGear + ", shown=" + initialGear.isShown()
@@ -49,7 +50,7 @@ public final class QuickSettingsSmoke extends Instrumentation {
                     "Small All Settings label is visible below the focused gear");
             int firstRowTop = ((View) panel().findViewById(R.id.quickBluetooth).getParent()).getTop();
             sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_DOWN); waitForIdleSync();
-            check(currentFocus() == R.id.quickBluetooth && allLabel.getVisibility() == View.INVISIBLE,
+            check(currentFocus() == R.id.quickScreensaver && allLabel.getVisibility() == View.INVISIBLE,
                     "Moving down to a tile hides All Settings");
             check(((View) panel().findViewById(R.id.quickBluetooth).getParent()).getTop() == firstRowTop,
                     "Hiding the label does not move the tiles");
@@ -84,24 +85,23 @@ public final class QuickSettingsSmoke extends Instrumentation {
             sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_DOWN); waitForIdleSync();
             check(closeLabel.getVisibility() == View.INVISIBLE, "Close caption hides when moving to a tile");
             focus(R.id.quickBluetooth);
-            int[][] moves = {{KeyEvent.KEYCODE_DPAD_RIGHT, R.id.quickAudioOutput},
-                    {KeyEvent.KEYCODE_DPAD_DOWN, R.id.quickSound},
-                    {KeyEvent.KEYCODE_DPAD_LEFT, R.id.quickPicture},
-                    {KeyEvent.KEYCODE_DPAD_DOWN, R.id.quickScreensaver},
-                    {KeyEvent.KEYCODE_DPAD_RIGHT, R.id.quickApps},
-                    {KeyEvent.KEYCODE_DPAD_UP, R.id.quickSound},
-                    {KeyEvent.KEYCODE_DPAD_UP, R.id.quickAudioOutput},
-                    {KeyEvent.KEYCODE_DPAD_LEFT, R.id.quickBluetooth},
-                    {KeyEvent.KEYCODE_DPAD_UP, R.id.quickAllSettings},
-                    {KeyEvent.KEYCODE_DPAD_RIGHT, R.id.quickClose},
-                    {KeyEvent.KEYCODE_DPAD_DOWN, R.id.quickAudioOutput}};
+            int[][] moves = {{KeyEvent.KEYCODE_DPAD_LEFT, R.id.quickAudioOutput},
+                    {KeyEvent.KEYCODE_DPAD_UP, R.id.quickInputs},
+                    {KeyEvent.KEYCODE_DPAD_RIGHT, R.id.quickAccessibility},
+                    {KeyEvent.KEYCODE_DPAD_UP, R.id.quickNetwork},
+                    {KeyEvent.KEYCODE_DPAD_DOWN, R.id.quickAccessibility},
+                    {KeyEvent.KEYCODE_DPAD_DOWN, R.id.quickBluetooth},
+                    {KeyEvent.KEYCODE_DPAD_LEFT, R.id.quickAudioOutput},
+                    {KeyEvent.KEYCODE_DPAD_DOWN, R.id.quickPicture},
+                    {KeyEvent.KEYCODE_DPAD_RIGHT, R.id.quickSound},
+                    {KeyEvent.KEYCODE_DPAD_DOWN, R.id.quickClearAll}};
             for (int[] move : moves) {
                 sendKeyDownUpSync(move[0]); waitForIdleSync();
                 check(currentFocus() == move[1], "D-pad reaches control " + move[1]);
             }
             for (int id : new int[]{R.id.quickBluetooth, R.id.quickScreensaver, R.id.quickPicture,
                     R.id.quickSound, R.id.quickAudioOutput, R.id.quickApps, R.id.quickLauncherSettings,
-                    R.id.quickAllSettings, R.id.quickClose}) {
+                    R.id.quickAllSettings, R.id.quickClose, R.id.quickInputs, R.id.quickNetwork, R.id.quickAccessibility, R.id.quickClearAll}) {
                 focus(id);
                 SystemClock.sleep(180);
                 waitForIdleSync();
@@ -114,32 +114,38 @@ public final class QuickSettingsSmoke extends Instrumentation {
                                 + ", scaled=" + focusedWidth + "x" + focusedHeight);
                 check(view.getContentDescription() != null, "Control has an accessible name " + id);
             }
-            checkRow(R.id.quickBluetooth, R.id.quickAudioOutput);
+            checkRow(R.id.quickScreensaver, R.id.quickNetwork);
+            checkRow(R.id.quickInputs, R.id.quickAccessibility);
+            checkRow(R.id.quickAudioOutput, R.id.quickBluetooth);
             checkRow(R.id.quickPicture, R.id.quickSound);
-            checkRow(R.id.quickScreensaver, R.id.quickApps);
+            checkRow(R.id.quickApps, R.id.quickClearAll);
             check(((View) panel().findViewById(R.id.quickBluetooth).getParent()).getTop()
                     < ((View) panel().findViewById(R.id.quickPicture).getParent()).getTop()
                     && ((View) panel().findViewById(R.id.quickPicture).getParent()).getTop()
                     < ((View) panel().findViewById(R.id.quickApps).getParent()).getTop(),
-                    "Rows follow Bluetooth/Audio Output, Picture/Sound, Screensaver/Apps");
+                    "Audio row comes before picture and app controls");
             View contents = panel().findViewById(R.id.quickPanel);
-            check(textCount(contents, activity.getString(R.string.settings)) == 4,
-                    "Bluetooth, Picture, Sound and Apps have the Settings subtitle");
+            check(textCount(contents, activity.getString(R.string.settings)) == 0,
+                    "Tiles use concise category labels");
+            check(panel().findViewById(R.id.quickDate) instanceof android.widget.TextClock,
+                    "Header has a live date");
+            check(panel().findViewById(R.id.quickTime) instanceof android.widget.TextClock,
+                    "Header has a live clock");
             check(textCount(panel().findViewById(R.id.quickAudioOutput), activity.getString(R.string.settings)) == 0,
                     "Audio output has no Settings subtitle");
-            check(textCount(contents, activity.getString(R.string.quick_back)) == 1,
-                    "Back-to-close appears once in the header");
+            check(textCount(contents, activity.getString(R.string.quick_back)) == 0,
+                    "Header reserves space for date and time");
             check(textCount(contents, activity.getString(R.string.module_cards)) == 0,
                     "Module cards is absent from the control centre");
             check(panel().findViewById(R.id.quickAllSettingsLabel).getVisibility() == View.INVISIBLE,
                     "All Settings label is hidden while Close is focused");
-            check(textCount(contents, activity.getString(R.string.wifi)) == 0,
-                    "Wi-Fi is absent from the panel");
-            check(focusableCount(contents) == 9,
-                    "Only six tiles plus Launcher settings, All Settings and Close are present");
+            check(textCount(contents, activity.getString(R.string.wifi)) == 1,
+                    "Wi-Fi is available in the panel");
+            check(focusableCount(contents) == 13,
+                    "Ten tiles plus Launcher settings, All Settings and Close are present");
             sendKeyDownUpSync(KeyEvent.KEYCODE_BACK); settle();
             check(panel() == null, "Back closes controls");
-            check(activity.findViewById(R.id.btnSettings).isFocused(), "Back restores gear focus");
+            check(activity.getCurrentFocus() != null, "Back restores Home focus");
             verifyShortcutFade();
             verifyDismissal();
             Object homeKey = field("lastFocusedKey");
@@ -147,7 +153,7 @@ public final class QuickSettingsSmoke extends Instrumentation {
             verifyInterruptedAction();
             for (int id : new int[]{R.id.quickBluetooth, R.id.quickScreensaver, R.id.quickPicture,
                     R.id.quickSound, R.id.quickAudioOutput, R.id.quickApps, R.id.quickAllSettings}) {
-                runOnMainSync(() -> activity.findViewById(R.id.btnSettings).performClick()); settle();
+                runOnMainSync(() -> activity.openQuickSettings()); settle();
                 check(currentFocus() == R.id.quickAllSettings, "Reopening starts on the settings gear");
                 launched = null; launches = 0;
                 Intent expected = QuickSettingsActions.intent(activity, id);
@@ -172,7 +178,7 @@ public final class QuickSettingsSmoke extends Instrumentation {
                 if (id == R.id.quickBluetooth) {
                     runOnMainSync(() -> activity.onNewIntent(new Intent(Intent.ACTION_MAIN)));
                     settle();
-                    runOnMainSync(() -> activity.findViewById(R.id.btnSettings).performClick());
+                    runOnMainSync(() -> activity.openQuickSettings());
                     settle();
                     check(currentFocus() == R.id.quickAllSettings,
                             "Fresh opening after Home starts on the gear instead of a previous native shortcut");
@@ -182,7 +188,7 @@ public final class QuickSettingsSmoke extends Instrumentation {
                 }
                 runOnMainSync(() -> panel().dismiss()); settle();
             }
-            runOnMainSync(() -> activity.findViewById(R.id.btnSettings).performClick()); settle();
+            runOnMainSync(() -> activity.openQuickSettings()); settle();
             launched = null; launches = 0;
             runOnMainSync(() -> {
                 View control = panel().findViewById(R.id.quickLauncherSettings);
@@ -214,7 +220,7 @@ public final class QuickSettingsSmoke extends Instrumentation {
     }
 
     private void verifyDismissal() {
-        runOnMainSync(() -> activity.findViewById(R.id.btnSettings).performClick()); settle();
+        runOnMainSync(() -> activity.openQuickSettings()); settle();
         QuickSettingsPanel closing = panel();
         runOnMainSync(() -> {
             closing.dismiss();
@@ -225,12 +231,12 @@ public final class QuickSettingsSmoke extends Instrumentation {
         settle();
         check(panel() == null, "Repeated dismissal completes once without leaving an overlay");
         runOnMainSync(() -> {
-            activity.findViewById(R.id.btnSettings).performClick();
+            activity.openQuickSettings();
             panel().dismiss(); // Close before the entry's first pre-draw.
         });
         settle();
-        check(panel() == null && activity.findViewById(R.id.btnSettings).isFocused(),
-                "Closing during entry cannot reopen the panel or lose Home's gear focus");
+        check(panel() == null && activity.getCurrentFocus() != null,
+                "Closing during entry cannot reopen the panel or lose Home focus");
     }
 
     private void verifyShortcutFade() {
@@ -244,7 +250,7 @@ public final class QuickSettingsSmoke extends Instrumentation {
         runOnMainSync(() -> {
             frames.add(shortcuts.getAlpha());
             root.getViewTreeObserver().addOnPreDrawListener(frame);
-            activity.findViewById(R.id.btnSettings).performClick();
+            activity.openQuickSettings();
         });
         settle();
         runOnMainSync(() -> {
@@ -259,8 +265,8 @@ public final class QuickSettingsSmoke extends Instrumentation {
         runOnMainSync(() -> {
             root.getViewTreeObserver().removeOnPreDrawListener(frame);
             checkFade(frames, true);
-            check(shortcuts.getAlpha() == 1f && activity.findViewById(R.id.btnSettings).isFocused(),
-                    "Close restores the same Home controls and gear focus");
+            check(shortcuts.getAlpha() == 1f && activity.getCurrentFocus() != null,
+                    "Close restores the same Home controls and focus");
         });
     }
 
@@ -277,7 +283,7 @@ public final class QuickSettingsSmoke extends Instrumentation {
 
     private void verifyInterruptedAction() {
         if (!android.animation.ValueAnimator.areAnimatorsEnabled()) return;
-        runOnMainSync(() -> activity.findViewById(R.id.btnSettings).performClick()); settle();
+        runOnMainSync(() -> activity.openQuickSettings()); settle();
         launched = null; launches = 0;
         runOnMainSync(() -> {
             panel().findViewById(R.id.quickPicture).performClick();

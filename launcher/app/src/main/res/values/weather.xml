@@ -1,0 +1,7 @@
+<resources>
+    <string name="weather_feels">Feels like %1$d°</string>
+    <string name="weather_wind">%1$d m/s</string>
+    <string name="weather_choose_city">Choose a city in weather settings</string>
+    <string name="weather_loading">Loading weather…</string>
+    <string name="weather_unavailable">Weather unavailable · retrying automatically</string>
+</resources>

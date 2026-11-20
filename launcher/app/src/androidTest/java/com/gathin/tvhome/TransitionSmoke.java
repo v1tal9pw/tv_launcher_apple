@@ -39,16 +39,17 @@ public final class TransitionSmoke extends Instrumentation {
             settle(); home(0);
             sample("expand", () -> dispatch(KeyEvent.KEYCODE_DPAD_DOWN), -1);
             expect(6, "Down selects second row");
-            key(KeyEvent.KEYCODE_DPAD_UP, 60);
             sample("collapse", () -> dispatch(KeyEvent.KEYCODE_DPAD_UP), 1);
             expect(0, "Up collapses onto dock");
+            check(Boolean.FALSE.equals(field("expanded")), "Selecting the dock collapses the app list");
+            check(activity.findViewById(R.id.gridHost).getTranslationY() > 0,
+                    "Dock returns to the lower Home position");
             for (int i = 0; i < 3; i++) {
                 home(i);
                 runOnMainSync(() -> dispatch(KeyEvent.KEYCODE_DPAD_DOWN));
                 SystemClock.sleep(90);
                 runOnMainSync(() -> {
                     float before = frame(0)[1];
-                    dispatch(KeyEvent.KEYCODE_DPAD_UP);
                     dispatch(KeyEvent.KEYCODE_DPAD_UP);
                     check(Math.abs(frame(0)[1] - before) <= 3,
                             "Reversing mid-slide starts at current screen position");
@@ -72,11 +73,10 @@ public final class TransitionSmoke extends Instrumentation {
             runOnMainSync(() -> {
                 dispatch(KeyEvent.KEYCODE_DPAD_DOWN);
                 dispatch(KeyEvent.KEYCODE_DPAD_UP);
-                dispatch(KeyEvent.KEYCODE_DPAD_UP);
                 dispatch(KeyEvent.KEYCODE_DPAD_DOWN);
             });
             settle();
-            expect(6, "Queued Down Up Up Down returns to expanded second row");
+            expect(6, "Queued Down Up Down returns to expanded second row");
             check(Boolean.TRUE.equals(field("expanded")), "Queued reversal ends expanded");
             check(Math.abs(activity.findViewById(R.id.gridHost).getTranslationY()) <= 1,
                     "Queued reversal brings selected row fully on screen");

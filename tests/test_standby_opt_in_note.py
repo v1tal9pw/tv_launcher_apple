@@ -126,7 +126,7 @@ class Source(unittest.TestCase):
         grant = re.search(r'\$\{(RESTORE_KEY_SERVICES):-0\}', cls.install)
         cls.install_flag = grant.group(1) if grant else ""
         # The guard receiver, and the permission it is declared with.
-        blocks = re.findall(r"<receiver[\s\S]*?</receiver>", cls.manifest)
+        blocks = re.findall(r"<receiver\b[\s\S]*?(?:/>|</receiver>)", cls.manifest)
         cls.guard = [block for block in blocks if 'android:name=".GuardConfig"' in block]
         perm = re.search(r'android:permission="([^"]+)"', cls.guard[0]) if cls.guard else None
         cls.receiver_permission = perm.group(1) if perm else ""

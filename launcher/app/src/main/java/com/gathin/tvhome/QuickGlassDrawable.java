@@ -27,6 +27,7 @@ final class QuickGlassDrawable extends Drawable {
     private final float unit;
     private int alpha = 255;
     private boolean focused;
+    private float radius;
 
     QuickGlassDrawable(Bitmap backdrop, float unit) {
         this.backdrop = backdrop;
@@ -50,8 +51,9 @@ final class QuickGlassDrawable extends Drawable {
     @Override protected void onBoundsChange(Rect bounds) {
         shape.set(bounds);
         shape.inset(unit, unit);
+        radius = Math.min(shape.height() / 2f, 22f * unit);
         clip.reset();
-        clip.addRoundRect(shape, shape.height() / 2f, shape.height() / 2f, Path.Direction.CW);
+        clip.addRoundRect(shape, radius, radius, Path.Direction.CW);
         fill.setShader(new LinearGradient(0, 0, bounds.width(), bounds.height(),
                 new int[]{0x64D5DFF2, 0x3EAAB9D2, 0x589AAAC6}, null, Shader.TileMode.CLAMP));
         rim.setShader(new LinearGradient(0, 0, bounds.width(), bounds.height(),
@@ -74,27 +76,27 @@ final class QuickGlassDrawable extends Drawable {
         int save = canvas.save();
         canvas.clipPath(clip);
         if (!source.isEmpty()) canvas.drawBitmap(backdrop, source, shape, image);
-        canvas.drawRoundRect(shape, shape.height() / 2f, shape.height() / 2f, fill);
+        canvas.drawRoundRect(shape, radius, radius, fill);
         if (focused) {
             light.setAlpha(alpha * 32 / 255);
-            canvas.drawRoundRect(shape, shape.height() / 2f, shape.height() / 2f, light);
+            canvas.drawRoundRect(shape, radius, radius, light);
             // Diffuse the blue inward, keeping the halo inside the capsule so it cannot
             // be clipped by the adjacent tile or a scroll edge on TV hardware.
             focusGlow.setStrokeWidth(6f * unit);
             focusGlow.setAlpha(alpha * 10 / 255);
-            canvas.drawRoundRect(shape, shape.height() / 2f, shape.height() / 2f, focusGlow);
+            canvas.drawRoundRect(shape, radius, radius, focusGlow);
             focusGlow.setStrokeWidth(3.5f * unit);
             focusGlow.setAlpha(alpha * 16 / 255);
-            canvas.drawRoundRect(shape, shape.height() / 2f, shape.height() / 2f, focusGlow);
+            canvas.drawRoundRect(shape, radius, radius, focusGlow);
             focusGlow.setStrokeWidth(2f * unit);
             focusGlow.setAlpha(alpha * 24 / 255);
-            canvas.drawRoundRect(shape, shape.height() / 2f, shape.height() / 2f, focusGlow);
+            canvas.drawRoundRect(shape, radius, radius, focusGlow);
         }
         canvas.restoreToCount(save);
         Paint edge = focused ? focusRim : rim;
         rim.setStrokeWidth(unit * .8f);
         edge.setAlpha(alpha);
-        canvas.drawRoundRect(shape, shape.height() / 2f, shape.height() / 2f, edge);
+        canvas.drawRoundRect(shape, radius, radius, edge);
     }
 
     @Override public void setAlpha(int alpha) { this.alpha = alpha; image.setAlpha(alpha); fill.setAlpha(alpha); invalidateSelf(); }

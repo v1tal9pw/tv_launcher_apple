@@ -210,4 +210,24 @@
     <string name="feature_clock_wallpaper">Use Home wallpaper behind the clock</string>
     <string name="feature_clock_glow">Clock ambient glow</string>
     <string name="feature_startup_wait">Wait for network before opening</string>
+    <string name="about_launcher_section">אודות המשגר</string>
+    <string name="about_launcher">אודות משגר זה</string>
+    <string name="about_launcher_hint">הצגת הגרסה המותקנת ומידע על המשגר.</string>
+    <string name="about_launcher_message">Apple TV OS Launcher\nגרסה %1$s\n\nמסך בית בהשראת tvOS עבור Android TV. עדכונים מתפרסמים ב-GitHub.</string>
+    <string name="check_for_updates">עדכון מערכת</string>
+    <string name="check_updates_hint">בדיקת GitHub לגרסה היציבה העדכנית ביותר כעת.</string>
+    <string name="update_checking">בודק…</string>
+    <string name="update_current_title">מעודכן</string>
+    <string name="update_current_message">גרסה %1$s מותקנת. אין גרסה יציבה חדשה יותר.</string>
+    <string name="update_check_failed">לא ניתן לבדוק עדכונים. בדקו את חיבור הרשת ונסו שוב.</string>
+    <string name="github_repository">מאגר GitHub</string>
+    <string name="github_hint">קוד מקור וגרסאות יציבות: %1$s</string>
+    <string name="github_open_failed">אין דפדפן זמין. פתחו כתובת זו במכשיר אחר:\n%1$s</string>
+    <string name="update_available">עדכון משגר זמין</string>
+    <string name="update_prompt">גרסה %1$d מוכנה. להוריד מ-GitHub ולאשר את ההתקנה?</string>
+    <string name="update_changes">מה השתנה:</string>
+    <string name="update_install">עדכון</string>
+    <string name="update_downloading">מוריד ובודק את העדכון…</string>
+    <string name="update_allow_installs">אפשרו לאפליקציה זו להתקין עדכונים, ואז חזרו לכאן.</string>
+    <string name="update_failed">לא ניתן להוריד או להתקין את העדכון.</string>
 </resources>

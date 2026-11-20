@@ -112,12 +112,9 @@ public final class UpstreamIntegrationSmoke extends Instrumentation {
             sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_UP);
             settle();
             ui(() -> check(home.findViewById(R.id.btnLibraryTop).isFocused(), "Up skips hidden Inputs and Wi-Fi to reach Library"));
-            sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_RIGHT);
+            sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_UP);
             settle();
-            ui(() -> check(home.findViewById(R.id.btnSettings).isFocused(), "Right reaches the fork's gear button"));
-            ui(() -> home.findViewById(R.id.btnSettings).performClick());
-            settle();
-            ui(() -> check(home.findViewById(R.id.quickLauncherSettings) != null, "Gear still opens glass quick settings"));
+            ui(() -> check(home.findViewById(R.id.quickLauncherSettings) != null, "Up from Library reaches the control panel"));
             sendKeyDownUpSync(KeyEvent.KEYCODE_BACK);
             settle();
 

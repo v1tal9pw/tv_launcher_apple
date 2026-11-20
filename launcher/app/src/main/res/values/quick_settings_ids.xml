@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <item name="quickDate" type="id" />
+    <item name="quickTime" type="id" />
+    <item name="quickAccessibility" type="id" />
     <item name="quickPanel" type="id" />
     <item name="quickBluetooth" type="id" />
     <item name="quickScreensaver" type="id" />
@@ -13,4 +16,7 @@
     <item name="quickCloseLabel" type="id" />
     <item name="quickAudioOutput" type="id" />
     <item name="quickApps" type="id" />
+    <item name="quickInputs" type="id" />
+    <item name="quickNetwork" type="id" />
+    <item name="quickClearAll" type="id" />
 </resources>

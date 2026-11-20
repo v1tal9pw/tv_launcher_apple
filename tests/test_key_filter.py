@@ -63,7 +63,9 @@ class TestKeyFilterWiring(unittest.TestCase):
 
     def test_both_services_apply_it(self):
         for name, src in (("HomeKeyService", HOME_KEY), ("InputKeyService", INPUT_KEY)):
-            self.assertIn('RemoteKeys.applyKeyFilter(this, config.keyFilter)', src,
+            parent = re.search(r'class\s+\w+\s+extends\s+(\w+)', src)
+            inherited = {"HomeKeyService": HOME_KEY}.get(parent.group(1), "") if parent else ""
+            self.assertIn('RemoteKeys.applyKeyFilter(this, config.keyFilter)', src + inherited,
                           f"{name} must call RemoteKeys.applyKeyFilter with the config value")
 
     def test_docs_mention_the_switch(self):

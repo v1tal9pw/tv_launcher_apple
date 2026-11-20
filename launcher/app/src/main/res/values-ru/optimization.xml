@@ -1,9 +1,17 @@
 <resources>
-    <string name="optimize_title">Оптимизация телевизора</string>
-    <string name="optimize_help">Хранилище, отключение поддерживаемых родных лаунчеров и рекомендаций, восстановление. Доступ через локальный ADB или Shizuku.</string>
+    <string name="optimize_title">Очистка телевизора</string>
+    <string name="optimize_profile">CleanYourTV — выбрать компоненты</string>
+    <string name="optimize_apply_selected">Отключить выбранное</string>
+    <string name="optimize_restore_all">Восстановить все изменённые компоненты</string>
+    <string name="optimize_nothing_to_restore">Сохранённых изменений для восстановления нет.</string>
+    <string name="optimize_working">Обрабатываем компоненты. Подождите…</string>
+    <string name="optimize_complete">Выбранные операции завершены.</string>
+    <string name="optimize_profile_source">Профиль CleanYourTV для TCL C6K (G08). Каждый компонент выбирается отдельно. Источник — Gathin23/cleanyourtv, examples/tcl-65c6k-google-tv/debloat.txt (MIT). AirPlay, Cast, HDMI и службы пульта сохраняются.</string>
+    <string name="optimize_batch_warning">Отметьте только то, чем не пользуетесь. В списке есть Google Assistant, Alexa, Play Games, YouTube Music, каналы TCL и обновление прошивки саундбаров TCL. Отключение убирает соответствующие функции. Перед каждым изменением сохраняется резервная копия. При первой ошибке очистка остановится. Кнопка восстановления отменяет выполненные изменения.</string>
+    <string name="optimize_help">Отключение выбранных компонентов по профилю CleanYourTV для TCL C6K и восстановление сохранённых изменений. Для выполнения нужен локальный ADB.</string>
     <string name="optimize_local_connect">Простая настройка (локальный ADB)</string>
     <string name="optimize_local_connected">Локальный ADB подключён</string>
-    <string name="optimize_local_setup">Включите на ТВ сетевую отладку (порт 5555), подключитесь здесь и подтвердите ключ этого лаунчера на экране ТВ. Подключение только к этому телевизору: через 127.0.0.1 или его сетевой адрес. Если прошивка даёт только беспроводную отладку со сменным портом, используйте Shizuku. После очистки выключите отладку.</string>
+    <string name="optimize_local_setup">Включите на ТВ сетевую отладку (порт 5555), подключитесь здесь и подтвердите ключ этого лаунчера на экране ТВ. Подключение выполняется к этому телевизору. После очистки выключите отладку.</string>
     <string name="optimize_open_settings">Открыть настройки разработчика</string>
     <string name="optimize_local_grant">Выдать лаунчеру системное разрешение</string>
     <string name="optimize_local_granted">Системное разрешение выдано</string>
@@ -25,7 +33,7 @@
     <string name="optimize_freeze">Заморозить компонент</string>
     <string name="optimize_disabled_before">Уже отключён вне этого раздела — состояние не меняем.</string>
     <string name="optimize_no_candidates">Поддерживаемые компоненты не найдены. Неизвестные пакеты не отключаются.</string>
-    <string name="optimize_protected">Play Services, Play Store, обновления прошивки, HDMI, клавиатура и службы пульта защищены. Данные приложений не удаляются. Резервные копии хранятся только на этом ТВ; не очищайте данные лаунчера до восстановления компонентов.</string>
+    <string name="optimize_protected">Play Services, Play Store, обновления прошивки телевизора, HDMI, клавиатура и службы пульта защищены. Данные приложений не удаляются. Резервные копии хранятся только на этом ТВ; не очищайте данные лаунчера до восстановления компонентов.</string>
     <string name="optimize_home_warning">Родной главный экран и его рекомендации перестанут работать. Сначала назначьте наш лаунчер системным главным экраном и вернитесь сюда настоящей кнопкой Home. Одного перехвата кнопки недостаточно. Перед отключением сохранится резервная копия. Для отмены используйте «Восстановить» в этом разделе.</string>
     <string name="optimize_recommendations_warning">Карточки рекомендаций этого компонента перестанут появляться. Реклама внутри видеоприложений останется. Сохранить резервную копию и отключить компонент?</string>
     <string name="optimize_restore_help">Вернуть состояние, сохранённое перед заморозкой этого компонента?</string>

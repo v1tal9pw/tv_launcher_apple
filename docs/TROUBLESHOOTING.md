@@ -882,8 +882,8 @@ Things that bit us or contributors, so they don't bite you. Commands use `tools/
 
 ## Accessibility helper enabled but the remote button does nothing
 
-The optional `HomeKeyService` and `InputKeyService` only filter remote keys once Android has bound to
-them. The installer's `enabled` message means the setting was written, not that the service is bound.
+This fork registers only `InputKeyService` (Remote Button Helper), which inherits its key pipeline
+from `HomeKeyService`. It filters remote keys once Android has bound to it. The installer's `enabled` message means the setting was written, not that the service is bound.
 Read the state without changing anything:
 
 ```sh
@@ -894,10 +894,9 @@ tools/tv.py 'dumpsys accessibility'
 
 | Helper | Component in the enabled-services list | Key it filters |
 | --- | --- | --- |
-| Home button | `com.gathin.tvhome/.HomeKeyService` | `KEYCODE_ALL_APPS` (an ordinary `KEYCODE_HOME` only with `home_long_press_home`, `config.xml` or a theme) and `KEYCODE_SETTINGS`, plus the keys in `settings_key_keycodes` and `app_keys` (`config.xml` or a theme) and in `settings_key_scancodes` (`config.xml` only) |
-| Input button | `com.gathin.tvhome/.InputKeyService` | `KEYCODE_TV`, `KEYCODE_TV_INPUT`, plus the keycodes in `input_key_keycodes` and `app_keys` (`config.xml` or a theme) |
+| Remote Button Helper | `com.gathin.tvhome/.InputKeyService` | `KEYCODE_ALL_APPS`, `KEYCODE_SETTINGS`, `KEYCODE_TV`, `KEYCODE_TV_INPUT`; `KEYCODE_HOME` only with `home_long_press_home`, `config.xml` or a theme; keys in `settings_key_keycodes`, `input_key_keycodes` and `app_keys` (`config.xml` or a theme), plus `settings_key_scancodes` (`config.xml` only). User mappings and panel shortcuts also apply. |
 
-A force stop of the launcher (Settings > Apps, a cleaner app, `am force-stop`) takes both helpers off
+A force stop of the launcher (Settings > Apps, a cleaner app, `am force-stop`) takes the helper off
 that list. With `restore_key_services` on (`config.xml` or a theme) and `WRITE_SECURE_SETTINGS` granted
 (`RESTORE_KEY_SERVICES=1` at install, `-RestoreKeyServices` on Windows), Home puts the helpers that were
 running back on the list the next time it starts; a helper turned off in Settings stays off.

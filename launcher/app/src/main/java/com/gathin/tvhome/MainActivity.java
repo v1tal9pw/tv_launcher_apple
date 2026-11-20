@@ -184,6 +184,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private QuickSettingsPanel quickSettings;
     private boolean resumeQuickSettings;
     private int quickSettingsFocus = R.id.quickAllSettings;
+    private boolean openInputsAfterPanel;
     private boolean quickSettingsAwaitingLayout;
     private TextView shamsiDate;
     private boolean shamsi;
@@ -298,7 +299,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private final ConnectivityManager.NetworkCallback networkCallback = new ConnectivityManager.NetworkCallback() {
         @Override
         public void onAvailable(@NonNull Network network) {
-            handler.post(()->{updateWifiLabel();if(integration!=null)integration.refreshHeader();if(weatherFetcher!=null)weatherFetcher.refresh();});
+            handler.post(()->{updateWifiLabel();if(integration!=null)integration.refreshHeader();if(weatherFetcher!=null)weatherFetcher.networkAvailable();});
         }
 
         @Override
@@ -306,22 +307,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             handler.post(()->{updateWifiLabel();if(integration!=null)integration.refreshHeader();});
         }
         @Override public void onCapabilitiesChanged(@NonNull Network network,@NonNull NetworkCapabilities caps) {
+            if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED))
+                handler.post(() -> { if (weatherFetcher != null) weatherFetcher.networkAvailable(); });
             if(integrationConfig!=null && integrationConfig.wifiStatusWarnings)
                 handler.post(()->{updateWifiLabel();if(integration!=null)integration.refreshHeader();});
         }
     };
     /** Shows the Inputs pill once the TV registers an input: at boot HDMI inputs can appear after Home is shown. */
-    private final TvInputManager.TvInputCallback inputCallback = new TvInputManager.TvInputCallback() {
-        @Override
-        public void onInputAdded(String inputId) {
-            updateInputsButton();
-        }
-
-        @Override
-        public void onInputRemoved(String inputId) {
-            updateInputsButton();
-        }
-    };
     /** Listens for any VPN coming up or going down, even one this app's traffic is excluded from. */
     private final ConnectivityManager.NetworkCallback vpnCallback = new ConnectivityManager.NetworkCallback() {
         @Override
@@ -403,7 +395,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             @Override public void leave(int keyCode) {
                 if (paused || adapter != homeAdapter) return;
                 if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
-                    focusRequest++; requestedFocusKey = null; firstTopButton().requestFocusFromTouch();
+                    focusRequest++; requestedFocusKey = null;
+                    View header = firstTopButton();
+                    if (header == root) openQuickSettings();
+                    else header.requestFocusFromTouch();
                 } else focusTile(Math.min(lastFocused, COLUMNS - 1));
             }
         }, cfg);
@@ -554,10 +549,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         });
         makeIconOnly(btnWifi);
         btnWifi.setMaxWidth(Math.round((cfg.wifiLabelWidth > 0 ? cfg.wifiLabelWidth : 180) * density));
-        btnSettings.setOnLongClickListener(v -> {
-            showSettingsMenu();
-            return true;
-        });
         if (advancedEffects) {
             for (View button : headerButtons()) {
                 button.setOnFocusChangeListener((view, focused) -> view.animate()
@@ -598,8 +589,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         });
 
         ConnectivityManager cm = getSystemService(ConnectivityManager.class);
-        TvInputManager tim = (TvInputManager) getSystemService(TV_INPUT_SERVICE);
-        if (tim != null) tim.registerCallback(inputCallback, handler);
         if (cm != null) {
             cm.registerDefaultNetworkCallback(networkCallback);
             cm.registerNetworkCallback(new NetworkRequest.Builder()
@@ -697,7 +686,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (pillsShown) refreshPillsAfterNextDraw();
         else {
             updateWifiLabel();
-            updateInputsButton();
             pillsShown = true;
         }
         restartIdleClock();
@@ -869,8 +857,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         continueShelf.close();
         unregisterReceiver(packageChanges);
         ConnectivityManager cm = getSystemService(ConnectivityManager.class);
-        TvInputManager tim = (TvInputManager) getSystemService(TV_INPUT_SERVICE);
-        if (tim != null) tim.unregisterCallback(inputCallback);
         if (cm != null) {
             cm.unregisterNetworkCallback(networkCallback);
             cm.unregisterNetworkCallback(vpnCallback);
@@ -903,6 +889,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     public void onTileFocused(int position, View card) {
         if (requestedFocusKey != null && !requestedFocusKey.equals(adapter.keyAt(position))) return;
+        if (adapter == homeAdapter && expanded && position >= 0 && position < adapter.columns()
+                && movingKey == null && !folderMotion.isRunning()) setExpanded(false);
         lastFocused = position;
         lastFocusedKey = adapter.keyAt(position);
         continueShelf.setFocusedPackage(adapter == homeAdapter && !expanded && position < COLUMNS
@@ -1241,8 +1229,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             focusRequest++;
             requestedFocusKey = null;
             if (continueShelf.isShown() && continueShelf.focusRemembered()) { playNavigationSound(keyCode); return true; }
-            if (firstTopButton().requestFocusFromTouch())
-                playNavigationSound(keyCode);
+            View header = firstTopButton();
+            if (header == root) openQuickSettings();
+            else if (header.requestFocusFromTouch()) playNavigationSound(keyCode);
             return true;
         }
         int target = adapter.activeFolder() == null ? AppOrder.target(position, count, columns, direction)
@@ -1674,6 +1663,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (index < 0) return false;
         if (event.getAction() != KeyEvent.ACTION_DOWN) return true;
         int code = event.getKeyCode();
+        if (code == KeyEvent.KEYCODE_DPAD_UP) {
+            openQuickSettings();
+            return true;
+        }
         if (code == KeyEvent.KEYCODE_DPAD_DOWN) {
             if (!continueShelf.isShown() || !continueShelf.focusRemembered()) focusTile(Math.min(lastFocused, COLUMNS - 1));
             if (adapter.appCount() > 0) playNavigationSound(code);
@@ -2803,7 +2796,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 handler.post(() -> {
                     if (isDestroyed()) return;
                     updateWifiLabel();
-                    updateInputsButton();
                 });
                 return true;
             }
@@ -2908,7 +2900,18 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     void openQuickSettings() {
+        openInputsAfterPanel = false;
         quickSettingsFocus = R.id.quickAllSettings;
+        showQuickSettings();
+    }
+
+    void openSourceControls() {
+        if (quickSettings != null) {
+            showInputs();
+            return;
+        }
+        openInputsAfterPanel = true;
+        quickSettingsFocus = R.id.quickInputs;
         showQuickSettings();
     }
 
@@ -2937,18 +2940,21 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         QuickSettingsPanel panel = new QuickSettingsPanel(this, root, reducedMotion, animations, navigationSounds,
                 new QuickSettingsPanel.Listener() {
                     @Override public void onAction(int control) { openQuickControl(control); }
+                    @Override public void onOpened() {
+                        if (openInputsAfterPanel) {
+                            openInputsAfterPanel = false;
+                            showInputs();
+                        }
+                    }
+                    @Override public boolean onLauncherMenu() { showSettingsMenu(); return true; }
                     @Override public void onClosed(boolean restoreFocus) {
                         quickSettings = null;
+                        openInputsAfterPanel = false;
                         if (restoreFocus && !paused) {
                             resumeQuickSettings = false;
                             quickSettingsFocus = R.id.quickAllSettings;
-                            int request = ++focusRequest;
+                            focusRequest++;
                             requestedFocusKey = null;
-                            btnSettings.requestFocusFromTouch();
-                            btnSettings.postOnAnimation(() -> {
-                                if (!paused && request == focusRequest && quickSettings == null)
-                                    btnSettings.requestFocusFromTouch();
-                            });
                         }
                     }
                 });
@@ -2957,6 +2963,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     private void openQuickControl(int control) {
+        if (control == R.id.quickInputs) { showInputs(); return; }
+        if (control == R.id.quickClearAll) { QuickSettingsActions.clearBackground(this); return; }
         // Launcher settings is ours: it stays in Home's task and reports a change back (onActivityResult).
         boolean launcherSettings = control == R.id.quickLauncherSettings;
         Intent intent = launcherSettings ? new Intent(this, LauncherSettingsActivity.class)
@@ -2982,23 +2990,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** Standard settings first, with optional firmware destinations supplied by config.xml or a theme. */
     static Intent systemIntent(Context context, String standardAction) {
         return QuickSettingsActions.systemIntent(context, standardAction, Config.load(context).settingsRoutes);
-    }
-
-    /** Hides the Inputs pill when it would have nothing to list: streaming boxes have no HDMI-in, AV or tuner. */
-    private void updateInputsButton() {
-        if (integrationConfig != null && !integrationConfig.showInputsPill) { btnInputs.setVisibility(View.GONE); return; }
-        boolean any = liveTvIntent() != null || !sourcePanelService.isEmpty();
-        TvInputManager tim = (TvInputManager) getSystemService(TV_INPUT_SERVICE);
-        if (!any && tim != null) {
-            for (TvInputInfo info : tim.getTvInputList()) {
-                // Inputs hidden in Settings > Inputs are left out of the menu, so they don't count here either.
-                if (info.isPassthroughInput() && !info.isHidden(this)) {
-                    any = true;
-                    break;
-                }
-            }
-        }
-        btnInputs.setVisibility(any ? View.VISIBLE : View.GONE);
     }
 
     /** The Live TV app's launch intent: its leanback entry point, or the configured action if it has none. */
@@ -3104,7 +3095,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         open(new Intent(inputAction).setDataAndType(uri, "vnd.android.cursor.item/channel"));
     }
 
-    /** Dropdown menu under the Inputs pill: HDMI ports (with connection state), AV and Live TV. */
+    /** Source picker: HDMI ports (with connection state), AV and Live TV. */
     void showInputs() {
         // A configured source panel and no Live TV row to offer next to it: the panel is the whole menu.
         // The BYINTEK U4 needs this, as its TvInputManager lists three HDMI ports and an AV input it doesn't have.
@@ -3113,16 +3104,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             openSourcePanel();
             return;
         }
-        // top_menu: the pill is gone, so the list hangs under the gear, growing inward from the right.
-        // Read the switch, not the pill: show_inputs_pill=false hides the pill too, and there the list
-        // keeps its usual place.
-        boolean underGear = btnInputs.getVisibility()!=View.VISIBLE;
-        View anchor = findViewById(underGear ? R.id.btnSettings : R.id.btnInputs);
+        View anchor = quickSettings == null ? null : quickSettings.findViewById(R.id.quickInputs);
         View panel = getLayoutInflater().inflate(R.layout.popup_inputs, root, false);
         LinearLayout rows = panel.findViewById(R.id.rows);
 
         // Compact: as wide as the Inputs pill (a touch wider so "HDMI 1" fits), hanging right below it.
-        int width = Math.max(anchor.getWidth(), (int) (150 * density));
+        int width = dp(180);
         final PopupWindow popup = glassPopup(panel, width);
 
         TvInputManager tim = (TvInputManager) getSystemService(TV_INPUT_SERVICE);
@@ -3287,6 +3274,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             addInputRow(rows, popup, R.drawable.ic_livetv, getString(R.string.live_tv), -1, () -> open(liveTvIntent));
         }
         if (rows.getChildCount() == 0) {
+            popup.dismiss();
+            if (openPopup == popup) openPopup = null;
             Toast.makeText(this, R.string.no_inputs, Toast.LENGTH_SHORT).show();
             return;
         }
@@ -3295,8 +3284,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         panel.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
         popup.setWidth(Math.max(width, Math.min(panel.getMeasuredWidth(), (int) (360 * density))));
 
-        int alignment = getResources().getBoolean(R.bool.rtl_menu_bar) != underGear ? Gravity.END : Gravity.START;
-        dropIn(popup, panel, anchor, alignment);
+        if (anchor != null) dropIn(popup, panel, anchor, Gravity.START);
+        else popup.showAtLocation(root, Gravity.TOP | Gravity.END, dp(26), dp(28));
         for (int i = 0; i < rows.getChildCount(); i++) {
             View child = rows.getChildAt(i);
             if (child.getVisibility() == View.VISIBLE && child.isFocusable()) { child.requestFocus(); break; }
@@ -3396,7 +3385,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     /** Hold OK on Settings: the launcher's own settings, and Module cards when cards are on. */
     private void showSettingsMenu() {
-        View anchor = findViewById(R.id.btnSettings);
+        View anchor = quickSettings == null ? null : quickSettings.findViewById(R.id.quickLauncherSettings);
         View panel = getLayoutInflater().inflate(R.layout.popup_inputs, root, false);
         LinearLayout rows = panel.findViewById(R.id.rows);
         PopupWindow popup = glassPopup(panel, (int) (200 * density));
@@ -3411,7 +3400,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 this::onLibraryRequested);
         panel.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
         popup.setWidth(Math.max((int) (200 * density), panel.getMeasuredWidth()));
-        dropIn(popup, panel, anchor, settingsMenuGravity());
+        if (anchor != null) dropIn(popup, panel, anchor, settingsMenuGravity());
+        else popup.showAtLocation(root, Gravity.TOP | Gravity.END, dp(26), dp(28));
         rows.getChildAt(0).requestFocus();
     }
 
@@ -3546,7 +3536,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     private void showModuleCardsNow() {
-        View anchor = findViewById(R.id.btnSettings);
+        View anchor = quickSettings == null ? null : quickSettings.findViewById(R.id.quickLauncherSettings);
         View panel = getLayoutInflater().inflate(R.layout.popup_cards, root, false);
         LinearLayout rows = panel.findViewById(R.id.rows);
         final PopupWindow popup = glassPopup(panel, (int) (400 * density));
@@ -3577,10 +3567,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // Scroll inside the panel instead of running off the bottom of a 720p screen.
         panel.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
         int[] at = new int[2];
-        anchor.getLocationInWindow(at);
-        int room = root.getHeight() - (at[1] + anchor.getHeight()) - (int) (34 * density);
+        if (anchor != null) anchor.getLocationInWindow(at);
+        int room = root.getHeight() - at[1] - (anchor == null ? 0 : anchor.getHeight()) - dp(34);
         popup.setHeight(Math.min(panel.getMeasuredHeight(), Math.max(room, (int) (120 * density))));
-        dropIn(popup, panel, anchor, settingsMenuGravity());
+        if (anchor != null) dropIn(popup, panel, anchor, settingsMenuGravity());
+        else popup.showAtLocation(root, Gravity.TOP | Gravity.END, dp(26), dp(28));
         rows.getChildAt(0).requestFocus();
     }
 
@@ -3817,6 +3808,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private View firstTopButton() {
         for (View button : headerButtons())
             if (button.getVisibility() == View.VISIBLE) return button;
-        return btnSettings;
+        return root;
     }
 }

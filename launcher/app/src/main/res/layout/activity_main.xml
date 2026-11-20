@@ -238,6 +238,7 @@
 
                 <TextView
                     android:id="@+id/btnWifi"
+                    android:visibility="gone"
                     style="@style/TopButton"
                     android:maxWidth="180dp"
                     android:singleLine="true"
@@ -247,6 +248,7 @@
 
                 <TextView
                     android:id="@+id/btnInputs"
+                    android:visibility="gone"
                     style="@style/TopButton"
                     android:text="@string/inputs"
                     android:drawableStart="@drawable/ic_source_switch" />
@@ -258,6 +260,7 @@
 
                 <ImageButton
                     android:id="@+id/btnSettings"
+                    android:visibility="gone"
                     style="@style/TopButton"
                     android:layout_width="42dp"
                     android:padding="10dp"

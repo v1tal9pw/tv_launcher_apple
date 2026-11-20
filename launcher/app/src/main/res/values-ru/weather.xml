@@ -1,0 +1,7 @@
+<resources>
+    <string name="weather_feels">Ощущается как %1$d°</string>
+    <string name="weather_wind">%1$d м/с</string>
+    <string name="weather_choose_city">Выберите город в настройках погоды</string>
+    <string name="weather_loading">Загружаем погоду…</string>
+    <string name="weather_unavailable">Погода недоступна · повторим автоматически</string>
+</resources>

@@ -172,6 +172,12 @@ public final class FeatureSettingsActivity extends Activity {
         heading(R.string.feature_wallpapers, R.string.feature_wallpaper_help); section(R.string.feature_wallpapers);
         String value = wallpaperLabel(config.wallpaperChoice);
         row("wallpaper_source", R.string.feature_source, value, R.drawable.ic_quick_screensaver, 0xFF0A84FF, this::chooseWallpaper);
+        row("personal_photo", R.string.personal_wallpaper_photo, "", R.drawable.ic_quick_picture, 0xFF0A84FF,
+                () -> choosePersonalWallpaper(false));
+        row("personal_video", R.string.personal_wallpaper_video, "", R.drawable.ic_quick_screensaver, 0xFF0A84FF,
+                () -> choosePersonalWallpaper(true));
+        row("personal_help", R.string.personal_wallpaper_limits, "", R.drawable.ic_quick_picture, 0xFF0A84FF,
+                () -> message(R.string.personal_wallpaper_help));
         int[] minutes = {0, 5, 15, 30, 60, 120};
         integerChoice("wallpaper_rotation_minutes", R.string.feature_rotation, config.wallpaperRotationMinutes, minutes, minuteLabels(minutes), R.drawable.ic_settings_motion);
         String[] orders = {getString(R.string.feature_sequential), getString(R.string.feature_shuffle)};
@@ -189,6 +195,13 @@ public final class FeatureSettingsActivity extends Activity {
     }
 
     private String wallpaperLabel(String value) {
+        if (PersonalWallpapers.COAST_VIDEO.equals(value)) return getString(R.string.personal_wallpaper_coast);
+        if (value.startsWith(PersonalWallpapers.PREFIX)) {
+            File file = PersonalWallpapers.file(this, value);
+            String label = getString(PersonalWallpapers.video(value) ? R.string.personal_wallpaper_video : R.string.personal_wallpaper_photo);
+            return file == null ? label : label + " · " + java.text.DateFormat.getDateTimeInstance(
+                    java.text.DateFormat.SHORT, java.text.DateFormat.SHORT).format(new java.util.Date(file.lastModified()));
+        }
         if (FeaturePreferences.SCENES.equals(value)) return getString(R.string.feature_scenes);
         if (value.startsWith(FeaturePreferences.SCENE_PREFIX)) return SceneFiles.label(value.substring(FeaturePreferences.SCENE_PREFIX.length()));
         if (Config.WALLPAPER_AURORA.equals(value)) return getString(R.string.wallpaper_aurora);
@@ -199,7 +212,9 @@ public final class FeatureSettingsActivity extends Activity {
 
     private void chooseWallpaper() {
         List<String> values = new ArrayList<>(java.util.Arrays.asList(Config.WALLPAPER_THEME, Config.WALLPAPER_AURORA, Config.WALLPAPER_OFF, FeaturePreferences.SCENES));
+        values.add(PersonalWallpapers.COAST_VIDEO);
         for (File file : SceneFiles.images(this)) values.add(FeaturePreferences.SCENE_PREFIX + file.getName());
+        for (File file : PersonalWallpapers.list(this)) values.add(PersonalWallpapers.PREFIX + file.getName());
         File dir = Config.dir(this);
         if (dir != null) {
             File single = new File(dir, Config.WALLPAPER_NAME); if (single.isFile()) values.add(single.getName());
@@ -248,7 +263,9 @@ public final class FeatureSettingsActivity extends Activity {
 
     private void searchCity(String query) {
         async(() -> FeatureNetwork.get("https://geocoding-api.open-meteo.com/v1/search?name="
-                + URLEncoder.encode(query, "UTF-8") + "&count=5&language=en&format=json"), result -> {
+                + URLEncoder.encode(query, "UTF-8") + "&count=5&language="
+                + android.content.res.Resources.getSystem().getConfiguration().getLocales().get(0).getLanguage()
+                + "&format=json"), result -> {
             JSONArray found = result.optJSONArray("results");
             if (found == null || found.length() == 0) { message(R.string.feature_no_cities); return; }
             List<JSONObject> locations = new ArrayList<>(); List<String> labels = new ArrayList<>();
@@ -385,8 +402,22 @@ public final class FeatureSettingsActivity extends Activity {
         try { startActivityForResult(pick, 20); }
         catch (ActivityNotFoundException e) { message(R.string.feature_no_image_picker); }
     }
+    private void choosePersonalWallpaper(boolean video) {
+        Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT).setType(video ? "video/*" : "image/*")
+                .addCategory(Intent.CATEGORY_OPENABLE);
+        try { startActivityForResult(pick, video ? 22 : 21); }
+        catch (ActivityNotFoundException unavailable) { message(R.string.feature_no_image_picker); }
+    }
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if ((requestCode == 21 || requestCode == 22) && resultCode == RESULT_OK && data != null && data.getData() != null) {
+            android.net.Uri uri = data.getData();
+            async(() -> PersonalWallpapers.importFile(getApplicationContext(), uri, requestCode == 22), value -> {
+                choices.edit().putString(Config.WALLPAPER_CHOICE_KEY, value).apply();
+                markChanged(); render();
+            }, R.string.personal_wallpaper_import_failed);
+            return;
+        }
         if (requestCode == 20 && resultCode == RESULT_OK && imagePackage != null && data != null && data.getData() != null) {
             String pkg = imagePackage; android.net.Uri uri = data.getData();
             async(() -> { AppArtwork.importImage(getApplicationContext(), pkg, uri); return pkg; }, value -> {

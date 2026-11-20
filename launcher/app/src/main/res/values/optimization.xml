@@ -1,9 +1,17 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
-    <string name="optimize_title">TV optimization</string>
-    <string name="optimize_help">Manage storage, disable supported stock launchers and recommendations, or restore them. Use Easy Setup with local ADB, or connect Shizuku.</string>
+    <string name="optimize_title">TV cleanup</string>
+    <string name="optimize_profile">CleanYourTV — choose components</string>
+    <string name="optimize_apply_selected">Disable selected components</string>
+    <string name="optimize_restore_all">Restore all recorded components</string>
+    <string name="optimize_nothing_to_restore">No changes recorded for restoration.</string>
+    <string name="optimize_working">Processing components. Please wait…</string>
+    <string name="optimize_complete">Selected operations completed.</string>
+    <string name="optimize_profile_source">CleanYourTV profile for TCL C6K (G08). Each component is optional. Source: Gathin23/cleanyourtv, examples/tcl-65c6k-google-tv/debloat.txt (MIT). AirPlay, Cast, HDMI and input services remain available.</string>
+    <string name="optimize_batch_warning">Choose only components you do not use. This list includes Google Assistant, Alexa, Play Games, YouTube Music, TCL channels and the TCL soundbar firmware updater. Disabling one removes its features. Backups are saved before each change. Processing stops on the first error. Use Restore to undo completed changes.</string>
+    <string name="optimize_help">Disable selected components from the CleanYourTV TCL C6K profile and restore recorded changes. Requires local ADB.</string>
     <string name="optimize_local_connect">Easy Setup (Local ADB)</string>
     <string name="optimize_local_connected">Local ADB connected</string>
-    <string name="optimize_local_setup">Enable Network debugging on the TV (port 5555), then connect here. Accept this launcher\'s ADB key on the TV. Local ADB connects only to this TV, via loopback or its own network address. If the firmware offers only Wireless debugging with a changing port, use Shizuku instead. Turn debugging off after cleanup.</string>
+    <string name="optimize_local_setup">Enable Network debugging on the TV (port 5555), then connect here. Accept the ADB key on the TV. The connection is local to this TV. Turn debugging off after cleanup.</string>
     <string name="optimize_open_settings">Open developer settings</string>
     <string name="optimize_local_grant">Grant launcher system settings permission</string>
     <string name="optimize_local_granted">System settings permission granted</string>
@@ -25,7 +33,7 @@
     <string name="optimize_freeze">Freeze component</string>
     <string name="optimize_disabled_before">Already disabled outside this tool; left unchanged.</string>
     <string name="optimize_no_candidates">No supported components found. Unknown packages are left untouched.</string>
-    <string name="optimize_protected">Play Services, Play Store, firmware updates, HDMI, keyboard and remote services are protected. No app data is deleted. Backups stay privately on this TV; do not clear launcher data before restoring components.</string>
+    <string name="optimize_protected">Play Services, Play Store, system firmware updates, HDMI, keyboard and remote services are protected. No app data is deleted. Backups stay privately on this TV; do not clear launcher data before restoring components.</string>
     <string name="optimize_home_warning">This disables the stock home screen and its recommendations. First select this launcher as the system default and return here with the real Home button. Button interception alone is not enough. A private backup is saved before disabling. Use Restore here to undo.</string>
     <string name="optimize_recommendations_warning">Recommendation cards provided by this component will stop. This does not remove advertisements inside streaming apps. Save a backup and disable this component?</string>
     <string name="optimize_restore_help">Restore the state recorded before freezing this component?</string>

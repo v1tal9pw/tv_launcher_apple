@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="personal_wallpaper_photo">Выбрать своё фото</string>
+    <string name="personal_wallpaper_video">Выбрать своё видео</string>
+    <string name="personal_wallpaper_limits">О видеообоях</string>
+    <string name="personal_wallpaper_coast">Вулканическое побережье — видео</string>
+    <string name="personal_wallpaper_help">Выберите файл на телевизоре или флешке. Видео воспроизводится без звука только на рабочем столе. До Full HD, 30 кадров/с и 200 МБ. Рекомендуется MP4 с H.264. Если воспроизведение недоступно, показывается стоп-кадр. Импортированные файлы сохраняются на этом телевизоре.</string>
+    <string name="personal_wallpaper_import_failed">Не удалось импортировать обои. Проверьте файл и свободное место. Ограничения видео — Full HD, 30 кадров/с и 200 МБ.</string>
+    <string name="personal_wallpaper_video_failed">Видеообои недоступны. Показываем стоп-кадр.</string>
     <string name="remote_single">Одинарное нажатие (1×)</string>
     <string name="remote_double">Двойное нажатие (2×)</string>
     <string name="remote_triple">Тройное нажатие (3×)</string>
@@ -94,7 +101,7 @@
     <string name="feature_no_apps">Нет приложений для запуска</string>
     <string name="feature_choose">Выбрать</string>
     <string name="continue_watching">Продолжить просмотр</string>
-    <string name="continue_watching_help">Показывает недосмотренные фильмы и серии из приложения, выбранного на панели избранного. Если таких материалов нет, ряд скрыт. Нажмите «Вверх», чтобы выбрать материал, или «Вниз», чтобы вернуться к приложениям.</string>
+    <string name="continue_watching_help">Отдельные карточки недосмотренных видео для выбранного приложения в доке. Карточка продолжает просмотр, иконка открывает приложение обычным способом. YouTube, Кинопоиск и другие приложения должны передавать Android TV данные о просмотре, иначе карточки не появятся. Нажмите «Вверх» для выбора карточки, «Вниз» — для возврата к приложениям.</string>
     <string name="continue_permission_help">Разрешите доступ к телепрограмме для отображения раздела «Продолжить просмотр» из ваших приложений.</string>
     <string name="continue_unavailable">Этот материал больше недоступен. Откройте его приложение, чтобы продолжить просмотр.</string>
     <string name="continue_remaining">Осталось минут: %1$d</string>

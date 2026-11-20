@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="quick_accessibility">Accessibility</string>
     <string name="quick_picture">Display</string>
     <string name="quick_apps">Apps</string>
     <string name="quick_settings">Quick settings</string>
@@ -16,4 +17,8 @@
     <string name="quick_off">Off</string>
     <string name="quick_audio_output">Audio Output</string>
     <string name="quick_sound">Sound</string>
+    <string name="quick_clear_background">Close background apps</string>
+    <string name="quick_background_clearing">Closing background apps…</string>
+    <string name="quick_background_cleared">Android cleared eligible background processes</string>
+    <string name="quick_background_adb_required">Could not close background apps. Check local ADB in launcher settings.</string>
 </resources>

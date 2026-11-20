@@ -37,7 +37,6 @@ final class RemoteControlOverlay {
         WindowManager manager = service.getSystemService(WindowManager.class);
         if (manager == null) return;
         FrameLayout panelRoot = new FrameLayout(service);
-        panelRoot.setBackgroundColor(0xB0030C1A);
         panelRoot.setFocusableInTouchMode(true);
         panelRoot.setOnClickListener(v -> close());
         panelRoot.setOnKeyListener((v, code, event) -> {
@@ -63,7 +62,15 @@ final class RemoteControlOverlay {
                 QuickSettingsPanel panel = new QuickSettingsPanel(LauncherLocale.wrap(service), panelRoot,
                         config.reducedMotion, config.animations, config.navigationSounds, new QuickSettingsPanel.Listener() {
                     public void onAction(int control) {
+                        if (control == R.id.quickClearAll) {
+                            QuickSettingsActions.clearBackground(service);
+                            return;
+                        }
                         close();
+                        if (control == R.id.quickInputs) {
+                            open(service, new Intent(service, MainActivity.class).setAction(MainActivity.ACTION_VIEW_INPUTS));
+                            return;
+                        }
                         Intent action = control == R.id.quickLauncherSettings
                                 ? new Intent(service, LauncherSettingsActivity.class) : QuickSettingsActions.intent(service, control);
                         open(service, action);
@@ -101,7 +108,10 @@ final class RemoteControlOverlay {
 
     private static void open(AccessibilityService service, Intent intent) {
         try { service.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); }
-        catch (ActivityNotFoundException | SecurityException ignored) { }
+        catch (ActivityNotFoundException | SecurityException unavailable) {
+            android.widget.Toast.makeText(LauncherLocale.wrap(service), R.string.not_available,
+                    android.widget.Toast.LENGTH_SHORT).show();
+        }
     }
 
     private static int dp(AccessibilityService service, int value) {

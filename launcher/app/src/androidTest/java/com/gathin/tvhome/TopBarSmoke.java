@@ -29,7 +29,11 @@ public final class TopBarSmoke extends Instrumentation {
             runOnMainSync(() -> {
                 try { adapter = LauncherSmoke.seedApps(activity, 43); }
                 catch (Exception e) { throw new RuntimeException(e); }
-                activity.findViewById(R.id.btnInputs).setVisibility(View.VISIBLE);
+                for (int id : new int[]{R.id.btnWifi, R.id.btnInputs, R.id.btnSettings}) {
+                    View button = activity.findViewById(id);
+                    check(button.getVisibility() == View.GONE, "Home shortcut is hidden " + id);
+                    button.setVisibility(View.VISIBLE); // Expose the retained views for the focus fixture.
+                }
             });
             settle();
             int[] buttons = {R.id.btnWifi, R.id.btnInputs, R.id.btnSettings};

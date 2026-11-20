@@ -55,6 +55,11 @@ public final class TopBarFocusSmoke extends Instrumentation {
         Context context = getTargetContext().createConfigurationContext(config);
         View root = LayoutInflater.from(context).inflate(R.layout.activity_main, null);
         ((TextView) root.findViewById(R.id.greeting)).setText("Good evening");
+        for (int id : new int[]{R.id.btnSettings, R.id.btnWifi, R.id.btnInputs}) {
+            View button = root.findViewById(id);
+            if (button.getVisibility() != View.GONE) throw new AssertionError("Home shortcut is visible " + id);
+            button.setVisibility(View.VISIBLE); // Expose the retained views for the outline fixture.
+        }
         ((TextView) root.findViewById(R.id.btnWifi)).setText(network);
         int width = 960 * density / 160, height = 540 * density / 160;
         root.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),

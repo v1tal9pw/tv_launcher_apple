@@ -30,12 +30,12 @@ ROOT = Path(__file__).resolve().parents[1]
 JAVA = ROOT / "launcher" / "app" / "src" / "main" / "java" / "com" / "gathin" / "tvhome"
 
 # Table row (its first cell) -> the service it describes.
-ROWS = {"Home button": "HomeKeyService", "Input button": "InputKeyService"}
+ROWS = {"Remote Button Helper": "InputKeyService"}
 
 # Keycodes a helper takes without any config entry, and the method in which it checks each one.
 FIXED_KEYS = {
-    "HomeKeyService": {"KEYCODE_ALL_APPS": "onKeyEvent", "KEYCODE_SETTINGS": "isSettingsKey"},
-    "InputKeyService": {"KEYCODE_TV": "isInputKey", "KEYCODE_TV_INPUT": "isInputKey"},
+    "InputKeyService": {"KEYCODE_ALL_APPS": "handleKeyEvent", "KEYCODE_SETTINGS": "isSettingsKey",
+                        "KEYCODE_TV": "isInputKey", "KEYCODE_TV_INPUT": "isInputKey"},
 }
 
 RESOURCE_ARRAY = re.compile(r"R\.array\.(\w+)")
@@ -82,7 +82,7 @@ def switches_taking_keys(service_java):
     """config key -> keycode, for each boolean switch with which `onKeyEvent` takes that key.
 
     The config key comes from the field's doc comment (`/** home_long_press_home: ... */`)."""
-    body = method_body(service_java, "onKeyEvent")
+    body = method_body(service_java, "handleKeyEvent") or method_body(service_java, "onKeyEvent")
     found = {}
     for match in SWITCH_KEY.finditer(body):
         field, keycode = match.groups()
@@ -113,9 +113,12 @@ class HelperTableTest(unittest.TestCase):
         cls.config = (JAVA / "Config.java").read_text(encoding="utf-8")
         cls.arrays = config_arrays(cls.config)
         cls.java = {service: (JAVA / f"{service}.java").read_text(encoding="utf-8")
-                    for service in ROWS.values()}
+                    for service in ("HomeKeyService", "InputKeyService")}
+        cls.assert_helper_inherits = "extends HomeKeyService" in cls.java["InputKeyService"]
+        cls.java["InputKeyService"] += cls.java["HomeKeyService"]
 
     def test_the_table_has_a_row_for_each_helper(self):
+        self.assertTrue(self.assert_helper_inherits)
         for row, service in ROWS.items():
             with self.subTest(row=row):
                 self.assertIn(row, self.rows)
@@ -161,7 +164,7 @@ class HelperTableTest(unittest.TestCase):
 
     def test_home_key_service_takes_its_lists_before_all_apps(self):
         # The point of the row: an app or gear button is handled even though Home is not ALL_APPS.
-        body = method_body(self.java["HomeKeyService"], "onKeyEvent")
+        body = method_body(self.java["HomeKeyService"], "handleKeyEvent")
         all_apps = body.find("KEYCODE_ALL_APPS")
         # The lookups can be wrapped (#1855 picks a front-app target first), so the map names are searched for.
         for call in ("appScancodes", "isSettingsKey(event)", "appKeys"):
@@ -173,7 +176,7 @@ class HelperTableTest(unittest.TestCase):
         # The row tells a reader where to set it; a theme key for it would change that sentence.
         self.assertNotIn('"settings_key_scancodes"', self.config)
         self.assertIn("getResources().getIntArray(R.array.settings_key_scancodes)", self.java["HomeKeyService"])
-        self.assertIn("`settings_key_scancodes` (`config.xml` only)", self.rows["Home button"][2])
+        self.assertIn("`settings_key_scancodes` (`config.xml` only)", self.rows["Remote Button Helper"][2])
 
     def test_the_config_reader_finds_the_key_lists_in_config_java(self):
         # A reader that found nothing would let a helper's list go unchecked.

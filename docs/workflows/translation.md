@@ -13,6 +13,8 @@
      line (German, Spanish, Portuguese, Russian and Ukrainian set it), and `rtl_app_grid`/`rtl_menu_bar`
      true for a right-to-left language (`values-iw`).
    - `quick_settings.xml`: the fork's glass-panel labels, defined in the matching default file.
+   - `weather.xml`: weather loading, setup and network status labels.
+   - `optimization.xml`: on-device cleanup and ADB connection labels.
    - `features.xml`: wallpaper, clock, app customization, remote-button and Continue Watching settings.
    - `fonts.xml`: point `font_body`, `font_regular` and the other `font_*` at the system families when the
      bundled Outfit has no glyphs for the language's letters (`values-vi`, #833).

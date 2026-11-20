@@ -97,8 +97,9 @@ class KeyRepeatNoteTest(unittest.TestCase):
         self.assertIn("return `false` for keys they do not map", self.flat)
         input_service = flat(INPUT_SERVICE)
         home_service = flat(HOME_SERVICE)
-        self.assertIn("if (!isInputKey(event.getKeyCode())) return false;", input_service,
-                      "InputKeyService must keep passing unmatched keys through, or the note is wrong")
+        self.assertIn("extends HomeKeyService", input_service)
+        self.assertIn("return handleKeyEvent(event);", home_service)
+        self.assertIn("if (isInputKey(event.getKeyCode()))", home_service)
         self.assertIn("if (event.getKeyCode() != KeyEvent.KEYCODE_ALL_APPS) return false;", home_service,
                       "HomeKeyService must keep passing unmatched keys through, or the note is wrong")
         self.assertIn("not a captured log", self.flat,

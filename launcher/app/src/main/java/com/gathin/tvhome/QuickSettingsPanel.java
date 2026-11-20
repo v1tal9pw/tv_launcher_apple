@@ -24,6 +24,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.TextClock;
 
 import java.util.ArrayList;
 
@@ -32,6 +33,8 @@ final class QuickSettingsPanel extends FrameLayout {
     interface Listener {
         void onAction(int control);
         void onClosed(boolean restoreFocus);
+        default void onOpened() { }
+        default boolean onLauncherMenu() { return false; }
     }
 
     private final android.content.Context activity;
@@ -102,7 +105,8 @@ final class QuickSettingsPanel extends FrameLayout {
         overlay.addView(scroll, position);
         content = column();
         content.setId(R.id.quickPanel);
-        content.setPadding(px(10), px(8), px(10), px(10));
+        content.setBackgroundResource(R.drawable.quick_panel_background);
+        content.setPadding(px(14), px(16), px(14), px(14));
         content.setClipChildren(false);
         // Focus scales a capsule into this padding. clipChildren=false alone does not stop
         // ViewGroup from clipping all its drawing to the padded content rectangle.
@@ -130,6 +134,7 @@ final class QuickSettingsPanel extends FrameLayout {
                 if (isShowing() && !closing) {
                     focus(focus);
                     animateTo(1f);
+                    post(() -> { if (isShowing() && !closing) listener.onOpened(); });
                 }
                 return true;
             }
@@ -141,7 +146,7 @@ final class QuickSettingsPanel extends FrameLayout {
         progress = value;
         scroll.setAlpha(value);
         scroll.setTranslationX(reducedMotion ? 0f : px(24) * (1f - value));
-        scrim.setAlpha(Math.round(0x42 * value));
+        scrim.setAlpha(Math.round(0x50 * value));
         homeShortcuts.setAlpha(shortcutAlpha * (1f - value));
     }
 
@@ -296,10 +301,23 @@ final class QuickSettingsPanel extends FrameLayout {
     private void showMain() {
         LinearLayout header = row();
         header.setGravity(Gravity.TOP);
-        TextView back = text(activity.getString(R.string.quick_back), 11, 400, 0xC9FFFFFF);
-        back.setPadding(px(24), 0, 0, 0);
-        header.addView(back, new LinearLayout.LayoutParams(0, px(38), 1));
-        back.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout clock = column();
+        clock.setPadding(px(8), px(2), 0, 0);
+        TextClock date = clock(12, 0xC9FFFFFF);
+        date.setId(R.id.quickDate);
+        String datePattern = android.text.format.DateFormat.getBestDateTimePattern(
+                activity.getResources().getConfiguration().getLocales().get(0), "EEE d MMM");
+        date.setFormat12Hour(datePattern);
+        date.setFormat24Hour(datePattern);
+        clock.addView(date);
+        TextClock time = clock(27, Color.WHITE);
+        time.setId(R.id.quickTime);
+        time.setFormat12Hour("h:mm a");
+        time.setFormat24Hour("HH:mm");
+        LinearLayout.LayoutParams timeParams = new LinearLayout.LayoutParams(-2, -2);
+        timeParams.topMargin = px(8);
+        clock.addView(time, timeParams);
+        header.addView(clock, new LinearLayout.LayoutParams(0, px(74), 1));
         LinearLayout launcherSettings = column();
         launcherSettings.setGravity(Gravity.CENTER_HORIZONTAL);
         launcherSettings.setClipChildren(false);
@@ -307,6 +325,7 @@ final class QuickSettingsPanel extends FrameLayout {
         launcherSettings.setTranslationX(px(12));
         launcherSettings.addView(circle(R.id.quickLauncherSettings, R.drawable.ic_quick_launcher_settings,
                 R.string.quick_launcher_settings, () -> listener.onAction(R.id.quickLauncherSettings)));
+        launcherSettings.getChildAt(0).setOnLongClickListener(v -> !closing && listener.onLauncherMenu());
         launcherSettingsLabel = text(activity.getString(R.string.quick_launcher_settings), 11, 500, 0xDBFFFFFF);
         launcherSettingsLabel.setId(R.id.quickLauncherSettingsLabel);
         launcherSettingsLabel.setGravity(Gravity.CENTER);
@@ -358,40 +377,57 @@ final class QuickSettingsPanel extends FrameLayout {
         header.addView(close, closeParams);
         add(header, 0);
 
-        LinearLayout first = row();
-        first.addView(pill(R.id.quickBluetooth, R.drawable.ic_quick_bluetooth,
-                R.string.quick_bluetooth, activity.getString(R.string.settings)), half());
-        first.addView(pill(R.id.quickAudioOutput, R.drawable.ic_quick_audio_output,
-                R.string.quick_audio_output, null), halfRight());
-        add(first, 12);
-        LinearLayout second = row();
-        second.addView(pill(R.id.quickPicture, R.drawable.ic_quick_picture, R.string.quick_picture,
-                activity.getString(R.string.settings)), half());
-        second.addView(pill(R.id.quickSound, R.drawable.ic_quick_sound, R.string.quick_sound,
-                activity.getString(R.string.settings)), halfRight());
-        add(second, 10);
-        LinearLayout third = row();
-        third.addView(pill(R.id.quickScreensaver, R.drawable.ic_quick_screensaver,
-                R.string.quick_screensaver, activity.getString(R.string.quick_start_now)), half());
-        third.addView(pill(R.id.quickApps, R.drawable.ic_quick_apps, R.string.quick_apps,
-                activity.getString(R.string.settings)), halfRight());
-        add(third, 10);
+        int[][] tiles = {
+                {R.id.quickScreensaver, R.drawable.ic_quick_screensaver, R.string.quick_screensaver},
+                {R.id.quickNetwork, R.drawable.ic_wifi, R.string.wifi},
+                {R.id.quickInputs, R.drawable.ic_source_switch, R.string.inputs},
+                {R.id.quickAccessibility, R.drawable.ic_quick_accessibility, R.string.quick_accessibility},
+                {R.id.quickAudioOutput, R.drawable.ic_quick_audio_output, R.string.quick_audio_output},
+                {R.id.quickBluetooth, R.drawable.ic_quick_bluetooth, R.string.quick_bluetooth},
+                {R.id.quickPicture, R.drawable.ic_quick_picture, R.string.quick_picture},
+                {R.id.quickSound, R.drawable.ic_quick_sound, R.string.quick_sound},
+                {R.id.quickApps, R.drawable.ic_quick_apps, R.string.quick_apps},
+                {R.id.quickClearAll, R.drawable.ic_quick_apps, R.string.quick_clear_background}
+        };
+        for (int i = 0; i < tiles.length; i += 2) {
+            LinearLayout line = row();
+            for (int column = 0; column < 2; column++) {
+                int[] tile = tiles[i + column];
+                String subtitle = tile[0] == R.id.quickScreensaver ? activity.getString(R.string.quick_start_now)
+                        : tile[0] == R.id.quickBluetooth ? activity.getString(R.string.quick_accessories) : null;
+                line.addView(pill(tile[0], tile[1], tile[2], subtitle), column == 0 ? half() : halfRight());
+            }
+            add(line, i == 0 ? 8 : 10);
+        }
         connect(R.id.quickLauncherSettings, R.id.quickLauncherSettings, R.id.quickAllSettings,
-                R.id.quickLauncherSettings, R.id.quickBluetooth);
-        connect(R.id.quickAllSettings, R.id.quickLauncherSettings, R.id.quickClose, R.id.quickAllSettings, R.id.quickBluetooth);
-        connect(R.id.quickClose, R.id.quickAllSettings, R.id.quickClose, R.id.quickClose, R.id.quickAudioOutput);
-        connect(R.id.quickBluetooth, R.id.quickBluetooth, R.id.quickAudioOutput, R.id.quickAllSettings, R.id.quickPicture);
-        connect(R.id.quickAudioOutput, R.id.quickBluetooth, R.id.quickAudioOutput, R.id.quickClose, R.id.quickSound);
-        connect(R.id.quickPicture, R.id.quickPicture, R.id.quickSound, R.id.quickBluetooth, R.id.quickScreensaver);
-        connect(R.id.quickSound, R.id.quickPicture, R.id.quickSound, R.id.quickAudioOutput, R.id.quickApps);
-        connect(R.id.quickScreensaver, R.id.quickScreensaver, R.id.quickApps, R.id.quickPicture, R.id.quickScreensaver);
-        connect(R.id.quickApps, R.id.quickScreensaver, R.id.quickApps, R.id.quickSound, R.id.quickApps);
+                R.id.quickLauncherSettings, R.id.quickScreensaver);
+        connect(R.id.quickAllSettings, R.id.quickLauncherSettings, R.id.quickClose,
+                R.id.quickAllSettings, R.id.quickScreensaver);
+        connect(R.id.quickClose, R.id.quickAllSettings, R.id.quickClose, R.id.quickClose, R.id.quickNetwork);
+        for (int i = 0; i < tiles.length; i++) {
+            int column = i % 2;
+            int up = i < 2 ? (column == 0 ? R.id.quickAllSettings : R.id.quickClose) : tiles[i - 2][0];
+            int down = i + 2 < tiles.length ? tiles[i + 2][0] : tiles[i][0];
+            connect(tiles[i][0], tiles[i - column][0], tiles[i - column + 1][0], up, down);
+        }
+    }
+
+    private TextClock clock(int size, int color) {
+        TextClock clock = new TextClock(activity);
+        clock.setTextSize(TypedValue.COMPLEX_UNIT_PX, size * unit * fontScale);
+        clock.setTextColor(color);
+        clock.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        clock.setIncludeFontPadding(false);
+        clock.setSingleLine(true);
+        clock.setFocusable(false);
+        clock.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
+        return clock;
     }
 
     private View pill(int id, int icon, int label, String summary) {
         LinearLayout button = row();
         button.setId(id);
-        button.setMinimumHeight(px(70));
+        button.setMinimumHeight(px(68));
         button.setPadding(px(12), px(10), px(12), px(10));
         glass(button);
         FrameLayout symbol = new FrameLayout(activity);
@@ -407,12 +443,12 @@ final class QuickSettingsPanel extends FrameLayout {
         button.addView(symbol, new LinearLayout.LayoutParams(px(38), px(38)));
         LinearLayout copy = column();
         TextView title = text(activity.getString(label), id == R.id.quickAudioOutput ? 13 : 14, 600, Color.WHITE);
-        title.setSingleLine(true);
+        title.setMaxLines(2);
         title.setEllipsize(TextUtils.TruncateAt.END);
         copy.addView(title);
         if (summary != null) {
             TextView subtitle = text(summary, 11, 500, 0xDBFFFFFF);
-            subtitle.setSingleLine(true);
+            subtitle.setMaxLines(2);
             subtitle.setEllipsize(TextUtils.TruncateAt.END);
             LinearLayout.LayoutParams subtitleParams = new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -506,7 +542,8 @@ final class QuickSettingsPanel extends FrameLayout {
         float widest = 0;
         for (int label : new int[]{R.string.quick_bluetooth, R.string.quick_audio_output,
                 R.string.quick_picture, R.string.quick_sound, R.string.quick_screensaver,
-                R.string.quick_apps, R.string.settings, R.string.quick_start_now}) {
+                R.string.quick_apps, R.string.inputs, R.string.wifi, R.string.quick_accessibility, R.string.quick_accessories,
+                R.string.settings, R.string.quick_start_now}) {
             TextView sample = text(activity.getString(label), 14, 600, Color.WHITE);
             widest = Math.max(widest, sample.getPaint().measureText(sample.getText().toString()));
         }

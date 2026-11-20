@@ -132,7 +132,7 @@ public final class LauncherSettingsSmoke extends Instrumentation {
         removeMonitor(settingsMonitor);
         settingsMonitor = addMonitor(LauncherSettingsActivity.class.getName(), null, false);
         if (home.findViewById(R.id.quickLauncherSettings) == null) {
-            ui(() -> home.findViewById(R.id.btnSettings).performClick());
+            ui(() -> home.openQuickSettings());
             settle();
         }
         ui(() -> home.findViewById(R.id.quickLauncherSettings).performClick());

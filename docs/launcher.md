@@ -43,7 +43,7 @@ The grouped settings page includes **Appearance**, **Experience**, **System**, *
 **Apps per row** 4, 5, 6 or 7, **Rows below dock** 0 to 3, **Animations**, **Advanced effects**,
 **Navigation sounds**, **App Library**, **Continue Watching**, **System info**, **Sky & race weekends**,
 **Idle clock**, **App customization**, **Remote buttons**, **Follow theme**, **Choose default home**,
-and **TV system settings**. The miniature preview updates as choices change.
+**TV system settings**, **About this launcher**, **System update**, and **GitHub repository**. The miniature preview updates as choices change.
 Wallpaper settings offers **Dock band opacity** 100%, 70%, 50% or 30%, Theme/Aurora/Off, Scenes,
 rotation, order, full color and dimming. Idle clock has wallpaper and ambient-glow choices. With
 `open_on_start_choice` set, it also offers **Open on start** and a bounded wait for network.

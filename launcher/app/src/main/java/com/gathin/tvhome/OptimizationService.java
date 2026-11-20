@@ -13,13 +13,20 @@ import org.json.JSONObject;
 /** Shizuku shell worker. No exported Android service, root, arbitrary commands or arbitrary packages. */
 public final class OptimizationService extends IOptimizationService.Stub {
     private final Map<String, Integer> prepared = new HashMap<>();
+    private boolean tclProfile;
     public OptimizationService() { }
     private void shellUser() throws Exception {
         if (Process.myUid() != 2000 || !run("am", "get-current-user").trim().equals("0"))
             throw new IllegalStateException("ADB_USER_REQUIRED");
+        tclProfile = OptimizationPolicy.tclC6k(run("getprop", "ro.product.model"),
+                run("getprop", "ro.product.device"), run("getprop", "ro.product.name"));
     }
     private int state(String pkg) throws Exception {
         if (!OptimizationPolicy.allowed(pkg)) throw new SecurityException("PROTECTED_PACKAGE");
+        if (OptimizationPolicy.tclCandidate(pkg)
+                && !java.util.Arrays.asList(OptimizationPolicy.PACKAGES).contains(pkg)
+                && !tclProfile)
+            throw new SecurityException("TCL_C6K_PROFILE_REQUIRED");
         String data = run("dumpsys", "package", pkg);
         Matcher match = Pattern.compile("User 0:[^\\r\\n]*enabled=(\\d+)").matcher(data);
         if (!match.find()) throw new IllegalStateException("PACKAGE_STATE_UNAVAILABLE");
@@ -42,7 +49,7 @@ public final class OptimizationService extends IOptimizationService.Stub {
         try {
             shellUser(); JSONArray list = new JSONArray();
             String installed = run("pm", "list", "packages", "--user", "0");
-            for (String pkg : OptimizationPolicy.PACKAGES)
+            for (String pkg : OptimizationPolicy.candidates(tclProfile))
                 if (java.util.Arrays.asList(installed.split("\\s+")).contains("package:" + pkg))
                     list.put(new JSONObject().put("package", pkg).put("state", state(pkg)));
             return list.toString();

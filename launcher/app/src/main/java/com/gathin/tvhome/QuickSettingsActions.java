@@ -9,20 +9,50 @@ import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.net.Uri;
 import android.provider.Settings;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.Log;
+import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Resolve optional configured firmware destinations, then fall back to public Android settings. */
 final class QuickSettingsActions {
+    private static final AtomicBoolean clearing = new AtomicBoolean();
+
+    static void clearBackground(Context context) {
+        if (!clearing.compareAndSet(false, true)) return;
+        Context app = LauncherLocale.wrap(context.getApplicationContext());
+        Toast.makeText(app, R.string.quick_background_clearing, Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            int message;
+            try {
+                LocalAdbClient.run(app, "am kill-all");
+                message = R.string.quick_background_cleared;
+            } catch (Exception unavailable) {
+                Log.w("QuickSettings", "Background cleanup unavailable", unavailable);
+                message = R.string.quick_background_adb_required;
+            }
+            int result = message;
+            new Handler(Looper.getMainLooper()).post(() -> {
+                clearing.set(false);
+                Toast.makeText(app, result, Toast.LENGTH_LONG).show();
+            });
+        }, "tvhome-clear-background").start();
+    }
+
     static Intent intent(Context context, int control) {
         return intent(context, control, Config.load(context).settingsRoutes);
     }
 
     static Intent intent(Context context, int control, Map<String, String> routes) {
+        if (control == R.id.quickAccessibility)
+            return systemIntent(context, Settings.ACTION_ACCESSIBILITY_SETTINGS, routes);
         if (control == R.id.quickAudioOutput) {
             Intent output = component(context, routes.get("quick_audio_output_component"));
             if (output != null) return output;
@@ -35,6 +65,8 @@ final class QuickSettingsActions {
             if (apps != null) return apps;
             return systemIntent(context, Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS, routes);
         }
+        if (control == R.id.quickNetwork)
+            return systemIntent(context, Settings.ACTION_WIFI_SETTINGS, routes);
         if (control == R.id.quickBluetooth) {
             // Some firmware resolves BLUETOOTH_SETTINGS to its general settings screen.
             // Prefer the configured accessory page before broad implicit actions.
@@ -42,8 +74,6 @@ final class QuickSettingsActions {
             if (accessories != null) return accessories;
             Intent slice = settingsSlice(context, routes, "quick_bluetooth_slice_resource");
             if (slice != null) return slice;
-            Intent pairing = action(context, "com.google.android.intent.action.CONNECT_INPUT");
-            if (pairing != null) return pairing;
             Intent bluetooth = action(context, Settings.ACTION_BLUETOOTH_SETTINGS);
             if (bluetooth != null) return bluetooth;
             // Let the caller report an unavailable Bluetooth page, rather than silently
