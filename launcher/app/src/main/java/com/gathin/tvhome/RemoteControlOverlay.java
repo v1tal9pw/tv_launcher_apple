@@ -311,6 +311,18 @@ final class RemoteControlOverlay {
                                             });
                                             return;
                                         }
+                                        if (control == R.id.quickSound) {
+                                            QuickSettingsActions.resolveSound(service, resolved -> {
+                                                if (root != panelRoot) return;
+                                                armPendingReturn(control, host);
+                                                close();
+                                                if (!open(service, resolved.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))) {
+                                                    clearPendingReturn();
+                                                    show(service, control, false);
+                                                }
+                                            });
+                                            return;
+                                        }
                                         if (control == R.id.quickAllSettings) clearPendingReturn();
                                         else armPendingReturn(control, host);
                                         close();

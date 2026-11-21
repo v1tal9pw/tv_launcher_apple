@@ -73,6 +73,12 @@
             <action android:name="android.settings.SOUND_SETTINGS" />
         </intent>
         <intent>
+            <action android:name="com.android.tv.settings.SOUND" />
+        </intent>
+        <intent>
+            <action android:name="com.android.settings.SOUND_SETTINGS" />
+        </intent>
+        <intent>
             <action android:name="android.media.action.DISPLAY_AUDIO_EFFECT_CONTROL_PANEL" />
         </intent>
         <intent>

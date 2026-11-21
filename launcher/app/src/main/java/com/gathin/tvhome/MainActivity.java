@@ -3149,6 +3149,18 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             });
             return;
         }
+        if (control == R.id.quickSound) {
+            quickSettingsFocus = control;
+            QuickSettingsActions.resolveSound(this, resolved -> {
+                if (paused || isFinishing() || isDestroyed()) return;
+                Intent soundIntent = resolved.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                resumeQuickSettings = true;
+                Runnable launch = () -> launchQuickIntent(control, soundIntent, false);
+                if (quickSettings != null) quickSettings.closeForAction(launch);
+                else launch.run();
+            });
+            return;
+        }
         // Keep launched settings in Home's task (CLEAR_TOP without NEW_TASK) so Back always pops
         // directly back to MainActivity.onResume() and reopens the panel on the selected control.
         boolean launcherSettings = control == R.id.quickLauncherSettings;
