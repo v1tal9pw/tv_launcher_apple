@@ -14,7 +14,7 @@
 
 **v1tal9 TV Launcher** — моя версия [Apple TV OS Launcher](https://github.com/iyashwant/apple-tv-os-launcher) для телевизоров и приставок на Android TV / Google TV.
 
-**Актуальная версия: в `resale`** — оптимизирована и проверена для **TCL C6K с Google TV 14** (совместима и с другими Android TV / Google TV устройствами на Android 8.0+). Готовые сборки доступны в [GitHub Releases](https://github.com/v1tal9pw/tv_launcher_apple/releases), подробная история изменений — в [`launcher/RELEASES.md`](launcher/RELEASES.md), а BAT-скрипты настройки и восстановления — в папке [`launcher/`](launcher/).
+**Актуальная версия: в `release`** — оптимизирована и проверена для **TCL C6K с Google TV 14** (совместима и с другими Android TV / Google TV устройствами на Android 8.0+). Готовые сборки доступны в [GitHub Releases](https://github.com/v1tal9pw/tv_launcher_apple/releases), подробная история изменений — в [`launcher/RELEASES.md`](launcher/RELEASES.md), а BAT-скрипты настройки и восстановления — в папке [`launcher/`](launcher/).
 
 Цель проекта — быстрый, плавный и минималистичный домашний экран в стиле tvOS, который полностью управляется с пульта и гибко настраивается под себя. Это независимая модификация с сохранением указания на авторов исходного проекта.
 
