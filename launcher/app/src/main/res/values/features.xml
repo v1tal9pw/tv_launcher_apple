@@ -55,7 +55,7 @@
     <string name="feature_glow_intensity">Intensity</string>
     <string name="feature_glow_tile">Focused tile halo</string>
     <string name="feature_glow_tile_help">Show a colored halo around the selected app tile. Turning glow style or intensity off disables all app glow completely.</string>
-    <string name="installed_changes">Version 3.61 for TCL C6K. Added deletion of user-imported wallpapers in Wallpaper settings, automatic source file verification that removes wallpapers deleted from TV storage with fallback to default, and smaller default weather text size (12) with new 8, 10, and 12 size options.</string>
+    <string name="installed_changes">Version 3.63 for TCL C6K. Eliminated micro-stutters when scrolling down and opening Control Center, fixed Home button redirection with Remote button helper enabled, added smooth Control Center dismiss animation on Home key (on Home and over apps), and added Launcher Settings as a standalone app tile with a new unstretched tvOS gear icon.</string>
     <string name="update_check_button">Check for updates</string>
     <string name="weather_show_city">Show city name</string>
     <string name="weather_show_details">Show feels-like temperature and wind</string>
