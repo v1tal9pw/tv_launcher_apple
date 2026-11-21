@@ -11,6 +11,9 @@ import android.view.View;
 import android.view.Window;
 
 import java.lang.reflect.Proxy;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -20,12 +23,23 @@ import java.util.function.BooleanSupplier;
  */
 final class NavSound {
     private static final long DEBOUNCE_MS = 25L;
+    private static final ExecutorService AUDIO_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "TvHome-NavSound");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private static final AtomicBoolean PENDING_PLAY = new AtomicBoolean(false);
     private static AudioTrack clickTrack;
-    private static long lastPlayedAt;
+    private static volatile long lastPlayedAt;
 
     private NavSound() { }
 
-    static synchronized void prepare() {
+    static void prepare() {
+        if (clickTrack != null) return;
+        AUDIO_EXECUTOR.execute(NavSound::prepareOnAudioThread);
+    }
+
+    private static synchronized void prepareOnAudioThread() {
         if (clickTrack != null) return;
         try {
             int sampleRate = 22050;
@@ -55,15 +69,22 @@ final class NavSound {
         }
     }
 
-    static synchronized void play(boolean enabled) {
+    static void play(boolean enabled) {
         if (!enabled) return;
         long now;
         try { now = SystemClock.uptimeMillis(); }
         catch (Throwable ignored) { now = 0L; }
         if (now != 0L && now - lastPlayedAt < DEBOUNCE_MS) return;
         lastPlayedAt = now;
+        if (PENDING_PLAY.compareAndSet(false, true)) {
+            AUDIO_EXECUTOR.execute(NavSound::playOnAudioThread);
+        }
+    }
+
+    private static synchronized void playOnAudioThread() {
+        PENDING_PLAY.set(false);
         try {
-            prepare();
+            prepareOnAudioThread();
             if (clickTrack == null) return;
             clickTrack.stop();
             clickTrack.reloadStaticData();

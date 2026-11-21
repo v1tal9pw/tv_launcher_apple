@@ -41,7 +41,7 @@ final class HeaderGlass {
         if (active && hasVisibleChild()) root.postDelayed(refresh, 650);
     }
 
-    private boolean hasVisibleChild() {
+    boolean hasVisibleChild() {
         if (!buttons.isShown()) return false;
         for (int i = 0; i < buttons.getChildCount(); i++)
             if (buttons.getChildAt(i).getVisibility() == View.VISIBLE) return true;

@@ -107,7 +107,16 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".LauncherSettingsActivity" android:exported="false" android:excludeFromRecents="true" android:screenOrientation="landscape" />
+        <activity android:name=".LauncherSettingsActivity" android:label="@string/launcher_settings" android:icon="@drawable/ic_launcher_settings_app" android:banner="@drawable/banner_launcher_settings" android:exported="true" android:taskAffinity="com.gathin.tvhome.settings" android:launchMode="singleTop" android:excludeFromRecents="true" android:screenOrientation="landscape">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
         <activity android:name=".UpdateActivity" android:exported="false" android:excludeFromRecents="true" android:screenOrientation="landscape" />
         <receiver android:name=".UpdateInstallReceiver" android:exported="false" />
         <activity android:name=".FeatureSettingsActivity" android:exported="false" android:excludeFromRecents="true" android:screenOrientation="landscape" />

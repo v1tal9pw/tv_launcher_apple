@@ -40,11 +40,20 @@ final class QuickSettingsPanel extends FrameLayout {
     private static final PathInterpolator OPEN_INTERPOLATOR = new PathInterpolator(0.16f, 1f, 0.3f, 1f);
     private static final PathInterpolator CLOSE_INTERPOLATOR = new PathInterpolator(0.32f, 0f, 0.67f, 0f);
     private static final PathInterpolator FOCUS_INTERPOLATOR = new PathInterpolator(0.2f, 0f, 0f, 1f);
+    private static final Typeface TYPEFACE_REGULAR = Typeface.create("sans-serif", Typeface.NORMAL);
+    private static final Typeface TYPEFACE_MEDIUM = Typeface.create("sans-serif-medium", Typeface.NORMAL);
+    private static float cachedWidthUnit = -1f, cachedWidthFontScale = -1f;
+    private static int cachedWidthHome = -1, cachedPanelWidth = -1;
+    private static String cachedWidthLocale;
 
     private final android.content.Context activity;
     private final ViewGroup home;
+    private final int hostWidth, hostHeight;
     private final Listener listener;
-    private final Bitmap backdrop;
+    private Bitmap backdrop;
+    private final QuickGlassDrawable.ShaderCache shaderCache = new QuickGlassDrawable.ShaderCache();
+    private final ArrayList<View> glassViews = new ArrayList<>(13);
+    private final ArrayList<QuickGlassDrawable> glassDrawables = new ArrayList<>(13);
     private final float unit, fontScale;
     private final boolean reducedMotion;
     private final boolean animationsEnabled;
@@ -53,9 +62,9 @@ final class QuickSettingsPanel extends FrameLayout {
     private final LinearLayout content;
     private final ScrollView scroll;
     private final View homeShortcuts;
-    private final float shortcutAlpha;
-    private final int shortcutLayer;
-    private final View previousFocus;
+    private float shortcutAlpha;
+    private int shortcutLayer;
+    private View previousFocus;
     private final ArrayList<HomeChildState> homeChildren = new ArrayList<>();
     private final Rect tempRegion = new Rect();
     private TextView launcherSettingsLabel, allSettingsLabel, closeLabel;
@@ -64,6 +73,8 @@ final class QuickSettingsPanel extends FrameLayout {
     private Runnable pendingEntryAnimation;
     private final int[] settingsKeycodes;
     private float progress;
+    private boolean reusable;
+    private boolean showing;
     private boolean closing;
     private boolean suppressFocusAnimation;
     private boolean backDown;
@@ -82,6 +93,8 @@ final class QuickSettingsPanel extends FrameLayout {
         super(activity);
         this.activity = activity;
         this.home = (ViewGroup) home;
+        this.hostWidth = home.getWidth();
+        this.hostHeight = home.getHeight();
         this.listener = listener;
         int[] keycodes;
         try { keycodes = activity.getResources().getIntArray(R.array.settings_key_keycodes); }
@@ -135,15 +148,79 @@ final class QuickSettingsPanel extends FrameLayout {
         showMain();
     }
 
+    void setReusable(boolean value) {
+        reusable = value;
+    }
+
+    boolean matchesHost(ViewGroup host) {
+        return host == home && host.getWidth() == hostWidth && host.getHeight() == hostHeight;
+    }
+
+    /** Attaches and lays out the panel while invisible during idle time so first open costs ~0 ms. */
+    void prewarm() {
+        reusable = true;
+        if (getParent() != null) return;
+        showing = false;
+        closing = false;
+        setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+        setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+        setVisibility(View.INVISIBLE);
+        home.addView(this, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        content.post(() -> {
+            if (!showing && getParent() == home && content.getWidth() > 0) updateGlassRegions();
+        });
+    }
+
+    void updateBackdrop(Bitmap next) {
+        Bitmap valid = next != null && !next.isRecycled() ? next : null;
+        if (valid == backdrop) return;
+        backdrop = valid;
+        for (int i = 0; i < glassDrawables.size(); i++) {
+            glassDrawables.get(i).setBackdrop(valid);
+        }
+        if (content.getWidth() > 0) updateGlassRegions();
+    }
+
+    void detach() {
+        reusable = false;
+        removeEntryListener();
+        cancelTransition();
+        if (showing) finishDismiss();
+        else if (getParent() == home) home.removeView(this);
+    }
+
     void open(int focus) {
+        removeEntryListener();
+        cancelTransition();
+        showing = true;
+        closing = false;
+        restoreFocus = true;
+        afterClose = null;
         selected = focus;
         backDown = false;
         settingsDown = false;
+        shortcutAlpha = homeShortcuts.getAlpha();
+        shortcutLayer = homeShortcuts.getLayerType();
+        previousFocus = home.findFocus();
         applyProgress(0f);
-        for (int i = 0; i < home.getChildCount(); i++)
-            homeChildren.add(new HomeChildState(home.getChildAt(i)));
-        home.addView(this, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        homeChildren.clear();
+        for (int i = 0; i < home.getChildCount(); i++) {
+            View child = home.getChildAt(i);
+            if (child != this) homeChildren.add(new HomeChildState(child));
+        }
+        if (getParent() == home) {
+            if (home.getChildAt(home.getChildCount() - 1) != this) bringToFront();
+            setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
+            setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
+            setVisibility(View.VISIBLE);
+        } else {
+            setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
+            setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
+            setVisibility(View.VISIBLE);
+            home.addView(this, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        }
         // One window submits both the real shortcuts and the panel in the same frame.
         if (home.isHardwareAccelerated()) homeShortcuts.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         // Apply initial focus synchronously without running a child scale animation that would
@@ -152,36 +229,47 @@ final class QuickSettingsPanel extends FrameLayout {
         try { focus(focus); }
         finally { suppressFocusAnimation = false; }
         if (animationsEnabled && home.isHardwareAccelerated()) scroll.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        if (content.getWidth() > 0) {
+            beginEntry(focus);
+            return;
+        }
         entryDraw = new ViewTreeObserver.OnPreDrawListener() {
             @Override public boolean onPreDraw() {
                 if (content.getWidth() == 0) return true;
                 removeEntryListener();
                 if (!isShowing() || closing) return true;
-                scroll.setPivotX(scroll.getWidth());
-                scroll.setPivotY(Math.min(content.getHeight(), scroll.getHeight()) * 0.5f);
-                suppressFocusAnimation = true;
-                try { focus(focus); }
-                finally { suppressFocusAnimation = false; }
-                applyProgress(0f);
-                if (!animationsEnabled) {
-                    applyProgress(1f);
-                    post(() -> { if (isShowing() && !closing) listener.onOpened(); });
-                    return true;
-                }
-                // Let frame 0 upload scroll's hardware layer cleanly while alpha=0, then start
-                // the VSync-aligned animation on the next frame with zero frame-0 hitch.
-                pendingEntryAnimation = () -> {
-                    pendingEntryAnimation = null;
-                    if (!isShowing() || closing) return;
-                    animateTo(1f);
-                    post(() -> { if (isShowing() && !closing) listener.onOpened(); });
-                };
-                if (isAttachedToWindow()) postOnAnimation(pendingEntryAnimation);
-                else post(pendingEntryAnimation);
+                beginEntry(focus);
                 return true;
             }
         };
         content.getViewTreeObserver().addOnPreDrawListener(entryDraw);
+    }
+
+    private void beginEntry(int focus) {
+        updateGlassRegions();
+        scroll.setPivotX(scroll.getWidth());
+        scroll.setPivotY(Math.min(content.getHeight(), scroll.getHeight()) * 0.5f);
+        suppressFocusAnimation = true;
+        try { focus(focus); }
+        finally { suppressFocusAnimation = false; }
+        applyProgress(0f);
+        if (!animationsEnabled) {
+            applyProgress(1f);
+            post(() -> { if (isShowing() && !closing) listener.onOpened(); });
+            return;
+        }
+        // Keep alpha tiny (> 0) on frame 0: alpha == 0 causes RenderNode to skip building the
+        // hardware FBO layer until frame 1, which would stall the start of the slide. 0.002f is
+        // 0 in 8-bit RGBA (invisible) while forcing the GPU layer upload on frame 0.
+        if (scroll.getLayerType() == View.LAYER_TYPE_HARDWARE) scroll.setAlpha(0.002f);
+        pendingEntryAnimation = () -> {
+            pendingEntryAnimation = null;
+            if (!isShowing() || closing) return;
+            animateTo(1f);
+            post(() -> { if (isShowing() && !closing) listener.onOpened(); });
+        };
+        if (isAttachedToWindow()) postOnAnimation(pendingEntryAnimation);
+        else post(pendingEntryAnimation);
     }
 
     private void applyProgress(float value) {
@@ -268,19 +356,34 @@ final class QuickSettingsPanel extends FrameLayout {
         applyProgress(0f);
         scroll.setLayerType(View.LAYER_TYPE_NONE, null);
         homeShortcuts.setLayerType(shortcutLayer, null);
-        if (!isShowing()) return;
+        if (!showing) return;
+        showing = false;
+        closing = false;
         for (HomeChildState child : homeChildren) child.restore();
         homeChildren.clear();
-        // Restore focus before removal so Android cannot briefly focus a Home app instead.
-        if (previousFocus != null && previousFocus.isAttachedToWindow()) previousFocus.requestFocusFromTouch();
-        home.removeView(this);
+        // Restore focus before hiding/removal so Android cannot briefly focus a Home app instead.
+        suppressFocusAnimation = true;
+        try {
+            if (restoreFocus && previousFocus != null && previousFocus.isAttachedToWindow())
+                previousFocus.requestFocusFromTouch();
+        } finally {
+            suppressFocusAnimation = false;
+        }
+        if (reusable) {
+            setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+            setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+            setVisibility(View.INVISIBLE);
+        } else if (getParent() == home) {
+            home.removeView(this);
+        }
         listener.onClosed(restoreFocus);
         Runnable action = afterClose;
         afterClose = null;
         if (action != null && (!(activity instanceof Activity) || (!((Activity) activity).isFinishing() && !((Activity) activity).isDestroyed()))) action.run();
     }
 
-    boolean isShowing() { return getParent() == home; }
+    boolean isShowing() { return showing && getParent() == home; }
+    boolean isClosing() { return closing; }
     View getCurrentFocus() { return findFocus(); }
 
     void closeForAction(Runnable action) {
@@ -494,7 +597,7 @@ final class QuickSettingsPanel extends FrameLayout {
         TextClock clock = new TextClock(activity);
         clock.setTextSize(TypedValue.COMPLEX_UNIT_PX, size * unit * fontScale);
         clock.setTextColor(color);
-        clock.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        clock.setTypeface(TYPEFACE_MEDIUM);
         clock.setIncludeFontPadding(false);
         clock.setSingleLine(true);
         clock.setFocusable(false);
@@ -555,11 +658,18 @@ final class QuickSettingsPanel extends FrameLayout {
     }
 
     private void glass(View view) {
-        QuickGlassDrawable glass = new QuickGlassDrawable(backdrop, unit);
+        QuickGlassDrawable glass = new QuickGlassDrawable(backdrop, unit, shaderCache);
         view.setBackground(glass);
-        if (backdrop == null) return;
-        view.addOnLayoutChangeListener((v, l, t, r, b, oldL, oldT, oldR, oldB) -> {
-            if (v.getWidth() == 0 || home.getWidth() == 0) return;
+        glassViews.add(view);
+        glassDrawables.add(glass);
+    }
+
+    private void updateGlassRegions() {
+        if (backdrop == null || home.getWidth() == 0 || home.getHeight() == 0) return;
+        int homeW = home.getWidth(), homeH = home.getHeight();
+        for (int i = 0; i < glassViews.size(); i++) {
+            View v = glassViews.get(i);
+            if (v.getWidth() == 0) continue;
             // Walk pure layout coordinates up to home so scale/translation during entry never skews the crop.
             int left = 0, top = 0;
             View cursor = v;
@@ -570,8 +680,8 @@ final class QuickSettingsPanel extends FrameLayout {
                 cursor = (View) cursor.getParent();
             }
             tempRegion.set(left, top, left + v.getWidth(), top + v.getHeight());
-            glass.setRegion(tempRegion, home.getWidth(), home.getHeight());
-        });
+            glassDrawables.get(i).setRegion(tempRegion, homeW, homeH);
+        }
     }
 
     private void makeButton(View view, Runnable action) {
@@ -628,11 +738,18 @@ final class QuickSettingsPanel extends FrameLayout {
     }
 
     private int panelWidth() {
+        String locale = activity.getResources().getConfiguration().getLocales().toLanguageTags();
+        int homeW = home.getWidth();
+        if (cachedPanelWidth > 0 && cachedWidthHome == homeW
+                && cachedWidthUnit == unit && cachedWidthFontScale == fontScale
+                && locale.equals(cachedWidthLocale)) {
+            return cachedPanelWidth;
+        }
         // Measure translated labels at the actual font scale using a single Paint instead of
         // allocating a dozen throwaway TextViews on every panel open.
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         paint.setTextSize(14 * unit * fontScale);
-        paint.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        paint.setTypeface(TYPEFACE_MEDIUM);
         float widest = 0;
         for (int label : new int[]{R.string.quick_bluetooth, R.string.quick_audio_output,
                 R.string.quick_picture, R.string.quick_sound, R.string.quick_screensaver,
@@ -643,7 +760,13 @@ final class QuickSettingsPanel extends FrameLayout {
         // Each tile: icon 38 + padding 24 + gap 9. Panel: padding 20 + column gap 10.
         int desired = 2 * ((int) Math.ceil(widest) + px(38) + 2 * px(12) + px(9) + px(2))
                 + 2 * px(10) + px(10);
-        return Math.min(Math.max(px(336), desired), Math.max(1, home.getWidth() - px(52)));
+        int result = Math.min(Math.max(px(336), desired), Math.max(1, homeW - px(52)));
+        cachedPanelWidth = result;
+        cachedWidthHome = homeW;
+        cachedWidthUnit = unit;
+        cachedWidthFontScale = fontScale;
+        cachedWidthLocale = locale;
+        return result;
     }
 
     private LinearLayout.LayoutParams half() { return new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1); }
@@ -654,7 +777,7 @@ final class QuickSettingsPanel extends FrameLayout {
         TextView text = new TextView(activity);
         text.setText(value); text.setTextColor(color);
         text.setTextSize(TypedValue.COMPLEX_UNIT_PX, size * unit * fontScale);
-        text.setTypeface(Typeface.create("sans-serif" + (weight >= 500 ? "-medium" : ""), Typeface.NORMAL));
+        text.setTypeface(weight >= 500 ? TYPEFACE_MEDIUM : TYPEFACE_REGULAR);
         text.setIncludeFontPadding(false);
         return text;
     }

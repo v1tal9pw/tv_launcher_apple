@@ -12,14 +12,37 @@ import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.drawable.Drawable;
+import android.util.LongSparseArray;
 
 /**
  * A capsule sampled from a pre-blurred backdrop via hardware BitmapShader (no clipPath stencil pass),
- * with a luminous glass rim.
+ * with a luminous glass rim and shared size-keyed gradients across tiles.
  */
 final class QuickGlassDrawable extends Drawable {
-    private final Bitmap backdrop;
-    private final BitmapShader backdropShader;
+    /** Shares LinearGradient shaders across same-sized tiles/circles inside one panel. */
+    static final class ShaderCache {
+        private final LongSparseArray<Shader[]> bySize = new LongSparseArray<>(4);
+
+        Shader[] get(int width, int height) {
+            long key = (((long) width) << 32) | (height & 0xFFFFFFFFL);
+            Shader[] cached = bySize.get(key);
+            if (cached != null) return cached;
+            Shader[] created = new Shader[]{
+                    new LinearGradient(0, 0, width, height,
+                            new int[]{0x64D5DFF2, 0x3EAAB9D2, 0x589AAAC6}, null, Shader.TileMode.CLAMP),
+                    new LinearGradient(0, 0, width, height,
+                            new int[]{0xE6FFFFFF, 0x5EECF1FF, 0xB8CEDEFF}, null, Shader.TileMode.CLAMP),
+                    new LinearGradient(0, 0, width, height,
+                            new int[]{0xFFB9E0FF, 0xFF59AFFF, 0xFF238CFF}, null, Shader.TileMode.CLAMP)
+            };
+            bySize.put(key, created);
+            return created;
+        }
+    }
+
+    private Bitmap backdrop;
+    private BitmapShader backdropShader;
+    private final ShaderCache shaderCache;
     private final Matrix shaderMatrix = new Matrix();
     private final Rect source = new Rect();
     private final RectF shape = new RectF();
@@ -36,11 +59,13 @@ final class QuickGlassDrawable extends Drawable {
     private float radius;
 
     QuickGlassDrawable(Bitmap backdrop, float unit) {
-        this.backdrop = backdrop != null && !backdrop.isRecycled() ? backdrop : null;
-        this.backdropShader = this.backdrop != null
-                ? new BitmapShader(this.backdrop, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP) : null;
-        if (backdropShader != null) image.setShader(backdropShader);
+        this(backdrop, unit, null);
+    }
+
+    QuickGlassDrawable(Bitmap backdrop, float unit, ShaderCache shaderCache) {
+        this.shaderCache = shaderCache;
         this.unit = unit;
+        setBackdrop(backdrop);
         rim.setStyle(Paint.Style.STROKE);
         rim.setStrokeWidth(unit * .8f);
         focusRim.setStyle(Paint.Style.STROKE);
@@ -48,6 +73,17 @@ final class QuickGlassDrawable extends Drawable {
         focusGlow.setStyle(Paint.Style.STROKE);
         focusGlow.setColor(0xFF0A84FF);
         light.setColor(0xFFFFFFFF);
+    }
+
+    void setBackdrop(Bitmap next) {
+        Bitmap valid = next != null && !next.isRecycled() ? next : null;
+        if (valid == backdrop) return;
+        backdrop = valid;
+        backdropShader = valid != null
+                ? new BitmapShader(valid, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP) : null;
+        image.setShader(backdropShader);
+        source.setEmpty();
+        invalidateSelf();
     }
 
     void setRegion(Rect region, int homeWidth, int homeHeight) {
@@ -78,12 +114,20 @@ final class QuickGlassDrawable extends Drawable {
         shape.inset(unit, unit);
         radius = Math.min(shape.height() / 2f, 22f * unit);
         updateShaderMatrix();
-        fill.setShader(new LinearGradient(0, 0, bounds.width(), bounds.height(),
-                new int[]{0x64D5DFF2, 0x3EAAB9D2, 0x589AAAC6}, null, Shader.TileMode.CLAMP));
-        rim.setShader(new LinearGradient(0, 0, bounds.width(), bounds.height(),
-                new int[]{0xE6FFFFFF, 0x5EECF1FF, 0xB8CEDEFF}, null, Shader.TileMode.CLAMP));
-        focusRim.setShader(new LinearGradient(0, 0, bounds.width(), bounds.height(),
-                new int[]{0xFFB9E0FF, 0xFF59AFFF, 0xFF238CFF}, null, Shader.TileMode.CLAMP));
+        int w = bounds.width(), h = bounds.height();
+        if (shaderCache != null) {
+            Shader[] shaders = shaderCache.get(w, h);
+            fill.setShader(shaders[0]);
+            rim.setShader(shaders[1]);
+            focusRim.setShader(shaders[2]);
+        } else {
+            fill.setShader(new LinearGradient(0, 0, w, h,
+                    new int[]{0x64D5DFF2, 0x3EAAB9D2, 0x589AAAC6}, null, Shader.TileMode.CLAMP));
+            rim.setShader(new LinearGradient(0, 0, w, h,
+                    new int[]{0xE6FFFFFF, 0x5EECF1FF, 0xB8CEDEFF}, null, Shader.TileMode.CLAMP));
+            focusRim.setShader(new LinearGradient(0, 0, w, h,
+                    new int[]{0xFFB9E0FF, 0xFF59AFFF, 0xFF238CFF}, null, Shader.TileMode.CLAMP));
+        }
     }
 
     @Override public boolean isStateful() { return true; }

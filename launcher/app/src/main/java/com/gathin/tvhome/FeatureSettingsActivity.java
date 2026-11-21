@@ -588,11 +588,12 @@ public final class FeatureSettingsActivity extends Activity {
         remoteToggle("remote_long_home", R.string.remote_long_home, RemotePanelKeys.LONG_HOME);
         remoteToggle("remote_play_pause", R.string.remote_play_pause, RemotePanelKeys.PLAY_PAUSE);
         row("remote_learn", R.string.feature_remote_learn, "", R.drawable.ic_quick_apps, 0xFF0A84FF, this::learn);
-        row("remote_home", R.string.remote_home_fix, getString(features.getBoolean(RemoteButtonMapper.HOME_FIX, false) ? R.string.on : R.string.off),
+        row("remote_home", R.string.remote_home_fix, getString(RemoteButtonMapper.homeFixEnabled(this) ? R.string.on : R.string.off),
                 R.drawable.ic_home_settings, 0xFF30B85A, () -> {
-                    features.edit().putBoolean(RemoteButtonMapper.HOME_FIX, !features.getBoolean(RemoteButtonMapper.HOME_FIX, false)).apply();
+                    boolean next = !RemoteButtonMapper.homeFixEnabled(this);
+                    features.edit().putBoolean(RemoteButtonMapper.HOME_FIX, next).apply();
                     render();
-                    if (features.getBoolean(RemoteButtonMapper.HOME_FIX, false) && !InputKeyService.connected)
+                    if (next && !InputKeyService.connected)
                         message(R.string.remote_helper_required);
                 });
         for (String button : RemoteButtonMapper.buttons(this)) {

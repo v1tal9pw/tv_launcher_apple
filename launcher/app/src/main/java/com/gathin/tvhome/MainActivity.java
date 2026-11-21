@@ -186,6 +186,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private View btnInputs, btnSettings;
     private TextView btnWifi;
     private QuickSettingsPanel quickSettings;
+    private QuickSettingsPanel cachedQuickPanel;
+    private final Runnable prewarmQuickPanel = this::prewarmQuickSettings;
+    private final Rect tileRect = new Rect();
     private boolean resumeQuickSettings;
     private boolean quickSettingsWasOpenOnPause;
     private int quickSettingsFocus = R.id.quickAllSettings;
@@ -580,6 +583,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         headerGlass = new HeaderGlass(root, findViewById(R.id.topButtons), this::drawHeaderScene);
         wallpaperPlayer.setOnChanged(() -> {
             if (headerGlass != null) headerGlass.schedule();
+            if (cachedQuickPanel != null) cachedQuickPanel.updateBackdrop(wallpaperPlayer.quickBackdrop());
         });
 
         // Header and grid directions share the activity key router. Do not send Down through
@@ -746,7 +750,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 if (homeAdapter.folder(key) != null) { prepareFolder(key); break; }
             }
             if (resumeQuickSettings && !paused) showQuickSettings();
-            else showCardPrompt();
+            else {
+                showCardPrompt();
+                if (cachedQuickPanel == null) {
+                    handler.removeCallbacks(prewarmQuickPanel);
+                    handler.postDelayed(prewarmQuickPanel, 650);
+                }
+            }
         });
     }
 
@@ -824,6 +834,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (editDialog != null) editDialog.dismiss();
         if (movingKey != null && !savingOrderNow) finishMove(false, false);
         handler.removeCallbacks(minuteTick);
+        handler.removeCallbacks(prewarmQuickPanel);
         libraryRequested = false;
         wallpaperPlayer.stop();
         if (diya != null) diya.stop();
@@ -872,7 +883,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if(integration!=null) integration.close();
         super.onDestroy();
         handler.removeCallbacks(clockCheck);
+        handler.removeCallbacks(prewarmQuickPanel);
         root.removeCallbacks(showIdleClock);
+        if (cachedQuickPanel != null) {
+            cachedQuickPanel.detach();
+            cachedQuickPanel = null;
+        }
+        if (dockDecoration != null) dockDecoration.releaseCache();
         wallpaperPlayer.close();
         if (headerGlass != null) headerGlass.setActive(false);
         continueShelf.close();
@@ -933,7 +950,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     && adapter == homeAdapter && position < COLUMNS;
             glass.setTint(whiteFocus ? Color.WHITE : adapter.ambientColorAt(position));
         }
-        if (headerGlass != null) headerGlass.schedule();
+        if (headerGlass != null && !expanded && !gridTransition && ambientEnabled && headerGlass.hasVisibleChild()) {
+            headerGlass.schedule();
+        }
         alignTilePresentation(position, card);
         if (gridTransition) return;
         ensureTileVisible(position, card);
@@ -941,7 +960,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     /** Presentation callbacks never request scrolling or layout for the RecyclerView. */
     private void alignFocusedTile() {
-        if (paused || tileMenu != null || editDialog != null) return;
+        if (paused || quickSettings != null || tileMenu != null || editDialog != null) return;
         View card = getCurrentFocus();
         if (card == null || card.getId() != R.id.card) return;
         RecyclerView.ViewHolder holder = grid.findContainingViewHolder(card);
@@ -955,7 +974,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void alignTilePresentation(int position, View card) {
         if (folderMotion.isRunning()) return;
         // Tile rect in root coordinates, using layout positions (ignores the scale animation).
-        Rect r = new Rect(0, 0, card.getWidth(), card.getHeight());
+        Rect r = tileRect;
+        r.set(0, 0, card.getWidth(), card.getHeight());
         root.offsetDescendantRectToMyCoords(card, r);
         // offsetDescendantRectToMyCoords uses layout bounds, not the host's GPU translation.
         r.offset(0, Math.round(gridHost.getTranslationY()));
@@ -1196,15 +1216,21 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     private void hideHero() {
+        hideHero(true);
+    }
+
+    private void hideHero(boolean fadeAmbient) {
         if (!heroShown) return;
         heroShown = false;
         // Cancel label/colour end actions before fading away so they cannot revive the shelf
         // halfway through expansion.
-        stopAmbientAnimation();
         hero.animate().cancel();
-        ambient.animate().cancel();
         hero.animate().alpha(0f).setDuration(motion(reducedMotion ? 100 : 160)).start();
-        if (ambientEnabled) ambient.animate().alpha(0f).setDuration(motion(reducedMotion ? 140 : 300)).start();
+        if (fadeAmbient) {
+            stopAmbientAnimation();
+            ambient.animate().cancel();
+            if (ambientEnabled) ambient.animate().alpha(0f).setDuration(motion(reducedMotion ? 140 : 300)).start();
+        }
         heroArt.animate().cancel();
         heroArt.animate().alpha(0f).setDuration(motion(reducedMotion ? 140 : 300)).start();
     }
@@ -1355,24 +1381,32 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         updateContinuePresentation();
         int transitionRequest = gridTransitionRequest;
         grid.stopScroll();
-        hideHero();
+        // Expanding to row 2 keeps ambient glow lit so it transitions directly to the focused row-2 app
+        // instead of fading to 0 for 300ms and restarting a second 360ms fade-in when the slide ends.
+        hideHero(!value);
         topBar.animate().cancel();
         topBar.setVisibility(View.VISIBLE);
-        topBar.animate().alpha(value ? 0f : 1f).setDuration(motion(160)).withEndAction(() -> {
-            if (transitionRequest == gridTransitionRequest && expanded) topBar.setVisibility(View.INVISIBLE);
-        }).start();
+        android.view.ViewPropertyAnimator topFade = topBar.animate()
+                .alpha(value ? 0f : 1f)
+                .setDuration(motion(160))
+                .withEndAction(() -> {
+                    if (transitionRequest == gridTransitionRequest && expanded) topBar.setVisibility(View.INVISIBLE);
+                });
+        if (topBar.isHardwareAccelerated()) topFade.withLayer();
+        topFade.start();
         float target = value ? 0f : collapsedGridOffset();
         // Up on the dock can come before the glide back to the first row has finished. The slide
         // carries the rest of that scroll, so the collapsed dock lands at the top without a jump.
         int scroll = value ? 0 : distanceToFirstRow((GridLayoutManager) grid.getLayoutManager(), null);
         int[] unscrolled = {scroll};
+        final boolean trackContinue = !value && hasContinueWatching();
         gridSlide = ValueAnimator.ofFloat(gridHost.getTranslationY(), target);
         gridSlide.setDuration(motion(320));
         gridSlide.setInterpolator(new android.view.animation.DecelerateInterpolator(1.4f));
         gridSlide.addUpdateListener(animation -> {
             if (transitionRequest != gridTransitionRequest || gridSlide != animation) return;
             gridHost.setTranslationY((Float) animation.getAnimatedValue());
-            updateContinuePresentation();
+            if (trackContinue) updateContinuePresentation();
             if (unscrolled[0] != 0) {
                 int left = Math.round(scroll * (1f - animation.getAnimatedFraction()));
                 grid.scrollBy(0, unscrolled[0] - left);
@@ -1390,8 +1424,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 RecyclerView.ViewHolder holder = card == null || card.getId() != R.id.card ? null
                         : grid.findContainingViewHolder(card);
                 if (holder != null && holder.getBindingAdapterPosition() != RecyclerView.NO_POSITION
-                        && requestedFocusKey == null) onTileFocused(holder.getBindingAdapterPosition(), card);
-                else alignFocusedTile();
+                        && requestedFocusKey == null) {
+                    int pos = holder.getBindingAdapterPosition();
+                    alignTilePresentation(pos, card);
+                    ensureTileVisible(pos, card);
+                } else {
+                    alignFocusedTile();
+                }
             }
         });
         gridSlide.start();
@@ -1615,8 +1654,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                             : grid.findViewHolderForAdapterPosition(currentPosition);
                     if (current == holder && holder.getBindingAdapterPosition() == currentPosition
                             && card.isFocused() && !grid.hasPendingAdapterUpdates()) {
+                        boolean alreadyFocused = currentPosition == lastFocused && key.equals(lastFocusedKey);
                         requestedFocusKey = null;
-                        onTileFocused(currentPosition, card);
+                        if (alreadyFocused) {
+                            if (!gridTransition) ensureTileVisible(currentPosition, card);
+                        } else {
+                            onTileFocused(currentPosition, card);
+                        }
                     } else {
                         requestTileFocus(key, request, attempt + 1);
                     }
@@ -2348,10 +2392,16 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         restoreContinueFocus = false;
         onlyPaused = false;
         if (appLibrary != null) appLibrary.close();
-        if (quickSettings != null) quickSettings.closeWithoutFocus();
         dismissTileMenu(false);
         if (editDialog != null) editDialog.dismiss();
         if (movingKey != null && !savingOrderNow) finishMove(false, false);
+        if (quickSettings != null) {
+            if (paused) quickSettings.closeWithoutFocus();
+            else {
+                handleHomeWithOpenPanel();
+                return;
+            }
+        }
         if (!savingOrderNow) returnHome();
     }
 
@@ -2920,6 +2970,41 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         return true;
     }
 
+    /** Smoothly dismisses the foreground launcher's Control Center when Home is pressed. */
+    static boolean dismissForegroundPanelForHome() {
+        MainActivity current = foregroundInstance;
+        if (current == null || current.paused || current.isFinishing() || current.isDestroyed()
+                || current.quickSettings == null) return false;
+        current.handler.post(() -> {
+            if (current.paused || current.isFinishing() || current.isDestroyed()) return;
+            current.handleHomeWithOpenPanel();
+        });
+        return true;
+    }
+
+    private void handleHomeWithOpenPanel() {
+        quickSettingsWasOpenOnPause = false;
+        resumeQuickSettings = false;
+        restoreContinueFocus = false;
+        onlyPaused = false;
+        if (appLibrary != null) appLibrary.close();
+        dismissTileMenu(false);
+        if (editDialog != null) editDialog.dismiss();
+        if (movingKey != null && !savingOrderNow) finishMove(false, false);
+        if (quickSettings == null) {
+            if (!savingOrderNow) returnHome();
+            return;
+        }
+        boolean needReturnHome = !savingOrderNow && (expanded || adapter != homeAdapter || lastFocused != 0);
+        if (needReturnHome) {
+            quickSettings.closeForAction(() -> {
+                if (!paused && !savingOrderNow) returnHome();
+            });
+        } else {
+            quickSettings.dismiss();
+        }
+    }
+
     void openQuickSettings() {
         openInputsAfterPanel = false;
         quickSettingsFocus = R.id.quickAllSettings;
@@ -2936,30 +3021,16 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         showQuickSettings();
     }
 
-    private void showQuickSettings() {
-        if (paused || isFinishing() || quickSettings != null) return;
-        if (root.getWidth() == 0 || !root.isLaidOut()) {
-            resumeQuickSettings = true;
-            if (!quickSettingsAwaitingLayout) {
-                quickSettingsAwaitingLayout = true;
-                root.getViewTreeObserver().addOnGlobalLayoutListener(new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
-                    @Override public void onGlobalLayout() {
-                        if (root.getWidth() == 0) return;
-                        root.getViewTreeObserver().removeOnGlobalLayoutListener(this);
-                        quickSettingsAwaitingLayout = false;
-                        if (resumeQuickSettings && !paused) handler.post(MainActivity.this::showQuickSettings);
-                    }
-                });
-            }
-            return;
-        }
-        cancelGridTransition();
-        focusRequest++;
-        requestedFocusKey = null;
-        resumeQuickSettings = false;
-        // The panel crossfades Home's shortcuts along with its dimming and glass controls,
-        // reusing WallpaperPlayer's pre-blurred backdrop so opening never stalls on CPU capture.
+    private QuickSettingsPanel obtainQuickPanel() {
         android.graphics.Bitmap prebuiltBackdrop = wallpaperPlayer != null ? wallpaperPlayer.quickBackdrop() : null;
+        if (cachedQuickPanel != null && cachedQuickPanel.matchesHost(root)) {
+            cachedQuickPanel.updateBackdrop(prebuiltBackdrop);
+            return cachedQuickPanel;
+        }
+        if (cachedQuickPanel != null) {
+            cachedQuickPanel.detach();
+            cachedQuickPanel = null;
+        }
         QuickSettingsPanel panel = new QuickSettingsPanel(this, root, prebuiltBackdrop,
                 reducedMotion, animations, navigationSounds,
                 new QuickSettingsPanel.Listener() {
@@ -2982,6 +3053,42 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                         }
                     }
                 });
+        panel.setReusable(true);
+        cachedQuickPanel = panel;
+        return panel;
+    }
+
+    private void prewarmQuickSettings() {
+        if (paused || isFinishing() || isDestroyed() || quickSettings != null || cachedQuickPanel != null) return;
+        if (root.getWidth() == 0 || !root.isLaidOut()) return;
+        obtainQuickPanel().prewarm();
+    }
+
+    private void showQuickSettings() {
+        if (paused || isFinishing() || quickSettings != null) return;
+        if (root.getWidth() == 0 || !root.isLaidOut()) {
+            resumeQuickSettings = true;
+            if (!quickSettingsAwaitingLayout) {
+                quickSettingsAwaitingLayout = true;
+                root.getViewTreeObserver().addOnGlobalLayoutListener(new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
+                    @Override public void onGlobalLayout() {
+                        if (root.getWidth() == 0) return;
+                        root.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+                        quickSettingsAwaitingLayout = false;
+                        if (resumeQuickSettings && !paused) handler.post(MainActivity.this::showQuickSettings);
+                    }
+                });
+            }
+            return;
+        }
+        handler.removeCallbacks(prewarmQuickPanel);
+        cancelGridTransition();
+        focusRequest++;
+        requestedFocusKey = null;
+        resumeQuickSettings = false;
+        // Reuse the pre-warmed panel and pre-blurred backdrop so opening incurs zero inflation,
+        // zero TextClock Binder IPC, and zero layout traversals.
+        QuickSettingsPanel panel = obtainQuickPanel();
         quickSettings = panel;
         panel.open(quickSettingsFocus);
     }
@@ -3804,6 +3911,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         boolean due = level >= TRIM_MEMORY_BACKGROUND || level == TRIM_MEMORY_RUNNING_LOW
                 || level == TRIM_MEMORY_RUNNING_CRITICAL;
         if (!due || started || homeAdapter == null) return;
+        if (cachedQuickPanel != null) {
+            cachedQuickPanel.detach();
+            cachedQuickPanel = null;
+        }
+        if (dockDecoration != null) dockDecoration.releaseCache();
         wallpaperPlayer.releaseMemory();
         ContinueWatchingArtwork.clearCache();
         if (adapter != homeAdapter) adapter.clear();

@@ -51,9 +51,13 @@ final class RemoteButtonMapper {
         FeaturePreferences.putApp(context, TAPS, button + ":" + taps, target);
     }
 
+    static boolean homeFixEnabled(Context context) {
+        return FeaturePreferences.prefs(context).getBoolean(HOME_FIX, true);
+    }
+
     static boolean handle(Context context, KeyEvent event) {
         int code = event.getKeyCode();
-        if (code == KeyEvent.KEYCODE_HOME && FeaturePreferences.prefs(context).getBoolean(HOME_FIX, false)) {
+        if (code == KeyEvent.KEYCODE_HOME && homeFixEnabled(context)) {
             if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0)
                 main.post(() -> launch(context.getApplicationContext(), HOME));
             return true;
@@ -107,6 +111,10 @@ final class RemoteButtonMapper {
             return;
         }
         if (HOME.equals(target)) {
+            if (service instanceof HomeKeyService) {
+                ((HomeKeyService) service).openHome();
+                return;
+            }
             if (service != null) RemoteControlOverlay.closeFor(service);
             else RemoteControlOverlay.clearPendingReturn();
             startHomeAction(service != null ? service : context, Intent.ACTION_MAIN);
@@ -118,7 +126,8 @@ final class RemoteButtonMapper {
     private static void startHomeAction(Context context, String action) {
         try {
             context.startActivity(new Intent(context, MainActivity.class).setAction(action)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP));
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP
+                            | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED));
         } catch (android.content.ActivityNotFoundException | SecurityException ignored) { }
     }
 }

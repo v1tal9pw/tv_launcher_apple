@@ -467,7 +467,7 @@ public final class LauncherSettingsActivity extends Activity {
         Intent home = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME);
         android.content.pm.ResolveInfo resolved = getPackageManager().resolveActivity(home, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY);
         boolean isDefault = resolved != null && resolved.activityInfo != null && getPackageName().equals(resolved.activityInfo.packageName);
-        boolean fix = FeaturePreferences.prefs(this).getBoolean(RemoteButtonMapper.HOME_FIX, false);
+        boolean fix = RemoteButtonMapper.homeFixEnabled(this);
         String status = getString(R.string.home_system_status, getString(isDefault ? R.string.on : R.string.off))
                 + "\n" + getString(R.string.home_key_status, getString(fix && InputKeyService.connected ? R.string.on : R.string.off));
         AlertDialog dialog = new AlertDialog.Builder(this)

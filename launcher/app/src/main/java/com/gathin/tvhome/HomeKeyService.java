@@ -72,6 +72,9 @@ public class HomeKeyService extends AccessibilityService {
 
     /** The stock launcher's HOME activities (stock_home_redirect), disabled ones included. */
     private final Set<String> stockHome = new HashSet<>();
+    /** Other HOME launcher activities (pkg/class) auto-redirected while remote_home_fix is enabled. */
+    private final Set<String> autoStockHome = new HashSet<>();
+    private long lastAutoStockRedirectAt;
     /** stock_home_redirect, the stock launcher's package. */
     private String stockHomePackage = "";
     /** power_on_home: the Live TV package to send back to Home, empty when off; armed until this uptime or a key. */
@@ -210,11 +213,22 @@ public class HomeKeyService extends AccessibilityService {
         frontAppScancodes = RemoteKeys.parseFrontAppScancodes(config.appKeys);
         boolean watchFront = !frontAppKeys.isEmpty() || !frontAppScancodes.isEmpty();
         stockHome.clear();
+        autoStockHome.clear();
         stockHomePackage = config.stockHomeRedirect;
         if (!config.stockHomeRedirect.isEmpty()) {
             Intent home = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).setPackage(config.stockHomeRedirect);
             for (ResolveInfo ri : getPackageManager().queryIntentActivities(home, PackageManager.MATCH_DISABLED_COMPONENTS)) {
                 stockHome.add(ri.activityInfo.name);
+            }
+        }
+        String selfPkg = getPackageName();
+        Intent allHomes = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME);
+        for (ResolveInfo ri : getPackageManager().queryIntentActivities(allHomes, PackageManager.MATCH_DISABLED_COMPONENTS)) {
+            if (ri.activityInfo == null) continue;
+            String pkg = ri.activityInfo.packageName;
+            String cls = ri.activityInfo.name;
+            if (isStockHomeCandidate(selfPkg, pkg, cls)) {
+                autoStockHome.add(pkg + "/" + cls);
             }
         }
         // power_on_home, off by default. Not with boot_to_live_tv, or with Live TV picked as the Open on start app:
@@ -398,8 +412,23 @@ public class HomeKeyService extends AccessibilityService {
             return;
         }
         // stock_home_redirect: the firmware turned the stock launcher back on and its home screen came up.
+        CharSequence pkg = event.getPackageName();
         CharSequence cls = event.getClassName();
-        if (!stockHome.isEmpty() && cls != null && stockHome.contains(cls.toString())) openHome();
+        if (!stockHome.isEmpty() && cls != null && stockHome.contains(cls.toString())) {
+            openHome();
+            return;
+        }
+        // remote_home_fix: if firmware or system Home opened another launcher instead of passing KEYCODE_HOME,
+        // bounce straight back to this launcher (debounced to avoid double-launching with onKeyEvent).
+        if (pkg != null && cls != null && !autoStockHome.isEmpty()
+                && RemoteButtonMapper.homeFixEnabled(this)
+                && autoStockHome.contains(pkg + "/" + cls)) {
+            long now = SystemClock.elapsedRealtime();
+            if (shouldRedirectStockHome(now, lastAutoStockRedirectAt)) {
+                lastAutoStockRedirectAt = now;
+                openHome();
+            }
+        }
     }
 
     /** How long power_on_home stays armed after the screen turns on without a reboot. */
@@ -492,27 +521,58 @@ public class HomeKeyService extends AccessibilityService {
         return upTime - downTime < longPressTimeout;
     }
 
-    private void openHome() {
-        RemoteControlOverlay.closeFor(this);
-        Intent open = stockHomeStays() ? new Intent(this, MainActivity.class)
-                : new Intent(Intent.ACTION_MAIN).setPackage(getPackageName());
-        startActivity(open.addCategory(Intent.CATEGORY_HOME)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED));
+    static final long AUTO_STOCK_REDIRECT_DEBOUNCE_MS = 400L;
+
+    static boolean shouldRedirectStockHome(long now, long lastRedirectAt) {
+        return lastRedirectAt == 0L || now - lastRedirectAt >= AUTO_STOCK_REDIRECT_DEBOUNCE_MS;
     }
 
-    /** stock_home_redirect while Android's Home is still the stock launcher (launcherx on Google TV outranks this
-     *  one). A Home intent would then put this launcher in the home task and make it the home process, and from
-     *  Android 10 the stock launcher, no longer exempt from the limits on background activity starts, can't open
-     *  apps for the remote's YouTube and Netflix buttons (#1274). openHome starts it like an app instead:
+    static boolean isStockHomeCandidate(String selfPkg, String pkg, String cls) {
+        if (pkg == null || pkg.isEmpty() || cls == null || cls.isEmpty()) return false;
+        if (pkg.equals(selfPkg) || "android".equals(pkg)) return false;
+        if ("com.android.tv.settings".equals(pkg) || "com.google.android.tv.settings".equals(pkg)) return false;
+        if (cls.endsWith("FallbackHome") || cls.endsWith("ResolverActivity")
+                || cls.endsWith("ChooserActivity") || cls.contains("SetupWizard")) return false;
+        return true;
+    }
+
+    void openHome() {
+        if (MainActivity.dismissForegroundPanelForHome()) return;
+        if (RemoteControlOverlay.dismissForHome(this, this::launchHomeActivity)) return;
+        RemoteControlOverlay.closeFor(this);
+        launchHomeActivity();
+    }
+
+    private void launchHomeActivity() {
+        Intent open = stockHomeStays() ? new Intent(this, MainActivity.class)
+                : new Intent(Intent.ACTION_MAIN).setPackage(getPackageName());
+        open.addCategory(Intent.CATEGORY_HOME)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                        | Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+        try {
+            startActivity(open);
+        } catch (ActivityNotFoundException | SecurityException error) {
+            Log.w(TAG, "openHome failed", error);
+        }
+    }
+
+    /** stock_home_redirect / remote_home_fix while Android's Home is still the stock launcher (launcherx on Google TV
+     *  outranks this one). A Home intent would then put this launcher in the home task and make it the home process,
+     *  and from Android 10 the stock launcher, no longer exempt from the limits on background activity starts, can't
+     *  open apps for the remote's YouTube and Netflix buttons (#1274). openHome starts it like an app instead:
      *  CATEGORY_HOME without ACTION_MAIN is not a Home intent, but still sends MainActivity back to the first tile.
      *  A MainActivity already in the home task, as the install scripts' first start leaves it, is reused as it is
      *  until that task goes (a restart or a reinstall). With this launcher or Android's chooser as Home, openHome
      *  keeps the Home intent. */
     private boolean stockHomeStays() {
-        if (stockHome.isEmpty() || Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return false;
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return false;
         ResolveInfo home = getPackageManager().resolveActivity(
                 new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), PackageManager.MATCH_DEFAULT_ONLY);
-        return home != null && stockHomePackage.equals(home.activityInfo.packageName);
+        if (home == null || home.activityInfo == null) return false;
+        if (!stockHomePackage.isEmpty()) return stockHomePackage.equals(home.activityInfo.packageName);
+        return !getPackageName().equals(home.activityInfo.packageName)
+                && !"android".equals(home.activityInfo.packageName);
     }
 
     @Override

@@ -77,9 +77,28 @@ final class RemoteControlOverlay {
         }
     }
 
+    static boolean dismissForHome(AccessibilityService service, Runnable after) {
+        if (owner != service || root == null) return false;
+        clearPendingReturn();
+        if (activeInputsOverlay == null && activePanel != null
+                && activePanel.isShowing() && !activePanel.isClosing()) {
+            activePanel.closeForAction(() -> {
+                close();
+                if (after != null) after.run();
+            });
+            return true;
+        }
+        close();
+        if (after != null) after.run();
+        return true;
+    }
+
     static void closeIfShowing() {
-        if (root != null) {
-            clearPendingReturn();
+        if (root == null) return;
+        clearPendingReturn();
+        if (activeInputsOverlay == null && activePanel != null && activePanel.isShowing()) {
+            activePanel.dismiss();
+        } else {
             close();
         }
     }

@@ -194,8 +194,11 @@ final class AppLibraryDialog {
                 for (ResolveInfo info : pm.queryIntentActivities(new Intent(Intent.ACTION_MAIN).addCategory(category), 0)) {
                     if (info.activityInfo == null || !info.activityInfo.exported) continue;
                     String pkg = info.activityInfo.packageName;
+                    boolean isSelfSettings = pkg.equals(self)
+                            && LauncherSettingsActivity.class.getName().equals(info.activityInfo.name);
+                    if (pkg.equals(self) && !isSelfSettings) continue;
                     if (Intent.CATEGORY_LEANBACK_LAUNCHER.equals(category)) tv.add(pkg);
-                    if (!pkg.equals(self) && !LibraryApps.excludedFromCatalog(excludedApps, pkg) && !unique.containsKey(pkg)) unique.put(pkg, info);
+                    if (!LibraryApps.excludedFromCatalog(excludedApps, pkg) && !unique.containsKey(pkg)) unique.put(pkg, info);
                 }
             }
             Map<String, String> names = new HashMap<>();
@@ -212,7 +215,7 @@ final class AppLibraryDialog {
                 }
                 Known known = KNOWN.get(pkg);
                 if (known == null || known.updated != updated) {
-                    known = new Known(updated, loadLabel(pm, entry.getValue()));
+                    known = new Known(updated, loadLabel(activity, pm, entry.getValue()));
                     KNOWN.put(pkg, known);
                 }
                 names.put(pkg, known.label);
@@ -259,13 +262,17 @@ final class AppLibraryDialog {
         String pkg = app.activityInfo.packageName;
         String cached = labels.get(pkg);
         if (cached != null) return cached;
-        String value = loadLabel(activity.getPackageManager(), app);
+        String value = loadLabel(activity, activity.getPackageManager(), app);
         labels.put(pkg, value);
         return value;
     }
 
-    private static String loadLabel(PackageManager pm, ResolveInfo app) {
+    private static String loadLabel(Activity activity, PackageManager pm, ResolveInfo app) {
         String pkg = app.activityInfo.packageName;
+        if (pkg.equals(activity.getPackageName())
+                && LauncherSettingsActivity.class.getName().equals(app.activityInfo.name)) {
+            return activity.getString(R.string.launcher_settings);
+        }
         try { return Cards.cleanLabel(String.valueOf(app.loadLabel(pm)), pkg); }
         catch (RuntimeException unavailable) { return pkg; }
     }
@@ -474,12 +481,17 @@ final class AppLibraryDialog {
 
     private void open(ResolveInfo app) {
         close();
-        Intent intent = new Intent(Intent.ACTION_MAIN).setComponent(
-                new ComponentName(app.activityInfo.packageName, app.activityInfo.name));
-        // TV apps keep the leanback launch intent, so an app already running resumes instead of restarting.
-        if (tvPackages.contains(app.activityInfo.packageName)) intent.addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
         String pkg=app.activityInfo.packageName;
+        if (activity.getPackageName().equals(pkg)
+                && LauncherSettingsActivity.class.getName().equals(app.activityInfo.name)) {
+            activity.startActivity(new Intent(activity, LauncherSettingsActivity.class));
+            return;
+        }
+        Intent intent = new Intent(Intent.ACTION_MAIN).setComponent(
+                new ComponentName(pkg, app.activityInfo.name));
+        // TV apps keep the leanback launch intent, so an app already running resumes instead of restarting.
+        if (tvPackages.contains(pkg)) intent.addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
         String action=Config.load(activity).launchActions.get(pkg);
         String input=LaunchActions.inputId(action);
         if(input!=null && activity instanceof MainActivity){((MainActivity)activity).openInput(input);return;}

@@ -1,8 +1,8 @@
 package com.gathin.tvhome;
 
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.LinearGradient;
-import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.RadialGradient;
 import android.graphics.Rect;
@@ -22,10 +22,13 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
     void setShowNames(boolean value) { names = value; }
     private final Paint body = new Paint(3), warmth = new Paint(3), reflection = new Paint(3);
     private final Paint edge = new Paint(3), innerEdge = new Paint(3);
+    private final Paint blit = new Paint(Paint.FILTER_BITMAP_FLAG);
     private final Paint[] layers = {body, warmth, reflection, edge, innerEdge};
     private final RectF rect = new RectF(), inner = new RectF();
-    private final Matrix matrix = new Matrix();
-    private float shaderWidth, shaderHeight;
+    private Bitmap cachedBand;
+    private int cachedW, cachedH;
+    private float cachedRadius;
+    private int cachedAlpha = -1;
 
     DockDecoration(int dockSize, float density) {
         this.dockSize = dockSize;
@@ -38,6 +41,14 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
     void setEnabled(boolean value) { enabled = value; }
     DockDecoration configure(Config config) { band=config.dockBand;evenPadding=config.dockEvenPadding;
         opacity=config.dockOpacity/100f;return this; }
+    void releaseCache() {
+        if (cachedBand != null) {
+            cachedBand.recycle();
+            cachedBand = null;
+        }
+        cachedW = cachedH = 0;
+        cachedAlpha = -1;
+    }
     static float radiusPx(float tileRadius,float padding){return tileRadius+padding;}
     static float evenPaddingPx(int inner,int columns,int tile,float available){
         return columns<1?0f:Math.max(0f,Math.min(inner/(float)columns-tile,available));
@@ -69,21 +80,51 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
         }
     }
 
-    private void shaders(float width, float height) {
-        if (shaderWidth == width && shaderHeight == height) return;
-        shaderWidth = width; shaderHeight = height;
-        body.setShader(new LinearGradient(0, 0, 0, height,
-                new int[]{0x65FFFFFF, 0x38F6F8F7, 0x50F8F4EC},
-                new float[]{0f, .52f, 1f}, Shader.TileMode.CLAMP));
-        warmth.setShader(new RadialGradient(width * .31f, height * .65f, width * .32f,
-                0x25FFF1CE, 0x00FFF1CE, Shader.TileMode.CLAMP));
-        reflection.setShader(new RadialGradient(width * .64f, -height * .2f, width * .35f,
-                0x25DAFFFF, 0x00DAFFFF, Shader.TileMode.CLAMP));
-        edge.setShader(new LinearGradient(0, 0, 0, height,
-                new int[]{0xC5ECFFFF, 0x5CD9E9E9, 0x38FFFFFF},
-                new float[]{0f, .45f, 1f}, Shader.TileMode.CLAMP));
-        innerEdge.setShader(new LinearGradient(0, 0, 0, height,
-                0x38FFFFFF, 0x0CFFFFFF, Shader.TileMode.CLAMP));
+    private Bitmap bandCache(float width, float height, float radius, int alpha) {
+        int pad = Math.max(2, (int) Math.ceil(density * 2f));
+        int bw = Math.max(1, Math.round(width) + pad * 2);
+        int bh = Math.max(1, Math.round(height) + pad * 2);
+        if (cachedBand != null && !cachedBand.isRecycled()
+                && cachedW == bw && cachedH == bh
+                && Math.abs(cachedRadius - radius) < 0.5f && cachedAlpha == alpha) {
+            return cachedBand;
+        }
+        releaseCache();
+        try {
+            Bitmap bmp = Bitmap.createBitmap(bw, bh, Bitmap.Config.ARGB_8888);
+            Canvas c = new Canvas(bmp);
+            c.translate(pad, pad);
+            body.setShader(new LinearGradient(0, 0, 0, height,
+                    new int[]{0x65FFFFFF, 0x38F6F8F7, 0x50F8F4EC},
+                    new float[]{0f, .52f, 1f}, Shader.TileMode.CLAMP));
+            warmth.setShader(new RadialGradient(width * .31f, height * .65f, width * .32f,
+                    0x25FFF1CE, 0x00FFF1CE, Shader.TileMode.CLAMP));
+            reflection.setShader(new RadialGradient(width * .64f, -height * .2f, width * .35f,
+                    0x25DAFFFF, 0x00DAFFFF, Shader.TileMode.CLAMP));
+            edge.setShader(new LinearGradient(0, 0, 0, height,
+                    new int[]{0xC5ECFFFF, 0x5CD9E9E9, 0x38FFFFFF},
+                    new float[]{0f, .45f, 1f}, Shader.TileMode.CLAMP));
+            innerEdge.setShader(new LinearGradient(0, 0, 0, height,
+                    0x38FFFFFF, 0x0CFFFFFF, Shader.TileMode.CLAMP));
+            for (Paint paint : layers) paint.setAlpha(alpha);
+            RectF local = new RectF(0f, 0f, width, height);
+            c.drawRoundRect(local, radius, radius, body);
+            c.drawRoundRect(local, radius, radius, warmth);
+            c.drawRoundRect(local, radius, radius, reflection);
+            c.drawRoundRect(local, radius, radius, edge);
+            inner.set(local);
+            inner.inset(density, density);
+            c.drawRoundRect(inner, radius - density, radius - density, innerEdge);
+            bmp.prepareToDraw();
+            cachedBand = bmp;
+            cachedW = bw;
+            cachedH = bh;
+            cachedRadius = radius;
+            cachedAlpha = alpha;
+            return bmp;
+        } catch (OutOfMemoryError ignored) {
+            return null;
+        }
     }
 
     @Override public void onDraw(@NonNull Canvas canvas, @NonNull RecyclerView parent,
@@ -116,19 +157,11 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
         rect.inset(-(evenPadding?padding:side), -padding);
         if (names) rect.bottom += 22 * density;
         float radius = evenPadding?radiusPx(AppAdapter.cornerRadius((int)tileWidth,density),padding):36*density;
-        shaders(rect.width(), rect.height());
-        matrix.setTranslate(rect.left, rect.top);
-        for (Paint paint : layers) {
-            paint.getShader().setLocalMatrix(matrix);
-            paint.setAlpha(Math.round(255*opacity));
+        int alpha = Math.round(255 * opacity);
+        int pad = Math.max(2, (int) Math.ceil(density * 2f));
+        Bitmap cached = bandCache(rect.width(), rect.height(), radius, alpha);
+        if (cached != null) {
+            canvas.drawBitmap(cached, rect.left - pad, rect.top - pad, blit);
         }
-        canvas.drawRoundRect(rect, radius, radius, body);
-        // The band's own shape bounds these two layers: the same pixels as clipping them to it, without a
-        // path clip on every frame.
-        canvas.drawRoundRect(rect, radius, radius, warmth);
-        canvas.drawRoundRect(rect, radius, radius, reflection);
-        canvas.drawRoundRect(rect, radius, radius, edge);
-        inner.set(rect); inner.inset(density, density);
-        canvas.drawRoundRect(inner, radius - density, radius - density, innerEdge);
     }
 }

@@ -299,7 +299,9 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             if (ri.activityInfo == null || !ri.activityInfo.exported) continue;
             String pkg = ri.activityInfo.packageName;
             if (AppArtwork.isSettingsPackage(pkg, defaultSettings)) continue;
-            if (pkg.equals(ctx.getPackageName()) || !LibraryApps.visible(tvPackages.contains(pkg),
+            boolean isSelfSettings = pkg.equals(ctx.getPackageName())
+                    && LauncherSettingsActivity.class.getName().equals(ri.activityInfo.name);
+            if ((pkg.equals(ctx.getPackageName()) && !isSelfSettings) || !LibraryApps.visible(tvPackages.contains(pkg),
                     hidden.contains(pkg), added.contains(pkg), removed.contains(pkg))) continue;
             Cards.Card card = cardByPkg.get(pkg);
             if (card != null && !card.component.equals(new ComponentName(pkg, ri.activityInfo.name))) continue;   // the card stands in for this tile
@@ -364,10 +366,22 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             Drawable settingsIcon = AppArtwork.settingsIcon(ctx, ri);
             if (settingsIcon != null) { banner = settingsIcon; icon = null; }
         }
-        if (card != null) return new Entry(Entry.CARD, card.label, component, banner, icon, card.caption, card.accent);
-        // Same cleaner as the card prompt: an app label with a bidi override or line separator must not
-        // redraw the tile name as something else (#117).
-        return new Entry(Cards.cleanLabel(appLabels.containsKey(pkg) ? appLabels.get(pkg) : String.valueOf(ri.loadLabel(pm)), pkg), component, banner, icon);
+        Entry result;
+        if (card != null) {
+            result = new Entry(Entry.CARD, card.label, component, banner, icon, card.caption, card.accent);
+        } else {
+            // Same cleaner as the card prompt: an app label with a bidi override or line separator must not
+            // redraw the tile name as something else (#117).
+            String rawLabel = appLabels.containsKey(pkg) ? appLabels.get(pkg)
+                    : (pkg.equals(ctx.getPackageName()) && LauncherSettingsActivity.class.getName().equals(ri.activityInfo.name))
+                            ? ctx.getString(R.string.launcher_settings)
+                            : String.valueOf(ri.loadLabel(pm));
+            result = new Entry(Cards.cleanLabel(rawLabel, pkg), component, banner, icon);
+        }
+        // Sample vivid ambient colour on the loader thread so the first focus on each tile never
+        // allocates a Bitmap/Canvas and rasterizes its banner synchronously on the UI thread.
+        if (result.ambient == 0) result.ambient = vividColor(result.banner != null ? result.banner : result.icon);
+        return result;
     }
 
     /** The banners map's key: an update installs to a new path, and an app can name a different banner. */
@@ -603,6 +617,13 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         if (e.kind == Entry.HOME_SETTINGS) {
             ctx.startActivity(new Intent(ctx, HomeSettingsActivity.class)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            return;
+        }
+        if (ctx.getPackageName().equals(e.pkg)
+                && LauncherSettingsActivity.class.getName().equals(e.component.getClassName())) {
+            Intent settings = new Intent(ctx, LauncherSettingsActivity.class);
+            if (!(ctx instanceof Activity)) settings.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            ctx.startActivity(settings);
             return;
         }
         Intent i = new Intent(Intent.ACTION_MAIN)
