@@ -6,15 +6,17 @@ import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.Shader;
+import android.graphics.Typeface;
 import android.util.AttributeSet;
 import android.view.View;
 
-/** Frosted-glass live frequency-response curve preview for the Equalizer settings screen. */
+/** Frosted-glass live frequency-response curve preview with Low / Mid / High zone indicators. */
 public final class EqualizerCurveView extends View {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint curvePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint zonePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path curvePath = new Path();
     private final Path fillPath = new Path();
     private final float density;
@@ -36,6 +38,9 @@ public final class EqualizerCurveView extends View {
         fillPaint.setStyle(Paint.Style.FILL);
         textPaint.setTextAlign(Paint.Align.CENTER);
         textPaint.setTextSize(dp(10));
+        zonePaint.setTextAlign(Paint.Align.CENTER);
+        zonePaint.setTextSize(dp(9.5f));
+        zonePaint.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
     }
 
     void update(SystemEqualizer.Snapshot snapshot, int focusedBandIndex) {
@@ -69,8 +74,8 @@ public final class EqualizerCurveView extends View {
 
         float padL = dp(18);
         float padR = dp(18);
-        float padT = dp(18);
-        float padB = dp(26);
+        float padT = dp(24);
+        float padB = dp(24);
         float plotW = w - padL - padR;
         float plotH = h - padT - padB;
         float midY = padT + plotH / 2f;
@@ -95,17 +100,21 @@ public final class EqualizerCurveView extends View {
         float span = Math.max(1f, maxMb - minMb);
         for (int i = 0; i < count; i++) {
             xs[i] = count == 1 ? padL + plotW / 2f : padL + (plotW * i) / (count - 1);
-            float norm = (levels[i] - minMb) / span; // 0 bottom .. 1 top
+            float norm = (levels[i] - minMb) / span;
             ys[i] = padT + plotH * (1f - norm);
         }
 
-        // Soft vertical bar indicators behind the curve
+        // Top zone labels (НЧ / СЧ / ВЧ) centered over each zone's bands
+        drawZoneLabels(canvas, xs, count, dp(14));
+
+        // Vertical zone-colored bars behind the curve
         paint.setStyle(Paint.Style.FILL);
         float barW = Math.min(dp(12), plotW / Math.max(count * 2.5f, 4f));
         for (int i = 0; i < count; i++) {
             boolean active = i == focusedBand;
+            int zoneColor = SystemEqualizer.zoneAccentColor(SystemEqualizer.bandZone(freqs[i]));
             paint.setColor(eqEnabled
-                    ? (active ? 0x9964D2FF : 0x380A84FF)
+                    ? withAlpha(zoneColor, active ? 0xB3 : 0x45)
                     : (active ? 0x55FFFFFF : 0x22FFFFFF));
             float top = Math.min(midY, ys[i]);
             float bottom = Math.max(midY, ys[i]);
@@ -130,22 +139,54 @@ public final class EqualizerCurveView extends View {
         fillPath.lineTo(xs[0], padT + plotH);
         fillPath.close();
 
-        int topColor = eqEnabled ? 0x550A84FF : 0x24FFFFFF;
+        int topColor = eqEnabled ? 0x480A84FF : 0x20FFFFFF;
         fillPaint.setShader(new LinearGradient(0, padT, 0, padT + plotH, topColor, 0x000A84FF, Shader.TileMode.CLAMP));
         canvas.drawPath(fillPath, fillPaint);
 
-        curvePaint.setColor(eqEnabled ? 0xFF64D2FF : 0x7AFFFFFF);
+        if (eqEnabled) {
+            curvePaint.setShader(new LinearGradient(padL, 0, w - padR, 0,
+                    new int[]{0xFF0A84FF, 0xFF30D158, 0xFF64D2FF}, new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
+        } else {
+            curvePaint.setShader(null);
+            curvePaint.setColor(0x7AFFFFFF);
+        }
         canvas.drawPath(curvePath, curvePaint);
 
         // Band points & short frequency labels
         for (int i = 0; i < count; i++) {
             boolean active = i == focusedBand;
-            paint.setColor(active ? 0xFFFFFFFF : (eqEnabled ? 0xFF64D2FF : 0x99FFFFFF));
-            canvas.drawCircle(xs[i], ys[i], dp(active ? 4.5f : 3f), paint);
+            int zoneColor = SystemEqualizer.zoneAccentColor(SystemEqualizer.bandZone(freqs[i]));
+            paint.setColor(active ? 0xFFFFFFFF : (eqEnabled ? zoneColor : 0x99FFFFFF));
+            canvas.drawCircle(xs[i], ys[i], dp(active ? 4.5f : 3.2f), paint);
 
             textPaint.setColor(active ? 0xFFFFFFFF : 0x8CFFFFFF);
-            canvas.drawText(SystemEqualizer.formatShortFrequency(freqs[i]), xs[i], h - dp(8), textPaint);
+            canvas.drawText(SystemEqualizer.formatShortFrequency(freqs[i]), xs[i], h - dp(7), textPaint);
         }
+    }
+
+    private void drawZoneLabels(Canvas canvas, float[] xs, int count, float y) {
+        int[] labels = {R.string.equalizer_zone_low_short, R.string.equalizer_zone_mid_short, R.string.equalizer_zone_high_short};
+        int focusedZone = focusedBand >= 0 && focusedBand < count ? SystemEqualizer.bandZone(freqs[focusedBand]) : -1;
+        for (int zone = SystemEqualizer.ZONE_LOW; zone <= SystemEqualizer.ZONE_HIGH; zone++) {
+            float sumX = 0f;
+            int n = 0;
+            for (int i = 0; i < count; i++) {
+                if (SystemEqualizer.bandZone(freqs[i]) == zone) {
+                    sumX += xs[i];
+                    n++;
+                }
+            }
+            if (n == 0) continue;
+            int color = SystemEqualizer.zoneAccentColor(zone);
+            zonePaint.setColor(eqEnabled
+                    ? (zone == focusedZone ? 0xFFFFFFFF : withAlpha(color, 0xCC))
+                    : (zone == focusedZone ? 0xCCFFFFFF : 0x55FFFFFF));
+            canvas.drawText(getContext().getString(labels[zone]), sumX / n, y, zonePaint);
+        }
+    }
+
+    private static int withAlpha(int rgb, int alpha) {
+        return (rgb & 0x00FFFFFF) | ((alpha & 0xFF) << 24);
     }
 
     private float dp(float value) {

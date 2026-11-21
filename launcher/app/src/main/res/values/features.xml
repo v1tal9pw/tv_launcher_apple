@@ -55,7 +55,7 @@
     <string name="feature_glow_intensity">Intensity</string>
     <string name="feature_glow_tile">Focused tile halo</string>
     <string name="feature_glow_tile_help">Show a colored halo around the selected app tile. Turning glow style or intensity off disables all app glow completely.</string>
-    <string name="installed_changes" formatted="false">Version 3.64 for TCL C6K. Added built-in Android Equalizer settings (presets, live frequency curve, D-pad band sliders, and Bass Boost), navigation sound volume control (10%–100%), fixed custom wallpaper persistence and removed external theme overrides, removed Audio Output tile, routed Sound to TCL Display &amp; Sound drawer, fixed System Cleanup over apps while preserving the foreground app and active VPN, and prevented Control Center from reopening when entering TV Settings submenus.</string>
+    <string name="installed_changes" formatted="false">Version 3.65 for TCL C6K. Fixed equalizer compatibility with the TCL Z100SW subwoofer by removing the conflicting global BassBoost effect, reorganized the equalizer into clear Low / Mid / High frequency groups with friendly band labels, hints, and curve zone markers, and updated About launcher credits.</string>
     <string name="update_check_button">Check for updates</string>
     <string name="weather_show_city">Show city name</string>
     <string name="weather_show_details">Show feels-like temperature and wind</string>

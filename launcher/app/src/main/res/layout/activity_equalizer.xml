@@ -109,14 +109,13 @@
                     android:text="@string/equalizer_preset" />
             </LinearLayout>
 
-            <TextView
-                android:id="@+id/equalizerBandsHeader"
-                style="@style/SettingsSection"
-                android:layout_marginTop="22dp"
-                android:text="@string/equalizer_section_bands" />
             <LinearLayout
-                android:id="@+id/equalizerBandsGroup"
-                style="@style/SettingsGroup" />
+                android:id="@+id/equalizerZonesContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:clipChildren="false"
+                android:clipToPadding="false" />
 
             <TextView
                 style="@style/SettingsSection"
@@ -125,16 +124,6 @@
             <LinearLayout
                 android:id="@+id/equalizerExtraGroup"
                 style="@style/SettingsGroup">
-                <LinearLayout
-                    android:id="@+id/equalizerBassContainer"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:clipChildren="false"
-                    android:clipToPadding="false" />
-                <View
-                    android:id="@+id/equalizerBassDivider"
-                    style="@style/SettingsDivider" />
                 <com.gathin.tvhome.SettingsRowView
                     android:id="@+id/equalizerReset"
                     style="@style/SettingsRow"

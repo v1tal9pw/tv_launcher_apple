@@ -4,15 +4,18 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.media.audiofx.AudioEffect;
-import android.media.audiofx.BassBoost;
 import android.media.audiofx.Equalizer;
 import android.util.Log;
 
 import java.util.Locale;
 
 /**
- * Manages Android's built-in system Equalizer (and optional BassBoost) attached to the global output
- * mix (audio session 0), persisting user presets and per-band levels across launcher sessions.
+ * Manages Android's built-in system Equalizer attached to the global output mix (audio session 0),
+ * persisting user presets and per-band levels across launcher sessions.
+ *
+ * Legacy BassBoost is intentionally omitted because attaching it to session 0 disrupts wireless
+ * Dolby Atmos FlexConnect / external subwoofers (e.g. TCL Z100SW). Low frequencies are adjusted
+ * safely through the Equalizer's own 60 Hz / 230 Hz bands instead.
  */
 final class SystemEqualizer {
     private static final String TAG = "SystemEqualizer";
@@ -21,14 +24,11 @@ final class SystemEqualizer {
     static final String KEY_PRESET = "preset";
     static final String KEY_PRESET_NAME = "preset_name";
     static final String KEY_BAND_PREFIX = "band_";
-    static final String KEY_BASS_BOOST = "bass_boost";
+    private static final String LEGACY_BASS_BOOST_KEY = "bass_boost";
     static final int PRESET_CUSTOM = -1;
     static final int STEP_MB = 100; // 1 dB per D-pad step
-    static final int BASS_STEP_PERCENT = 10;
 
     private static Equalizer equalizer;
-    private static BassBoost bassBoost;
-    private static boolean bassBoostFailed;
 
     static final class Snapshot {
         final boolean available;
@@ -39,12 +39,9 @@ final class SystemEqualizer {
         final short[] bandLevelsMb;
         final String[] presetNames;
         final int presetIndex;
-        final boolean bassBoostSupported;
-        final int bassBoostPercent;
 
         Snapshot(boolean available, boolean enabled, short minLevelMb, short maxLevelMb,
-                 int[] centerFreqsHz, short[] bandLevelsMb, String[] presetNames, int presetIndex,
-                 boolean bassBoostSupported, int bassBoostPercent) {
+                 int[] centerFreqsHz, short[] bandLevelsMb, String[] presetNames, int presetIndex) {
             this.available = available;
             this.enabled = enabled;
             this.minLevelMb = minLevelMb;
@@ -53,8 +50,6 @@ final class SystemEqualizer {
             this.bandLevelsMb = bandLevelsMb;
             this.presetNames = presetNames;
             this.presetIndex = presetIndex;
-            this.bassBoostSupported = bassBoostSupported;
-            this.bassBoostPercent = bassBoostPercent;
         }
     }
 
@@ -82,6 +77,7 @@ final class SystemEqualizer {
 
     /** Restores saved equalizer state if enabled; does nothing when disabled. */
     static synchronized void applySaved(Context context) {
+        clearLegacyBassBoost(context);
         if (!isEnabled(context)) {
             release();
             return;
@@ -92,28 +88,29 @@ final class SystemEqualizer {
 
     /** Opens or reuses the built-in Android Equalizer so the settings UI can inspect & edit bands. */
     static synchronized Snapshot openForSettings(Context context) {
+        clearLegacyBassBoost(context);
         if (!ensureEqualizer()) {
-            return unavailable(context);
+            return unavailable();
         }
         boolean enabled = isEnabled(context);
         applyPreferencesToEffects(context, enabled);
         return capture(context, enabled);
     }
 
-    /** Releases audio effects when the settings screen closes while the equalizer is turned off. */
+    /** Releases the audio effect when the settings screen closes while the equalizer is turned off. */
     static synchronized void releaseIfDisabled(Context context) {
         if (!isEnabled(context)) release();
     }
 
     static synchronized Snapshot setEnabled(Context context, boolean enabled) {
-        prefs(context).edit().putBoolean(KEY_ENABLED, enabled).apply();
-        if (!ensureEqualizer()) return unavailable(context);
+        prefs(context).edit().putBoolean(KEY_ENABLED, enabled).remove(LEGACY_BASS_BOOST_KEY).apply();
+        if (!ensureEqualizer()) return unavailable();
         applyPreferencesToEffects(context, enabled);
         return capture(context, enabled);
     }
 
     static synchronized Snapshot selectPreset(Context context, int presetIndex) {
-        if (!ensureEqualizer()) return unavailable(context);
+        if (!ensureEqualizer()) return unavailable();
         SharedPreferences p = prefs(context);
         SharedPreferences.Editor edit = p.edit();
         int presetCount = safePresetCount();
@@ -140,7 +137,7 @@ final class SystemEqualizer {
     }
 
     static synchronized Snapshot adjustBand(Context context, int bandIndex, int deltaMb) {
-        if (!ensureEqualizer()) return unavailable(context);
+        if (!ensureEqualizer()) return unavailable();
         short[] range = safeLevelRange();
         int current = prefs(context).getInt(KEY_BAND_PREFIX + bandIndex, safeBandLevel(bandIndex));
         short next = clampLevel(current + deltaMb, range[0], range[1]);
@@ -148,7 +145,7 @@ final class SystemEqualizer {
     }
 
     static synchronized Snapshot setBandLevel(Context context, int bandIndex, int levelMb) {
-        if (!ensureEqualizer()) return unavailable(context);
+        if (!ensureEqualizer()) return unavailable();
         short[] range = safeLevelRange();
         short clamped = clampLevel(levelMb, range[0], range[1]);
         prefs(context).edit()
@@ -166,22 +163,13 @@ final class SystemEqualizer {
         return capture(context, enabled);
     }
 
-    static synchronized Snapshot setBassBoost(Context context, int percent) {
-        int clamped = clampBassPercent(percent);
-        prefs(context).edit().putInt(KEY_BASS_BOOST, clamped).apply();
-        if (!ensureEqualizer()) return unavailable(context);
-        boolean enabled = isEnabled(context);
-        applyBassBoost(enabled, clamped);
-        return capture(context, enabled);
-    }
-
     static synchronized Snapshot resetFlat(Context context) {
-        if (!ensureEqualizer()) return unavailable(context);
+        if (!ensureEqualizer()) return unavailable();
         int bands = safeBandCount();
         SharedPreferences.Editor edit = prefs(context).edit()
                 .putInt(KEY_PRESET, PRESET_CUSTOM)
                 .remove(KEY_PRESET_NAME)
-                .putInt(KEY_BASS_BOOST, 0);
+                .remove(LEGACY_BASS_BOOST_KEY);
         for (int i = 0; i < bands; i++) edit.putInt(KEY_BAND_PREFIX + i, 0);
         edit.apply();
         boolean enabled = isEnabled(context);
@@ -204,11 +192,11 @@ final class SystemEqualizer {
             try { equalizer.release(); } catch (Throwable ignored) { }
             equalizer = null;
         }
-        if (bassBoost != null) {
-            try { bassBoost.setEnabled(false); } catch (Throwable ignored) { }
-            try { bassBoost.release(); } catch (Throwable ignored) { }
-            bassBoost = null;
-        }
+    }
+
+    private static void clearLegacyBassBoost(Context context) {
+        SharedPreferences p = prefs(context);
+        if (p.contains(LEGACY_BASS_BOOST_KEY)) p.edit().remove(LEGACY_BASS_BOOST_KEY).apply();
     }
 
     private static boolean ensureEqualizer() {
@@ -226,33 +214,6 @@ final class SystemEqualizer {
         } catch (Throwable error) {
             Log.w(TAG, "Built-in Equalizer unavailable on session 0", error);
             equalizer = null;
-            return false;
-        }
-    }
-
-    private static boolean ensureBassBoost() {
-        if (bassBoostFailed) return false;
-        if (bassBoost != null) {
-            try {
-                if (bassBoost.hasControl()) return bassBoost.getStrengthSupported();
-                bassBoost.release();
-            } catch (Throwable ignored) {
-            }
-            bassBoost = null;
-        }
-        try {
-            BassBoost candidate = new BassBoost(0, 0);
-            if (!candidate.getStrengthSupported()) {
-                candidate.release();
-                bassBoostFailed = true;
-                return false;
-            }
-            bassBoost = candidate;
-            return true;
-        } catch (Throwable error) {
-            Log.w(TAG, "Built-in BassBoost unavailable on session 0", error);
-            bassBoostFailed = true;
-            bassBoost = null;
             return false;
         }
     }
@@ -277,24 +238,6 @@ final class SystemEqualizer {
         } catch (Throwable error) {
             Log.w(TAG, "Failed applying equalizer settings", error);
         }
-        applyBassBoost(enabled, clampBassPercent(p.getInt(KEY_BASS_BOOST, 0)));
-    }
-
-    private static void applyBassBoost(boolean eqEnabled, int percent) {
-        if (!eqEnabled || percent <= 0) {
-            if (bassBoost != null) {
-                try { bassBoost.setStrength((short) 0); } catch (Throwable ignored) { }
-                try { bassBoost.setEnabled(false); } catch (Throwable ignored) { }
-            }
-            return;
-        }
-        if (!ensureBassBoost() || bassBoost == null) return;
-        try {
-            bassBoost.setStrength((short) (percent * 10));
-            bassBoost.setEnabled(true);
-        } catch (Throwable error) {
-            Log.w(TAG, "Failed applying bass boost", error);
-        }
     }
 
     private static Snapshot capture(Context context, boolean enabled) {
@@ -318,14 +261,12 @@ final class SystemEqualizer {
         for (int i = 0; i < presetCount; i++) presets[i] = safePresetName(i);
         int preset = p.getInt(KEY_PRESET, PRESET_CUSTOM);
         if (preset >= presetCount) preset = PRESET_CUSTOM;
-        boolean bassSupported = ensureBassBoost();
-        int bassPercent = clampBassPercent(p.getInt(KEY_BASS_BOOST, 0));
-        return new Snapshot(true, enabled, range[0], range[1], freqs, levels, presets, preset, bassSupported, bassPercent);
+        return new Snapshot(true, enabled, range[0], range[1], freqs, levels, presets, preset);
     }
 
-    private static Snapshot unavailable(Context context) {
+    private static Snapshot unavailable() {
         return new Snapshot(false, false, (short) -1500, (short) 1500, new int[0], new short[0],
-                new String[0], PRESET_CUSTOM, false, clampBassPercent(prefs(context).getInt(KEY_BASS_BOOST, 0)));
+                new String[0], PRESET_CUSTOM);
     }
 
     private static int safeBandCount() {
@@ -365,10 +306,6 @@ final class SystemEqualizer {
         return (short) Math.max(minMb, Math.min(maxMb, levelMb));
     }
 
-    static int clampBassPercent(int percent) {
-        return Math.max(0, Math.min(100, percent));
-    }
-
     static String formatFrequency(int hz, String hzUnit, String khzUnit) {
         if (hz >= 1000) {
             int tenths = Math.round(hz / 100f);
@@ -390,6 +327,46 @@ final class SystemEqualizer {
         int db = Math.round(millibels / 100f);
         if (db > 0) return "+" + db + " " + dbUnit;
         return db + " " + dbUnit;
+    }
+
+    static final int ZONE_LOW = 0;
+    static final int ZONE_MID = 1;
+    static final int ZONE_HIGH = 2;
+
+    static int bandZone(int hz) {
+        if (hz <= 250) return ZONE_LOW;
+        if (hz <= 2000) return ZONE_MID;
+        return ZONE_HIGH;
+    }
+
+    static int zoneTitleRes(int zone) {
+        if (zone == ZONE_LOW) return R.string.equalizer_zone_low;
+        if (zone == ZONE_MID) return R.string.equalizer_zone_mid;
+        return R.string.equalizer_zone_high;
+    }
+
+    static int zoneAccentColor(int zone) {
+        if (zone == ZONE_LOW) return 0xFF0A84FF;
+        if (zone == ZONE_MID) return 0xFF30D158;
+        return 0xFF64D2FF;
+    }
+
+    static int bandRoleRes(int hz) {
+        if (hz <= 100) return R.string.eq_role_sub_bass;
+        if (hz <= 250) return R.string.eq_role_bass;
+        if (hz <= 550) return R.string.eq_role_low_mid;
+        if (hz <= 2000) return R.string.eq_role_vocals;
+        if (hz <= 6000) return R.string.eq_role_clarity;
+        return R.string.eq_role_brilliance;
+    }
+
+    static int bandHintRes(int hz) {
+        if (hz <= 100) return R.string.eq_hint_sub_bass;
+        if (hz <= 250) return R.string.eq_hint_bass;
+        if (hz <= 550) return R.string.eq_hint_low_mid;
+        if (hz <= 2000) return R.string.eq_hint_vocals;
+        if (hz <= 6000) return R.string.eq_hint_clarity;
+        return R.string.eq_hint_brilliance;
     }
 
     static String presetLabel(Context context, String rawName) {

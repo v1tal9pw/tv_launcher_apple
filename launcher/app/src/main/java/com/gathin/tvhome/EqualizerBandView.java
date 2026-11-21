@@ -10,7 +10,8 @@ import android.view.accessibility.AccessibilityNodeInfo;
 
 /**
  * Remote-friendly horizontal glass slider row inside a SettingsGroup.
- * D-pad Left/Right adjusts live without leaving focus; OK resets to default (0 dB / 0%).
+ * Shows a human-friendly band role + frequency subtitle on the left, an aligned bipolar slider in
+ * the center, and dB value on the right. D-pad Left/Right adjusts live; OK resets to 0 dB.
  */
 public final class EqualizerBandView extends View {
     interface Listener {
@@ -20,10 +21,12 @@ public final class EqualizerBandView extends View {
 
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint labelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint subPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint valuePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final float density;
 
     private String label = "";
+    private String subtitle = "";
     private String valueText = "";
     private int minValue = -1500;
     private int maxValue = 1500;
@@ -39,16 +42,19 @@ public final class EqualizerBandView extends View {
         setClickable(true);
         setDefaultFocusHighlightEnabled(false);
         setBackgroundResource(R.drawable.settings_choice_bg);
-        labelPaint.setTextSize(sp(16));
-        labelPaint.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+        labelPaint.setTextSize(sp(15));
+        labelPaint.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        subPaint.setTextSize(sp(11.5f));
+        subPaint.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
         valuePaint.setTextSize(sp(15));
         valuePaint.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         valuePaint.setTextAlign(Paint.Align.RIGHT);
     }
 
-    void bind(String label, String valueText, int minValue, int maxValue, int currentValue,
-              boolean bipolar, int accentColor, Listener listener) {
+    void bind(String label, String subtitle, String valueText, int minValue, int maxValue,
+              int currentValue, boolean bipolar, int accentColor, Listener listener) {
         this.label = label == null ? "" : label;
+        this.subtitle = subtitle == null ? "" : subtitle;
         this.valueText = valueText == null ? "" : valueText;
         this.minValue = minValue;
         this.maxValue = Math.max(minValue + 1, maxValue);
@@ -56,14 +62,17 @@ public final class EqualizerBandView extends View {
         this.bipolar = bipolar;
         this.accentColor = accentColor;
         this.listener = listener;
-        setContentDescription(this.label + ", " + this.valueText);
+        String desc = this.subtitle.isEmpty()
+                ? this.label + ", " + this.valueText
+                : this.label + " (" + this.subtitle + "), " + this.valueText;
+        setContentDescription(desc);
         invalidate();
     }
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         int width = MeasureSpec.getSize(widthMeasureSpec);
-        setMeasuredDimension(width, Math.round(dp(52)));
+        setMeasuredDimension(width, Math.round(dp(56)));
     }
 
     @Override
@@ -76,15 +85,24 @@ public final class EqualizerBandView extends View {
         boolean active = isEnabled();
 
         labelPaint.setColor(focused ? 0xFF141519 : (active ? 0xF2FFFFFF : 0x7AFFFFFF));
-        canvas.drawText(label, dp(22), cy - (labelPaint.ascent() + labelPaint.descent()) / 2f, labelPaint);
+        subPaint.setColor(focused ? 0xFF5A5E68 : (active ? 0x8CFFFFFF : 0x4DFFFFFF));
+        if (subtitle.isEmpty()) {
+            canvas.drawText(label, dp(22), cy - (labelPaint.ascent() + labelPaint.descent()) / 2f, labelPaint);
+        } else {
+            float topY = cy - dp(8) - (labelPaint.ascent() + labelPaint.descent()) / 2f;
+            float botY = cy + dp(10) - (subPaint.ascent() + subPaint.descent()) / 2f;
+            canvas.drawText(label, dp(22), topY, labelPaint);
+            canvas.drawText(subtitle, dp(22), botY, subPaint);
+        }
 
         valuePaint.setColor(focused ? 0xFF141519 : (active ? 0xCCB7BBC6 : 0x66B7BBC6));
         String shown = focused && active ? "◀  " + valueText + "  ▶" : valueText;
         canvas.drawText(shown, w - dp(20), cy - (valuePaint.ascent() + valuePaint.descent()) / 2f, valuePaint);
 
-        // Slider bar between the frequency label and value text, sized dynamically to avoid any overlap
-        float trackLeft = Math.max(dp(140), dp(22) + labelPaint.measureText(label) + dp(22));
-        float reserveRight = Math.max(dp(128), dp(20) + valuePaint.measureText("◀  +15 дБ  ▶") + dp(18));
+        // Aligned slider track across all Low / Mid / High rows
+        float labelNeed = Math.max(labelPaint.measureText(label), subPaint.measureText(subtitle));
+        float trackLeft = Math.max(dp(146), dp(22) + labelNeed + dp(18));
+        float reserveRight = Math.max(dp(132), dp(20) + valuePaint.measureText("◀  +15 дБ  ▶") + dp(16));
         float trackRight = w - reserveRight;
         if (trackRight <= trackLeft + dp(40)) return;
         float trackH = dp(6);
@@ -103,7 +121,6 @@ public final class EqualizerBandView extends View {
         if (bipolar) {
             float zeroFraction = (0 - minValue) / (float) (maxValue - minValue);
             float zeroX = trackLeft + zeroFraction * (trackRight - trackLeft);
-            // Center 0 dB marker
             paint.setColor(focused ? 0x55000000 : 0x66FFFFFF);
             canvas.drawRoundRect(zeroX - dp(1), cy - dp(7), zeroX + dp(1), cy + dp(7), dp(1), dp(1), paint);
             fillLeft = Math.min(zeroX, thumbX);

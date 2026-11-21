@@ -27,13 +27,10 @@ public final class SystemEqualizerTest {
     }
 
     @Test
-    public void clampsBandLevelsAndBassBoost() {
+    public void clampsBandLevels() {
         assertEquals((short) -1500, SystemEqualizer.clampLevel(-2500, (short) -1500, (short) 1500));
         assertEquals((short) 1500, SystemEqualizer.clampLevel(3000, (short) -1500, (short) 1500));
         assertEquals((short) 300, SystemEqualizer.clampLevel(300, (short) -1500, (short) 1500));
-        assertEquals(0, SystemEqualizer.clampBassPercent(-20));
-        assertEquals(100, SystemEqualizer.clampBassPercent(150));
-        assertEquals(40, SystemEqualizer.clampBassPercent(40));
     }
 
     @Test
@@ -45,5 +42,22 @@ public final class SystemEqualizerTest {
         assertNotEquals(0, SystemEqualizer.localizedPresetRes("  hip hop "));
         assertEquals(0, SystemEqualizer.localizedPresetRes("Custom OEM Preset"));
         assertEquals(0, SystemEqualizer.localizedPresetRes(null));
+    }
+
+    @Test
+    public void classifiesBandsIntoLowMidHighZonesAndRoles() {
+        assertEquals(SystemEqualizer.ZONE_LOW, SystemEqualizer.bandZone(60));
+        assertEquals(SystemEqualizer.ZONE_LOW, SystemEqualizer.bandZone(230));
+        assertEquals(SystemEqualizer.ZONE_MID, SystemEqualizer.bandZone(910));
+        assertEquals(SystemEqualizer.ZONE_HIGH, SystemEqualizer.bandZone(3600));
+        assertEquals(SystemEqualizer.ZONE_HIGH, SystemEqualizer.bandZone(14000));
+        assertEquals(R.string.equalizer_zone_low, SystemEqualizer.zoneTitleRes(SystemEqualizer.ZONE_LOW));
+        assertEquals(R.string.equalizer_zone_mid, SystemEqualizer.zoneTitleRes(SystemEqualizer.ZONE_MID));
+        assertEquals(R.string.equalizer_zone_high, SystemEqualizer.zoneTitleRes(SystemEqualizer.ZONE_HIGH));
+        assertEquals(R.string.eq_role_sub_bass, SystemEqualizer.bandRoleRes(60));
+        assertEquals(R.string.eq_role_bass, SystemEqualizer.bandRoleRes(230));
+        assertEquals(R.string.eq_role_vocals, SystemEqualizer.bandRoleRes(910));
+        assertEquals(R.string.eq_role_clarity, SystemEqualizer.bandRoleRes(3600));
+        assertEquals(R.string.eq_role_brilliance, SystemEqualizer.bandRoleRes(14000));
     }
 }
