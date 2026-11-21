@@ -24,11 +24,14 @@ public final class LauncherSettingsActivity extends Activity {
         super.attachBaseContext(LauncherLocale.wrap(base));
     }
 
+    private static final int[] SOUND_VOLUMES = {10, 25, 40, 60, 80, 100};
     private SharedPreferences choices;
     private final TextView[] columnChoices = new TextView[4];
     private SettingsRowView animationsChoice;
     private SettingsRowView advancedChoice;
     private SettingsRowView soundsChoice;
+    private SettingsRowView soundsVolumeChoice;
+    private SettingsRowView equalizerChoice;
     private SettingsRowView wallpaperChoice;
     private SettingsRowView rowsChoice;
     private int rowsBelowDock;
@@ -44,6 +47,7 @@ public final class LauncherSettingsActivity extends Activity {
     private boolean animations;
     private boolean advancedEffects;
     private boolean navigationSounds;
+    private int navigationSoundVolume;
     private boolean appLibrary;
     private boolean showStats;
     private String wallpaper;
@@ -62,6 +66,8 @@ public final class LauncherSettingsActivity extends Activity {
         animations = config.animations;
         advancedEffects = config.animations && config.advancedEffects;
         navigationSounds = config.navigationSounds;
+        navigationSoundVolume = config.navigationSoundVolume;
+        NavSound.setVolume(navigationSoundVolume);
         if (navigationSounds) NavSound.prepare();
         appLibrary = config.appLibrary;
         showStats = config.showStats;
@@ -117,9 +123,16 @@ public final class LauncherSettingsActivity extends Activity {
             navigationSounds = !navigationSounds;
             choices.edit().putBoolean("navigation_sounds", navigationSounds).apply();
             Config.markSettingsChanged(LauncherSettingsActivity.this); setResult(RESULT_OK);
-            if (navigationSounds) NavSound.play(true);
+            if (navigationSounds) {
+                NavSound.setVolume(navigationSoundVolume);
+                NavSound.play(true);
+            }
             refresh();
         });
+        soundsVolumeChoice = findViewById(R.id.soundsVolumeChoice);
+        soundsVolumeChoice.setOnClickListener(v -> chooseSoundVolume());
+        equalizerChoice = findViewById(R.id.equalizerChoice);
+        equalizerChoice.setOnClickListener(v -> startActivity(new Intent(this, EqualizerActivity.class)));
         libraryChoice = findViewById(R.id.libraryChoice);
         libraryChoice.setOnClickListener(v -> {
             appLibrary = !appLibrary;
@@ -163,8 +176,8 @@ public final class LauncherSettingsActivity extends Activity {
         followThemeChoice.setOnClickListener(v -> {
             if (!hasOnTvChoices()) return;
             choices.edit().remove("columns").remove("animations").remove("advanced_effects")
-                    .remove("navigation_sounds").remove("wallpaper_choice").remove("app_library")
-                    .remove("show_stats").remove(Config.ROWS_BELOW_DOCK_KEY).commit();
+                    .remove("navigation_sounds").remove(Config.NAV_SOUND_VOLUME_KEY).remove("wallpaper_choice")
+                    .remove("app_library").remove("show_stats").remove(Config.ROWS_BELOW_DOCK_KEY).commit();
             FeaturePreferences.clearAppearance(this);
             Config current = Config.load(this);
             columns = current.columns;
@@ -172,6 +185,8 @@ public final class LauncherSettingsActivity extends Activity {
             animations = current.animations;
             advancedEffects = current.animations && current.advancedEffects;
             navigationSounds = current.navigationSounds;
+            navigationSoundVolume = current.navigationSoundVolume;
+            NavSound.setVolume(navigationSoundVolume);
             appLibrary = current.appLibrary;
             showStats = current.showStats;
             continueWatching = current.continueWatching;
@@ -188,6 +203,8 @@ public final class LauncherSettingsActivity extends Activity {
         animationsChoice.setIcon(R.drawable.ic_settings_motion, 0xFFBF5AF2);
         advancedChoice.setIcon(R.drawable.ic_quick_launcher_settings, 0xFFFF9F0A);
         soundsChoice.setIcon(R.drawable.ic_quick_sound, 0xFFFF375F);
+        soundsVolumeChoice.setIcon(R.drawable.ic_quick_sound, 0xFFFF9F0A);
+        equalizerChoice.setIcon(R.drawable.ic_settings_equalizer, 0xFF0A84FF);
         libraryChoice.setIcon(R.drawable.ic_apps, 0xFF5E5CE6);
         statsChoice.setIcon(R.drawable.ic_settings_stats, 0xFF30D158);
         followThemeChoice.setIcon(R.drawable.ic_quick_launcher_settings, 0xFF64D2FF);
@@ -221,7 +238,8 @@ public final class LauncherSettingsActivity extends Activity {
         github.setOnClickListener(v -> openGitHub());
         // White focus and a raised shadow stay within the row's width. No scaling into a clip edge.
         for (int id : new int[]{R.id.columns4, R.id.columns5, R.id.columns6, R.id.columns7, R.id.animationsChoice,
-                R.id.advancedChoice, R.id.soundsChoice, R.id.libraryChoice, R.id.statsChoice,
+                R.id.advancedChoice, R.id.soundsChoice, R.id.soundsVolumeChoice, R.id.equalizerChoice,
+                R.id.libraryChoice, R.id.statsChoice,
                 R.id.continueWatchingChoice,
                 R.id.wallpaperChoice, R.id.rowsChoice, R.id.glowChoice, R.id.weatherChoice, R.id.idleClockChoice,
                 R.id.appCustomizationChoice, R.id.remoteButtonsChoice, R.id.followThemeChoice,
@@ -285,6 +303,10 @@ public final class LauncherSettingsActivity extends Activity {
         advancedChoice.setEnabled(animations);
         advancedChoice.setAlpha(animations ? 1f : 0.5f);
         soundsChoice.setToggle(navigationSounds);
+        soundsVolumeChoice.setValue(navigationSoundVolume + "%", true);
+        soundsVolumeChoice.setEnabled(navigationSounds);
+        soundsVolumeChoice.setAlpha(navigationSounds ? 1f : 0.5f);
+        equalizerChoice.setValue(SystemEqualizer.summary(this), true);
         libraryChoice.setToggle(appLibrary);
         statsChoice.setToggle(showStats);
         continueChoice.setToggle(continueWatching);
@@ -338,6 +360,10 @@ public final class LauncherSettingsActivity extends Activity {
             title = R.string.advanced_effects; hint = R.string.advanced_effects_warning;
         } else if (id == R.id.soundsChoice) {
             title = R.string.settings_sounds; hint = R.string.settings_sounds_hint;
+        } else if (id == R.id.soundsVolumeChoice) {
+            title = R.string.settings_sounds_volume; hint = R.string.settings_sounds_volume_hint;
+        } else if (id == R.id.equalizerChoice) {
+            title = R.string.settings_equalizer; hint = R.string.settings_equalizer_hint;
         } else if (id == R.id.libraryChoice) {
             title = R.string.app_library; hint = R.string.settings_app_library_hint;
         } else if (id == R.id.statsChoice) {
@@ -445,6 +471,7 @@ public final class LauncherSettingsActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
+        if (equalizerChoice != null) equalizerChoice.setValue(SystemEqualizer.summary(this), true);
         updatePreview();
     }
 
@@ -456,9 +483,44 @@ public final class LauncherSettingsActivity extends Activity {
         }
     }
 
+    private void chooseSoundVolume() {
+        String[] labels = new String[SOUND_VOLUMES.length];
+        int selected = -1;
+        for (int i = 0; i < SOUND_VOLUMES.length; i++) {
+            labels[i] = SOUND_VOLUMES[i] + "%";
+            if (SOUND_VOLUMES[i] == navigationSoundVolume) selected = i;
+        }
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle(R.string.settings_sounds_volume)
+                .setSingleChoiceItems(labels, selected, (d, which) -> {
+                    navigationSoundVolume = SOUND_VOLUMES[which];
+                    choices.edit().putInt(Config.NAV_SOUND_VOLUME_KEY, navigationSoundVolume).apply();
+                    NavSound.setVolume(navigationSoundVolume);
+                    if (navigationSounds) NavSound.play(true);
+                    Config.markSettingsChanged(LauncherSettingsActivity.this);
+                    setResult(RESULT_OK);
+                    d.dismiss();
+                    refresh();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+        dialog.setOnDismissListener(d -> NavSound.setVolume(navigationSoundVolume));
+        android.widget.ListView list = dialog.getListView();
+        if (list != null) {
+            list.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+                @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int pos, long id) {
+                    if (pos >= 0 && pos < SOUND_VOLUMES.length) NavSound.setVolume(SOUND_VOLUMES[pos]);
+                }
+                @Override public void onNothingSelected(android.widget.AdapterView<?> parent) { }
+            });
+        }
+        glass(dialog);
+    }
+
     private boolean hasOnTvChoices() {
         return choices.contains("columns") || choices.contains(Config.ROWS_BELOW_DOCK_KEY) || choices.contains("animations")
                 || choices.contains("advanced_effects") || choices.contains("navigation_sounds")
+                || choices.contains(Config.NAV_SOUND_VOLUME_KEY)
                 || choices.contains("wallpaper_choice") || choices.contains("app_library")
                 || choices.contains("show_stats") || FeaturePreferences.hasAppearanceChoices(this);
     }
@@ -540,7 +602,8 @@ public final class LauncherSettingsActivity extends Activity {
             Config current = Config.load(this);
             columns = current.columns; rowsBelowDock = current.rowsBelowDock;
             animations = current.animations; advancedEffects = current.animations && current.advancedEffects;
-            navigationSounds = current.navigationSounds; appLibrary = current.appLibrary;
+            navigationSounds = current.navigationSounds; navigationSoundVolume = current.navigationSoundVolume;
+            NavSound.setVolume(navigationSoundVolume); appLibrary = current.appLibrary;
             showStats = current.showStats; wallpaper = current.wallpaperChoice;
             continueWatching = current.continueWatching;
             glowStyle = current.glowStyle; glowIntensity = current.glowIntensity;

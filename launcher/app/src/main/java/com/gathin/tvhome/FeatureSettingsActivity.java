@@ -222,12 +222,6 @@ public final class FeatureSettingsActivity extends Activity {
         values.add(PersonalWallpapers.COAST_VIDEO);
         for (File file : SceneFiles.images(this)) values.add(FeaturePreferences.SCENE_PREFIX + file.getName());
         for (File file : PersonalWallpapers.list(this)) values.add(PersonalWallpapers.PREFIX + file.getName());
-        File dir = Config.dir(this);
-        if (dir != null) {
-            File single = new File(dir, Config.WALLPAPER_NAME);
-            if (single.isFile() && single.length() > 0) values.add(single.getName());
-            for (File file : WallpaperRotation.images(new File(dir, "wallpapers"))) values.add(file.getName());
-        }
         String[] labels = new String[values.size()]; for (int i = 0; i < labels.length; i++) labels[i] = wallpaperLabel(values.get(i));
         choose(getString(R.string.feature_source), labels, values.indexOf(config.wallpaperChoice), which -> {
             String value = values.get(which);

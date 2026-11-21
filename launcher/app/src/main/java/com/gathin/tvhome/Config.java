@@ -43,6 +43,7 @@ final class Config {
     static final String SETTINGS_NAME = "launcher_settings";
     static final String ROWS_BELOW_DOCK_KEY = "rows_below_dock";
     static final String WALLPAPER_CHOICE_KEY = "wallpaper_choice";
+    static final String NAV_SOUND_VOLUME_KEY = "navigation_sounds_volume";
     static final String DOCK_OPACITY_KEY = "dock_opacity";
     /**
      * Counts the changes made in Launcher settings. Home remembers the count it was built with and rebuilds on
@@ -60,6 +61,7 @@ final class Config {
     // Personal fork features remain independent of upstream theme options.
     static final String WALLPAPER_THEME = "theme", WALLPAPER_AURORA = "aurora", WALLPAPER_OFF = "off";
     final boolean navigationSounds, continueWatching;
+    final int navigationSoundVolume;
     final String wallpaperChoice;
     final Map<String, String> settingsRoutes;
     final List<String> dockApps;
@@ -289,9 +291,10 @@ final class Config {
                    boolean keyFilter, boolean dockGlass, String glowStyle, int glowIntensity, boolean tileGlow, boolean wallpaperCaptions,
                    boolean handleViewInputs, boolean tileMenu, boolean dockEvenPadding, boolean dockBand, boolean cinematicDots, boolean cinematicWhiteFocus, boolean wifiStatusColor, int cinematicScrim, int cinematicArt,
                    Map<String, Set<String>> wallpaperMoods, boolean gamepadPassthrough, boolean consumeVolumeKeys, boolean powerOnHome, boolean homeLongPressHome, boolean wifiStatusWarnings, List<String> topBarApps, boolean showGreeting, boolean headerWhite, boolean clockWallpaper, int clockWallpaperDim, boolean clockGlow, String glassStyle, boolean singleRow, boolean dockBandAll, boolean lunarDate, int lunarUtcOffset, boolean dateBelowClock, boolean vpnPill, String locale, boolean powerOnHomeAlways, boolean inputsConnectedOnly,
-                   int openOnStartNetworkWait, boolean navigationSounds, boolean continueWatching,
+                   int openOnStartNetworkWait, boolean navigationSounds, int navigationSoundVolume, boolean continueWatching,
                    String wallpaperChoice, Map<String, String> settingsRoutes) {
         this.navigationSounds = navigationSounds;
+        this.navigationSoundVolume = navigationSoundVolume;
         this.continueWatching = continueWatching;
         this.wallpaperChoice = wallpaperChoice;
         this.settingsRoutes = settingsRoutes;
@@ -542,17 +545,16 @@ final class Config {
         boolean singleRow = res.getBoolean(R.bool.single_row);
         boolean dockBandAll = res.getBoolean(R.bool.dock_band_all);
         boolean navigationSounds = res.getBoolean(R.bool.navigation_sounds);
+        int navigationSoundVolume = NavSound.clampVolume(res.getInteger(R.integer.navigation_sounds_volume));
         boolean continueWatching = res.getBoolean(R.bool.continue_watching);
         boolean applied = false;
 
-        File dir = dir(ctx);
-        File file = dir != null ? new File(dir, FILE_NAME) : null;
-        boolean mounted = Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState());
-        JSONObject theme = readOverlay(ctx, file, mounted);
-        applied = theme != null;
-        JSONObject json = FeaturePreferences.overlay(ctx, theme);
+        // Single built-in launcher theme: ignore external pushed themes so custom wallpapers
+        // and on-TV choices are never overwritten or reset.
+        JSONObject json = FeaturePreferences.overlay(ctx, null);
         if (json != null) {
             navigationSounds = bool(json, "navigation_sounds", navigationSounds);
+            navigationSoundVolume = integer(json, NAV_SOUND_VOLUME_KEY, navigationSoundVolume, 0, 100);
             continueWatching = bool(json, "continue_watching", continueWatching);
             dock = stringList(json, "dock_apps", dock);
             fillDock = bool(json, "fill_dock", fillDock);
@@ -659,11 +661,7 @@ final class Config {
             glassStyle = string(json, "glass_style", glassStyle);
         }
         // Keep Home/folder membership stable: the fork's top-bar shortcuts do not erase layout entries.
-        // A theme push or reset invalidates choices made on the TV. On first use, remember the
-        // current theme without clearing choices from an older launcher version.
         SharedPreferences choices = ctx.getSharedPreferences(SETTINGS_NAME, Context.MODE_PRIVATE);
-        // Unmounted storage looks like a theme reset; compare only once the file is readable.
-        if (mounted) syncThemeChoices(choices, dir, file);
         int chosenColumns = choices.getInt("columns", columns);
         if (chosenColumns >= 4 && chosenColumns <= 7) columns = chosenColumns;
         int chosenRows = choices.getInt(ROWS_BELOW_DOCK_KEY, rowsBelow);
@@ -671,12 +669,13 @@ final class Config {
         animations = choices.getBoolean("animations", animations);
         advancedEffects = choices.getBoolean("advanced_effects", advancedEffects);
         navigationSounds = choices.getBoolean("navigation_sounds", navigationSounds);
+        navigationSoundVolume = NavSound.clampVolume(choices.getInt(NAV_SOUND_VOLUME_KEY, navigationSoundVolume));
+        NavSound.setVolume(navigationSoundVolume);
         library = choices.getBoolean("app_library", library);
         showStats = choices.getBoolean("show_stats", showStats);
         String wallpaperChoice = choices.getString(WALLPAPER_CHOICE_KEY, WALLPAPER_THEME);
         if ("none".equals(wallpaperChoice)) wallpaperChoice = WALLPAPER_OFF;
-        File wallpaper = dir != null ? new File(dir, WALLPAPER_NAME) : null;
-        if (wallpaper != null && !(wallpaper.isFile() && wallpaper.length() > 0)) wallpaper = null;
+        File wallpaper = null;
         boolean wallpaperEnabled = json == null || bool(json, "wallpaper", true);
         int rotationMinutes = json == null ? 0 : integer(json, "wallpaper_rotation_minutes", 0, 0, 1440);
         int wallpaperDim = json == null ? 0 : integer(json, "wallpaper_dim", 0, 0, 90);
@@ -684,7 +683,7 @@ final class Config {
                 : string(json, "wallpaper_order", WallpaperRotation.ORDER_SHUFFLE);
         if (!WallpaperRotation.validOrder(wallpaperOrder)) wallpaperOrder = WallpaperRotation.ORDER_SHUFFLE;
         List<File> wallpapers = new ArrayList<>();
-        // Keep Theme / Aurora / Off choices from this fork. A collection filename pins one external picture.
+        // Keep Default / Aurora / Off / Scenes / Personal choices from this launcher.
         if (wallpaperChoice.startsWith(PersonalWallpapers.PREFIX) || PersonalWallpapers.COAST_VIDEO.equals(wallpaperChoice)) {
             File personal = PersonalWallpapers.file(ctx, wallpaperChoice);
             File resolved = personal != null && PersonalWallpapers.video(wallpaperChoice)
@@ -723,23 +722,11 @@ final class Config {
             }
         } else if (!WALLPAPER_THEME.equals(wallpaperChoice) && !WALLPAPER_AURORA.equals(wallpaperChoice)
                 && !WALLPAPER_OFF.equals(wallpaperChoice)) {
-            File picked = WallpaperRotation.find(WallpaperRotation.images(
-                    dir == null ? null : new File(dir, "wallpapers")), wallpaperChoice);
-            if (picked == null && wallpaper != null && wallpaper.getName().equals(wallpaperChoice)) picked = wallpaper;
-            if (picked != null) {
-                wallpaper = picked;
-                wallpaperEnabled = true;
-                wallpapers.add(picked);
-            } else {
-                choices.edit().remove(WALLPAPER_CHOICE_KEY).apply();
-                wallpaperChoice = WALLPAPER_THEME;
-            }
+            choices.edit().remove(WALLPAPER_CHOICE_KEY).apply();
+            wallpaperChoice = WALLPAPER_THEME;
         }
         if (WALLPAPER_THEME.equals(wallpaperChoice)) {
             if (!wallpaperEnabled) wallpaper = null;
-            if (rotationMinutes > 0 && dir != null && wallpaperEnabled)
-                wallpapers.addAll(WallpaperRotation.images(new File(dir, "wallpapers")));
-            if (wallpapers.isEmpty() && wallpaper != null) wallpapers.add(wallpaper);
             if (wallpapers.isEmpty() && wallpaperEnabled) {
                 File bundled = SceneFiles.find(ctx, SceneFiles.DEFAULT_SCENE);
                 if (bundled != null) {
@@ -771,7 +758,7 @@ final class Config {
                 consumeVolumeKeys, powerOnHome, homeLongPressHome, wifiStatusWarnings, topBarApps, showGreeting, headerWhite, clockWallpaper,
                 Math.max(0, Math.min(90, clockWallpaperDim)), clockGlow, glassStyle, singleRow && dockRow, dockBandAll, lunar, lunarOffset,
                 dateBelowClock, vpnPill, locale, powerOnHomeAlways, inputsConnectedOnly,
-                Math.max(0, Math.min(600, openOnStartNetworkWait)), navigationSounds, continueWatching,
+                Math.max(0, Math.min(600, openOnStartNetworkWait)), navigationSounds, navigationSoundVolume, continueWatching,
                 wallpaperChoice, settingsRoutes(res, json));
     }
 

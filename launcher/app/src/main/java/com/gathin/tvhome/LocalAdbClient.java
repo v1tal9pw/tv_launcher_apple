@@ -103,7 +103,7 @@ final class LocalAdbClient {
                 } else send(output, AUTH, 3, 0, publicKey((RSAPublicKey) keys.getPublic()));
                 if (attempts == 7) throw new IllegalStateException("ADB_NOT_AUTHORIZED");
             }
-            socket.setSoTimeout(15000);
+            socket.setSoTimeout(25000);
             send(output, OPEN, 1, 0, ("shell:" + command + "; echo __TVHOME_EXIT__$?\0")
                     .getBytes(StandardCharsets.UTF_8));
             StringBuilder result = new StringBuilder();

@@ -144,6 +144,7 @@
     <!-- Navigation and button sounds for Home tiles, folders, header buttons and quick settings.
          Set false here or use "navigation_sounds": false in a theme's config.json to silence them. -->
     <bool name="navigation_sounds">true</bool>
+    <integer name="navigation_sounds_volume">60</integer>
 
     <!-- One quiet line under the clock: CPU, free memory and free storage, every 10 seconds. Off by default;
          also in Launcher settings, or "show_stats": true in a theme. Nothing is read while this is false. -->

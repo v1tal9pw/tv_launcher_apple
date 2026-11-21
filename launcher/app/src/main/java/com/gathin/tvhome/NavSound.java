@@ -22,6 +22,7 @@ import java.util.function.BooleanSupplier;
  * system sound effects are muted or queued behind focus rendering.
  */
 final class NavSound {
+    static final int DEFAULT_VOLUME = 60;
     private static final long DEBOUNCE_MS = 25L;
     private static final ExecutorService AUDIO_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
         Thread thread = new Thread(r, "TvHome-NavSound");
@@ -30,13 +31,43 @@ final class NavSound {
     });
     private static final AtomicBoolean PENDING_PLAY = new AtomicBoolean(false);
     private static AudioTrack clickTrack;
+    private static volatile int volumePercent = DEFAULT_VOLUME;
+    private static int appliedVolume = -1;
     private static volatile long lastPlayedAt;
 
     private NavSound() { }
 
+    static int clampVolume(int percent) {
+        return Math.max(0, Math.min(100, percent));
+    }
+
+    static float gainForPercent(int percent) {
+        return clampVolume(percent) / 100f;
+    }
+
+    static int getVolume() {
+        return volumePercent;
+    }
+
+    static void setVolume(int percent) {
+        int clamped = clampVolume(percent);
+        if (volumePercent == clamped) return;
+        volumePercent = clamped;
+        AUDIO_EXECUTOR.execute(() -> applyVolumeOnAudioThread(clamped));
+    }
+
     static void prepare() {
         if (clickTrack != null) return;
         AUDIO_EXECUTOR.execute(NavSound::prepareOnAudioThread);
+    }
+
+    private static synchronized void applyVolumeOnAudioThread(int percent) {
+        if (clickTrack == null || appliedVolume == percent) return;
+        try {
+            clickTrack.setVolume(gainForPercent(percent));
+            appliedVolume = percent;
+        } catch (Throwable ignored) {
+        }
     }
 
     private static synchronized void prepareOnAudioThread() {
@@ -48,7 +79,7 @@ final class NavSound {
             for (int i = 0; i < numSamples; i++) {
                 double t = (double) i / sampleRate;
                 double decay = Math.exp(-t * 500.0);
-                buffer[i] = (short) (Math.sin(2 * Math.PI * 900.0 * t) * decay * 14000);
+                buffer[i] = (short) (Math.sin(2 * Math.PI * 900.0 * t) * decay * 24000);
             }
             AudioTrack track = new AudioTrack.Builder()
                     .setAudioAttributes(new AudioAttributes.Builder()
@@ -64,13 +95,16 @@ final class NavSound {
                     .setTransferMode(AudioTrack.MODE_STATIC)
                     .build();
             track.write(buffer, 0, buffer.length);
+            int vol = volumePercent;
+            track.setVolume(gainForPercent(vol));
+            appliedVolume = vol;
             clickTrack = track;
         } catch (Throwable ignored) {
         }
     }
 
     static void play(boolean enabled) {
-        if (!enabled) return;
+        if (!enabled || volumePercent <= 0) return;
         long now;
         try { now = SystemClock.uptimeMillis(); }
         catch (Throwable ignored) { now = 0L; }
@@ -84,8 +118,14 @@ final class NavSound {
     private static synchronized void playOnAudioThread() {
         PENDING_PLAY.set(false);
         try {
+            int vol = volumePercent;
+            if (vol <= 0) return;
             prepareOnAudioThread();
             if (clickTrack == null) return;
+            if (appliedVolume != vol) {
+                clickTrack.setVolume(gainForPercent(vol));
+                appliedVolume = vol;
+            }
             clickTrack.stop();
             clickTrack.reloadStaticData();
             clickTrack.play();

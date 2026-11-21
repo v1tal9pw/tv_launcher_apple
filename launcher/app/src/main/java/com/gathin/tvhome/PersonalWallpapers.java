@@ -77,8 +77,7 @@ final class PersonalWallpapers {
         String name = extractName(choice);
         if (name == null || context == null) return null;
         File stored = new File(privateDir(context), name);
-        if (!existsOnDisk(stored) || (video(choice) && !existsOnDisk(poster(stored)))
-                || !sourceExists(context, name)) {
+        if (!existsOnDisk(stored) || (video(choice) && !existsOnDisk(poster(stored)))) {
             deleteInternal(context, name);
             return null;
         }
@@ -127,8 +126,7 @@ final class PersonalWallpapers {
                 String name = file.getName();
                 if (!validName(name)) continue;
                 boolean isVideo = name.endsWith(".mp4");
-                if (!existsOnDisk(file) || (isVideo && !existsOnDisk(poster(file)))
-                        || !sourceExists(context, name)) {
+                if (!existsOnDisk(file) || (isVideo && !existsOnDisk(poster(file)))) {
                     deleteInternal(context, name);
                     removed++;
                 } else {

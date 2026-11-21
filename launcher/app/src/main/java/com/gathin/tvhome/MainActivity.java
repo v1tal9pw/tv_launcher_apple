@@ -191,6 +191,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private final Rect tileRect = new Rect();
     private boolean resumeQuickSettings;
     private boolean quickSettingsWasOpenOnPause;
+    private long quickLaunchAt;
+    private final Runnable cancelStaleQuickResume = () -> {
+        if (resumeQuickSettings && !hasWindowFocus()) resumeQuickSettings = false;
+    };
     private int quickSettingsFocus = R.id.quickAllSettings;
     private boolean openInputsAfterPanel;
     private boolean quickSettingsAwaitingLayout;
@@ -357,8 +361,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 : ACTION_QUICK_SETTINGS.equals(getIntent().getAction());
         if (savedInstanceState != null) {
             quickSettingsFocus = savedInstanceState.getInt("quick_settings_focus", R.id.quickAllSettings);
+            if (resumeQuickSettings) quickLaunchAt = SystemClock.elapsedRealtime();
         } else if (ACTION_QUICK_SETTINGS.equals(getIntent().getAction())) {
             quickSettingsFocus = getIntent().getIntExtra(EXTRA_QUICK_FOCUS, R.id.quickAllSettings);
+            quickLaunchAt = SystemClock.elapsedRealtime();
+            setIntent(new Intent(Intent.ACTION_MAIN));
         }
         // config.xml, overlaid by config.json from a pushed theme (see Config and tools/theme.sh).
         Config cfg = Config.load(this);
@@ -659,6 +666,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         remotePanelForeground = true;
         foregroundInstance = this;
         RemoteControlOverlay.closeIfShowing();
+        SystemEqualizer.applySaved(this);
         quickSettingsWasOpenOnPause = false;
         android.content.SharedPreferences prefs = getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE);
         long revision = prefs.getLong(Config.SETTINGS_REVISION_KEY, 0);
@@ -749,8 +757,18 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             if (adapter == homeAdapter) for (String key : homeAdapter.keys()) {
                 if (homeAdapter.folder(key) != null) { prepareFolder(key); break; }
             }
-            if (resumeQuickSettings && !paused) showQuickSettings();
-            else {
+            if (resumeQuickSettings && !paused) {
+                if (RemoteControlOverlay.wasConfirmWithoutBack(quickLaunchAt)) {
+                    resumeQuickSettings = false;
+                    showCardPrompt();
+                } else if (hasWindowFocus()) {
+                    handler.removeCallbacks(cancelStaleQuickResume);
+                    showQuickSettings();
+                } else {
+                    handler.removeCallbacks(cancelStaleQuickResume);
+                    handler.postDelayed(cancelStaleQuickResume, 450);
+                }
+            } else {
                 showCardPrompt();
                 if (cachedQuickPanel == null) {
                     handler.removeCallbacks(prewarmQuickPanel);
@@ -835,6 +853,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (movingKey != null && !savingOrderNow) finishMove(false, false);
         handler.removeCallbacks(minuteTick);
         handler.removeCallbacks(prewarmQuickPanel);
+        handler.removeCallbacks(cancelStaleQuickResume);
         libraryRequested = false;
         wallpaperPlayer.stop();
         if (diya != null) diya.stop();
@@ -842,6 +861,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         quickSettingsWasOpenOnPause = quickSettings != null;
         if (quickSettings != null) {
             resumeQuickSettings = true;
+            quickLaunchAt = SystemClock.elapsedRealtime();
             quickSettingsFocus = quickSettings.selectedControl();
             quickSettings.closeWithoutFocus();
         }
@@ -873,6 +893,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) {
+            handler.removeCallbacks(cancelStaleQuickResume);
+            if (resumeQuickSettings && !paused && tilesReady && quickSettings == null) {
+                if (RemoteControlOverlay.wasConfirmWithoutBack(quickLaunchAt)) {
+                    resumeQuickSettings = false;
+                } else {
+                    showQuickSettings();
+                }
+            }
             showCardPrompt();
             restartIdleClock();
         } else root.removeCallbacks(showIdleClock);
@@ -884,6 +912,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         super.onDestroy();
         handler.removeCallbacks(clockCheck);
         handler.removeCallbacks(prewarmQuickPanel);
+        handler.removeCallbacks(cancelStaleQuickResume);
         root.removeCallbacks(showIdleClock);
         if (cachedQuickPanel != null) {
             cachedQuickPanel.detach();
@@ -2370,6 +2399,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         super.onNewIntent(intent);
         setIntent(intent);
         if (ACTION_QUICK_SETTINGS.equals(intent.getAction())) {
+            setIntent(new Intent(Intent.ACTION_MAIN));
             boolean explicitFocus = intent.hasExtra(EXTRA_QUICK_FOCUS);
             int focus = intent.getIntExtra(EXTRA_QUICK_FOCUS, R.id.quickAllSettings);
             if (!explicitFocus && (quickSettings != null || (paused && quickSettingsWasOpenOnPause))) {
@@ -2379,6 +2409,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             } else if (paused) {
                 quickSettingsFocus = focus;
                 resumeQuickSettings = true;
+                quickLaunchAt = SystemClock.elapsedRealtime();
             } else if (explicitFocus) {
                 quickSettingsFocus = focus;
                 if (quickSettings == null) showQuickSettings();
@@ -3135,6 +3166,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void launchQuickIntent(int control, Intent intent, boolean launcherSettings) {
         quickSettingsFocus = control;
         resumeQuickSettings = true;
+        quickLaunchAt = SystemClock.elapsedRealtime();
         try {
             if (launcherSettings) startActivityForResult(intent, LAUNCHER_SETTINGS_REQUEST);
             else startActivity(intent);

@@ -52,8 +52,8 @@ final class QuickSettingsPanel extends FrameLayout {
     private final Listener listener;
     private Bitmap backdrop;
     private final QuickGlassDrawable.ShaderCache shaderCache = new QuickGlassDrawable.ShaderCache();
-    private final ArrayList<View> glassViews = new ArrayList<>(13);
-    private final ArrayList<QuickGlassDrawable> glassDrawables = new ArrayList<>(13);
+    private final ArrayList<View> glassViews = new ArrayList<>(12);
+    private final ArrayList<QuickGlassDrawable> glassDrawables = new ArrayList<>(12);
     private final float unit, fontScale;
     private final boolean reducedMotion;
     private final boolean animationsEnabled;
@@ -563,20 +563,25 @@ final class QuickSettingsPanel extends FrameLayout {
                 {R.id.quickNetwork, R.drawable.ic_wifi, R.string.wifi},
                 {R.id.quickInputs, R.drawable.ic_source_switch, R.string.inputs},
                 {R.id.quickAccessibility, R.drawable.ic_quick_accessibility, R.string.quick_accessibility},
-                {R.id.quickAudioOutput, R.drawable.ic_quick_audio_output, R.string.quick_audio_output},
                 {R.id.quickBluetooth, R.drawable.ic_quick_bluetooth, R.string.quick_bluetooth},
+                {R.id.quickApps, R.drawable.ic_quick_apps, R.string.quick_apps},
                 {R.id.quickPicture, R.drawable.ic_quick_picture, R.string.quick_picture},
                 {R.id.quickSound, R.drawable.ic_quick_sound, R.string.quick_sound},
-                {R.id.quickApps, R.drawable.ic_quick_apps, R.string.quick_apps},
                 {R.id.quickClearAll, R.drawable.ic_quick_apps, R.string.quick_clear_background}
         };
         for (int i = 0; i < tiles.length; i += 2) {
             LinearLayout line = row();
-            for (int column = 0; column < 2; column++) {
+            boolean single = i + 1 >= tiles.length;
+            int count = single ? 1 : 2;
+            for (int column = 0; column < count; column++) {
                 int[] tile = tiles[i + column];
                 String subtitle = tile[0] == R.id.quickScreensaver ? activity.getString(R.string.quick_start_now)
                         : tile[0] == R.id.quickBluetooth ? activity.getString(R.string.quick_accessories) : null;
-                line.addView(pill(tile[0], tile[1], tile[2], subtitle), column == 0 ? half() : halfRight());
+                LinearLayout.LayoutParams lp = single
+                        ? new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT)
+                        : (column == 0 ? half() : halfRight());
+                line.addView(pill(tile[0], tile[1], tile[2], subtitle), lp);
             }
             add(line, i == 0 ? 8 : 10);
         }
@@ -586,10 +591,14 @@ final class QuickSettingsPanel extends FrameLayout {
                 R.id.quickAllSettings, R.id.quickScreensaver);
         connect(R.id.quickClose, R.id.quickAllSettings, R.id.quickClose, R.id.quickClose, R.id.quickNetwork);
         for (int i = 0; i < tiles.length; i++) {
-            int column = i % 2;
+            boolean single = (i % 2 == 0) && (i + 1 >= tiles.length);
+            int column = single ? 0 : i % 2;
+            int left = single ? tiles[i][0] : tiles[i - column][0];
+            int right = single ? tiles[i][0] : tiles[i - column + 1][0];
             int up = i < 2 ? (column == 0 ? R.id.quickAllSettings : R.id.quickClose) : tiles[i - 2][0];
-            int down = i + 2 < tiles.length ? tiles[i + 2][0] : tiles[i][0];
-            connect(tiles[i][0], tiles[i - column][0], tiles[i - column + 1][0], up, down);
+            int down = i + 2 < tiles.length ? tiles[i + 2][0]
+                    : (!single && column == 1 && i + 1 < tiles.length ? tiles[i + 1][0] : tiles[i][0]);
+            connect(tiles[i][0], left, right, up, down);
         }
     }
 
@@ -623,7 +632,7 @@ final class QuickSettingsPanel extends FrameLayout {
         symbol.addView(image, new FrameLayout.LayoutParams(size, size, Gravity.CENTER));
         button.addView(symbol, new LinearLayout.LayoutParams(px(38), px(38)));
         LinearLayout copy = column();
-        TextView title = text(activity.getString(label), id == R.id.quickAudioOutput ? 13 : 14, 600, Color.WHITE);
+        TextView title = text(activity.getString(label), 14, 600, Color.WHITE);
         title.setMaxLines(2);
         title.setEllipsize(TextUtils.TruncateAt.END);
         copy.addView(title);
@@ -751,7 +760,7 @@ final class QuickSettingsPanel extends FrameLayout {
         paint.setTextSize(14 * unit * fontScale);
         paint.setTypeface(TYPEFACE_MEDIUM);
         float widest = 0;
-        for (int label : new int[]{R.string.quick_bluetooth, R.string.quick_audio_output,
+        for (int label : new int[]{R.string.quick_bluetooth,
                 R.string.quick_picture, R.string.quick_sound, R.string.quick_screensaver,
                 R.string.quick_apps, R.string.inputs, R.string.wifi, R.string.quick_accessibility, R.string.quick_accessories,
                 R.string.settings, R.string.quick_start_now}) {

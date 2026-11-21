@@ -9,6 +9,9 @@ import android.content.pm.ActivityInfo;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
@@ -19,8 +22,10 @@ import android.view.inputmethod.InputMethodInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Toast;
 
+import java.net.NetworkInterface;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -43,15 +48,45 @@ final class QuickSettingsActions {
     };
     private static final String[] MEDIA_CLEANUP_PACKAGES = {
             "com.google.android.youtube.tv",
+            "com.google.android.youtube.tvmusic",
             "com.netflix.ninja",
             "com.amazon.amazonvideo.livingroom",
             "com.disney.disneyplus",
             "com.apple.atve.androidtv.appletv",
             "com.spotify.tv.android",
-            "tv.twitch.android.app"
+            "tv.twitch.android.app",
+            "com.google.android.play.games",
+            "com.android.vending"
     };
+    private static final Set<String> CORE_SYSTEM_PACKAGES = new LinkedHashSet<>(java.util.Arrays.asList(
+            "android",
+            "com.android.systemui",
+            "com.android.settings",
+            "com.android.tv.settings",
+            "com.google.android.tv.settings",
+            "com.tcl.settings",
+            "com.xiaomi.mitv.settings",
+            "com.tcl.tv",
+            "com.tcl.tvinput",
+            "com.tcl.suspension",
+            "com.tcl.systemui.plugin",
+            "com.tcl.globalkeyoverlay",
+            "com.android.tv",
+            "com.google.android.apps.tv.launcherx",
+            "com.google.android.tvlauncher",
+            "com.google.android.tungsten.setupwraith",
+            "com.google.android.gms",
+            "com.google.android.gsf",
+            "com.google.android.tv.remote.service",
+            "com.google.android.apps.mediashell"
+    ));
     private static final Pattern SAFE_PACKAGE = Pattern.compile("[a-zA-Z0-9._]+");
     private static final AtomicBoolean ADB_CLEANING = new AtomicBoolean(false);
+
+    interface CleanupFeedback {
+        void onStatus(String message, boolean finished);
+        default void onNeedAdbSetup() { }
+    }
 
     static final class CleanupResult {
         final int stoppedApps;
@@ -80,20 +115,35 @@ final class QuickSettingsActions {
     }
 
     static void clearBackground(Context context) {
-        clearBackground(context, null, null);
+        clearBackground(context, null, (Runnable) null);
     }
 
     static void clearBackground(Context context, String activeHostPackage, Runnable onNeedAdbSetup) {
         Context localized = LauncherLocale.wrap(context);
+        clearBackground(context, activeHostPackage, new CleanupFeedback() {
+            @Override public void onStatus(String message, boolean finished) {
+                Toast.makeText(localized, message, finished ? Toast.LENGTH_LONG : Toast.LENGTH_SHORT).show();
+            }
+
+            @Override public void onNeedAdbSetup() {
+                if (onNeedAdbSetup != null) onNeedAdbSetup.run();
+            }
+        });
+    }
+
+    static void clearBackground(Context context, String activeHostPackage, CleanupFeedback feedback) {
+        Context localized = LauncherLocale.wrap(context);
         if (!ADB_CLEANING.compareAndSet(false, true)) {
-            Toast.makeText(localized, R.string.quick_cleanup_running, Toast.LENGTH_SHORT).show();
+            if (feedback != null) feedback.onStatus(localized.getString(R.string.quick_cleanup_running), false);
             return;
         }
         Context app = context.getApplicationContext();
         Handler main = new Handler(Looper.getMainLooper());
-        Toast.makeText(localized, R.string.quick_cleanup_running, Toast.LENGTH_SHORT).show();
+        if (feedback != null) feedback.onStatus(localized.getString(R.string.quick_cleanup_running), false);
         Set<String> excluded = collectExcludedCleanupPackages(app, activeHostPackage);
-        String command = buildAdbCleanupCommand(excluded);
+        Set<String> vpnFallback = isVpnConnected(app) ? collectVpnPackages(app) : Collections.emptySet();
+        Set<String> extraApps = collectExtraCleanupPackages(app, excluded);
+        String command = buildAdbCleanupCommand(excluded, extraApps, vpnFallback);
         FeatureNetwork.WORKER.execute(() -> {
             try {
                 String output = LocalAdbClient.run(app, command);
@@ -110,19 +160,25 @@ final class QuickSettingsActions {
                     } else {
                         message = localized.getString(R.string.quick_cleanup_done_cache);
                     }
-                    Toast.makeText(localized, message, Toast.LENGTH_LONG).show();
+                    if (feedback != null) feedback.onStatus(message, true);
                 });
             } catch (Exception error) {
                 String reason = error.getMessage() == null ? "" : error.getMessage();
                 main.post(() -> {
                     if (reason.contains("ADB_PORT_5555_CLOSED")) {
-                        Toast.makeText(localized, R.string.quick_cleanup_adb_closed, Toast.LENGTH_LONG).show();
-                        if (onNeedAdbSetup != null) onNeedAdbSetup.run();
+                        if (feedback != null) {
+                            feedback.onStatus(localized.getString(R.string.quick_cleanup_adb_closed), true);
+                            feedback.onNeedAdbSetup();
+                        }
                     } else if (reason.contains("ADB_NOT_AUTHORIZED") || reason.contains("ADB_AUTH_FAILED")) {
-                        Toast.makeText(localized, R.string.quick_cleanup_adb_auth, Toast.LENGTH_LONG).show();
+                        if (feedback != null) {
+                            feedback.onStatus(localized.getString(R.string.quick_cleanup_adb_auth), true);
+                        }
                     } else {
-                        Toast.makeText(localized, localized.getString(R.string.quick_cleanup_adb_error,
-                                reason.isEmpty() ? error.getClass().getSimpleName() : reason), Toast.LENGTH_LONG).show();
+                        if (feedback != null) {
+                            feedback.onStatus(localized.getString(R.string.quick_cleanup_adb_error,
+                                    reason.isEmpty() ? error.getClass().getSimpleName() : reason), true);
+                        }
                     }
                 });
             } finally {
@@ -131,14 +187,53 @@ final class QuickSettingsActions {
         });
     }
 
+    static boolean isVpnConnected(Context context) {
+        try {
+            ConnectivityManager cm = context.getSystemService(ConnectivityManager.class);
+            if (cm != null) {
+                for (Network network : cm.getAllNetworks()) {
+                    NetworkCapabilities caps = cm.getNetworkCapabilities(network);
+                    if (caps != null && caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) return true;
+                }
+            }
+        } catch (RuntimeException ignored) { }
+        try {
+            for (NetworkInterface net : Collections.list(NetworkInterface.getNetworkInterfaces())) {
+                if (!net.isUp() || net.isLoopback()) continue;
+                String name = net.getName();
+                if (name != null && (name.startsWith("tun") || name.startsWith("wg") || name.startsWith("ppp"))) {
+                    return true;
+                }
+            }
+        } catch (Exception ignored) { }
+        return false;
+    }
+
+    private static Set<String> collectVpnPackages(Context context) {
+        Set<String> vpns = new LinkedHashSet<>();
+        try {
+            String vpn = Config.load(context).vpnApp;
+            if (vpn != null && !vpn.isEmpty()) vpns.add(vpn);
+        } catch (RuntimeException ignored) { }
+        try {
+            List<ResolveInfo> services = context.getPackageManager().queryIntentServices(
+                    new Intent("android.net.VpnService"), 0);
+            for (ResolveInfo info : services) {
+                if (info != null && info.serviceInfo != null && info.serviceInfo.packageName != null) {
+                    vpns.add(info.serviceInfo.packageName);
+                }
+            }
+        } catch (RuntimeException ignored) { }
+        return vpns;
+    }
+
     private static Set<String> collectExcludedCleanupPackages(Context context, String activeHostPackage) {
         Set<String> excluded = new LinkedHashSet<>();
         excluded.add(context.getPackageName());
-        if (activeHostPackage != null && !activeHostPackage.isEmpty()) excluded.add(activeHostPackage);
-        try {
-            String vpn = Config.load(context).vpnApp;
-            if (vpn != null && !vpn.isEmpty()) excluded.add(vpn);
-        } catch (RuntimeException ignored) { }
+        if (activeHostPackage != null && !activeHostPackage.isEmpty()
+                && !CORE_SYSTEM_PACKAGES.contains(activeHostPackage)) {
+            excluded.add(activeHostPackage);
+        }
         try {
             InputMethodManager imm = context.getSystemService(InputMethodManager.class);
             if (imm != null) {
@@ -160,39 +255,83 @@ final class QuickSettingsActions {
                 }
             }
         } catch (RuntimeException ignored) { }
-        try {
-            List<ResolveInfo> vpns = context.getPackageManager().queryIntentServices(
-                    new Intent("android.net.VpnService"), 0);
-            for (ResolveInfo info : vpns) {
-                if (info != null && info.serviceInfo != null && info.serviceInfo.packageName != null) {
-                    excluded.add(info.serviceInfo.packageName);
-                }
-            }
-        } catch (RuntimeException ignored) { }
         return excluded;
     }
 
+    private static Set<String> collectExtraCleanupPackages(Context context, Set<String> excluded) {
+        Set<String> extras = new LinkedHashSet<>();
+        for (String pkg : MEDIA_CLEANUP_PACKAGES) {
+            if (!excluded.contains(pkg) && !CORE_SYSTEM_PACKAGES.contains(pkg)) extras.add(pkg);
+        }
+        try {
+            PackageManager pm = context.getPackageManager();
+            String[] categories = {Intent.CATEGORY_LEANBACK_LAUNCHER, Intent.CATEGORY_LAUNCHER};
+            for (String category : categories) {
+                List<ResolveInfo> activities = pm.queryIntentActivities(
+                        new Intent(Intent.ACTION_MAIN).addCategory(category), 0);
+                for (ResolveInfo info : activities) {
+                    if (info == null || info.activityInfo == null || info.activityInfo.applicationInfo == null) continue;
+                    ApplicationInfo appInfo = info.activityInfo.applicationInfo;
+                    // Third-party apps are already listed via `pm list packages -3` in the shell script;
+                    // only add pre-installed/system launchable apps here so the ADB packet stays small.
+                    if ((appInfo.flags & (ApplicationInfo.FLAG_SYSTEM | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) == 0) {
+                        continue;
+                    }
+                    String pkg = info.activityInfo.packageName;
+                    if (pkg == null || excluded.contains(pkg) || CORE_SYSTEM_PACKAGES.contains(pkg)) continue;
+                    extras.add(pkg);
+                    if (extras.size() >= 24) return extras;
+                }
+            }
+        } catch (RuntimeException ignored) { }
+        return extras;
+    }
+
     static String buildAdbCleanupCommand(Collection<String> excludedPackages) {
+        return buildAdbCleanupCommand(excludedPackages, java.util.Arrays.asList(MEDIA_CLEANUP_PACKAGES), null);
+    }
+
+    static String buildAdbCleanupCommand(Collection<String> excludedPackages,
+                                         Collection<String> extraPackages,
+                                         Collection<String> vpnFallbackPackages) {
         StringBuilder skip = new StringBuilder(" ");
         if (excludedPackages != null) {
             for (String pkg : excludedPackages) {
                 if (pkg != null && SAFE_PACKAGE.matcher(pkg).matches()) skip.append(pkg).append(' ');
             }
         }
-        StringBuilder media = new StringBuilder();
-        for (String pkg : MEDIA_CLEANUP_PACKAGES) media.append(' ').append(pkg);
+        StringBuilder vpnFallback = new StringBuilder();
+        if (vpnFallbackPackages != null) {
+            for (String pkg : vpnFallbackPackages) {
+                if (pkg != null && SAFE_PACKAGE.matcher(pkg).matches()) vpnFallback.append(pkg).append(' ');
+            }
+        }
+        StringBuilder extra = new StringBuilder();
+        if (extraPackages != null) {
+            for (String pkg : extraPackages) {
+                if (pkg != null && SAFE_PACKAGE.matcher(pkg).matches()) extra.append(' ').append(pkg);
+            }
+        }
         return "before=0; "
                 + "while read k v _; do [ \"$k\" = \"MemAvailable:\" ] && before=$v && break; done < /proc/meminfo; "
-                + "running=\" $(ps -A -o NAME 2>/dev/null | tr '\\n' ' ') \"; "
+                + "fg=$(dumpsys activity activities 2>/dev/null | sed -nE '/(topResumedActivity=|ResumedActivity:)/{s/.* u[0-9]+ ([a-zA-Z0-9._]+)\\/.*/\\1/p;q}'); "
+                + "[ -z \"$fg\" ] && fg=$(dumpsys window 2>/dev/null | sed -nE '/mCurrentFocus=/{s/.* ([a-zA-Z0-9._]+)\\/.*/\\1/p;q}'); "
+                + "vpn=$(dumpsys vpn_management 2>/dev/null | sed -nE 's/.*Active package name:[[:space:]]*([a-zA-Z0-9._]+)[[:space:]]*$/\\1/p'); "
+                + "[ -z \"$vpn\" ] && vpn=$(dumpsys connectivity 2>/dev/null | sed -nE 's/.*mPackage=([a-zA-Z0-9._]+).*/\\1/p'); "
                 + "skip=\"" + skip + "\"; "
+                + "[ -n \"$fg\" ] && skip=\"$skip$fg \"; "
+                + "if [ -n \"$vpn\" ]; then for v in $vpn; do skip=\"$skip$v \"; done; else skip=\"$skip" + vpnFallback + "\"; fi; "
+                + "running=\" $(ps -A -o NAME= 2>/dev/null | tr '\\n' ' ') \"; "
+                + "[ \"$running\" = \"  \" ] && running=\" $(ps -A -o NAME 2>/dev/null | tr '\\n' ' ') \"; "
                 + "stopped=0; "
-                + "for p in $(pm list packages -3 --user 0 2>/dev/null | sed 's/^package://')" + media + "; do "
+                + "for p in $(pm list packages -3 --user 0 2>/dev/null | sed 's/^package://')" + extra + "; do "
                 + "case \"$skip\" in *\" $p \"*) continue ;; esac; "
                 + "skip=\"$skip$p \"; "
                 + "case \"$running\" in *\" $p \"*|*\" $p:\"*) am force-stop \"$p\" >/dev/null 2>&1 && stopped=$((stopped+1)) ;; esac; "
                 + "done; "
                 + "am kill-all >/dev/null 2>&1; "
-                + "pm trim-caches 999999999999 >/dev/null 2>&1; "
+                + "if command -v timeout >/dev/null 2>&1; then timeout 5 pm trim-caches 999999999999 >/dev/null 2>&1; "
+                + "else pm trim-caches 999999999999 >/dev/null 2>&1; fi; "
                 + "after=0; "
                 + "while read k v _; do [ \"$k\" = \"MemAvailable:\" ] && after=$v && break; done < /proc/meminfo; "
                 + "echo \"BEFORE=$before\"; echo \"AFTER=$after\"; echo \"STOPPED=$stopped\"";
@@ -286,8 +425,17 @@ final class QuickSettingsActions {
             if (settings != null) return settings;
             return systemIntent(context, Settings.ACTION_SETTINGS, routes);
         }
+        if (control == R.id.quickSound) {
+            // On TCL Google TV 14 (e.g. C6K), DISPLAY_SETTINGS opens the native TV Display & Sound side
+            // drawer (Picture / Screen / Sound / Audio output) over apps, while SOUND_SETTINGS opens the
+            // AOSP TvSettings Display & Sound screen (text scaling / system sounds). Prefer DISPLAY_SETTINGS
+            // when the firmware provides it, and fall back to SOUND_SETTINGS on generic Android TV.
+            Intent display = action(context, Settings.ACTION_DISPLAY_SETTINGS);
+            if (display != null) return display;
+            return systemIntent(context, Settings.ACTION_SOUND_SETTINGS, routes);
+        }
         String standardAction = control == R.id.quickPicture ? Settings.ACTION_DISPLAY_SETTINGS
-                : control == R.id.quickSound ? Settings.ACTION_SOUND_SETTINGS : Settings.ACTION_SETTINGS;
+                : Settings.ACTION_SETTINGS;
         return systemIntent(context, standardAction, routes);
     }
 

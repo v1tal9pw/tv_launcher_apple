@@ -123,6 +123,7 @@ public class HomeKeyService extends AccessibilityService {
         try {
             settingsScancodes = getResources().getIntArray(R.array.settings_key_scancodes);
             loadConfig();
+            SystemEqualizer.applySaved(this);
         } catch (RuntimeException error) {
             Log.e(TAG, "Service initialization failed", error);
         }
@@ -298,8 +299,14 @@ public class HomeKeyService extends AccessibilityService {
 
     private boolean handleKeyEvent(KeyEvent event) {
         if (RemoteLearning.handle(event)) return true;
-        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK && event.getAction() == KeyEvent.ACTION_DOWN)
-            RemoteControlOverlay.noteBackKey();
+        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+            int code = event.getKeyCode();
+            if (code == KeyEvent.KEYCODE_BACK) {
+                RemoteControlOverlay.noteBackKey();
+            } else if (NavSound.isConfirmKey(code) || NavSound.isDpadDirection(code)) {
+                RemoteControlOverlay.noteNavigationKey(NavSound.isConfirmKey(code));
+            }
+        }
         if (event.getKeyCode() == KeyEvent.KEYCODE_HOME && event.getAction() == KeyEvent.ACTION_DOWN
                 && event.getRepeatCount() == 0)
             RemoteControlOverlay.clearPendingReturn();

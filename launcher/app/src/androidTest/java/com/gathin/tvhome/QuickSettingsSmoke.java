@@ -85,22 +85,24 @@ public final class QuickSettingsSmoke extends Instrumentation {
             sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_DOWN); waitForIdleSync();
             check(closeLabel.getVisibility() == View.INVISIBLE, "Close caption hides when moving to a tile");
             focus(R.id.quickBluetooth);
-            int[][] moves = {{KeyEvent.KEYCODE_DPAD_LEFT, R.id.quickAudioOutput},
-                    {KeyEvent.KEYCODE_DPAD_UP, R.id.quickInputs},
-                    {KeyEvent.KEYCODE_DPAD_RIGHT, R.id.quickAccessibility},
-                    {KeyEvent.KEYCODE_DPAD_UP, R.id.quickNetwork},
+            int[][] moves = {{KeyEvent.KEYCODE_DPAD_RIGHT, R.id.quickApps},
+                    {KeyEvent.KEYCODE_DPAD_UP, R.id.quickAccessibility},
+                    {KeyEvent.KEYCODE_DPAD_LEFT, R.id.quickInputs},
+                    {KeyEvent.KEYCODE_DPAD_UP, R.id.quickScreensaver},
+                    {KeyEvent.KEYCODE_DPAD_RIGHT, R.id.quickNetwork},
                     {KeyEvent.KEYCODE_DPAD_DOWN, R.id.quickAccessibility},
-                    {KeyEvent.KEYCODE_DPAD_DOWN, R.id.quickBluetooth},
-                    {KeyEvent.KEYCODE_DPAD_LEFT, R.id.quickAudioOutput},
+                    {KeyEvent.KEYCODE_DPAD_DOWN, R.id.quickApps},
+                    {KeyEvent.KEYCODE_DPAD_LEFT, R.id.quickBluetooth},
                     {KeyEvent.KEYCODE_DPAD_DOWN, R.id.quickPicture},
                     {KeyEvent.KEYCODE_DPAD_RIGHT, R.id.quickSound},
-                    {KeyEvent.KEYCODE_DPAD_DOWN, R.id.quickClearAll}};
+                    {KeyEvent.KEYCODE_DPAD_DOWN, R.id.quickClearAll},
+                    {KeyEvent.KEYCODE_DPAD_UP, R.id.quickPicture}};
             for (int[] move : moves) {
                 sendKeyDownUpSync(move[0]); waitForIdleSync();
                 check(currentFocus() == move[1], "D-pad reaches control " + move[1]);
             }
             for (int id : new int[]{R.id.quickBluetooth, R.id.quickScreensaver, R.id.quickPicture,
-                    R.id.quickSound, R.id.quickAudioOutput, R.id.quickApps, R.id.quickLauncherSettings,
+                    R.id.quickSound, R.id.quickApps, R.id.quickLauncherSettings,
                     R.id.quickAllSettings, R.id.quickClose, R.id.quickInputs, R.id.quickNetwork, R.id.quickAccessibility, R.id.quickClearAll}) {
                 focus(id);
                 SystemClock.sleep(180);
@@ -114,16 +116,17 @@ public final class QuickSettingsSmoke extends Instrumentation {
                                 + ", scaled=" + focusedWidth + "x" + focusedHeight);
                 check(view.getContentDescription() != null, "Control has an accessible name " + id);
             }
+            check(panel().findViewById(R.id.quickAudioOutput) == null,
+                    "Audio output tile is removed from the control centre");
             checkRow(R.id.quickScreensaver, R.id.quickNetwork);
             checkRow(R.id.quickInputs, R.id.quickAccessibility);
-            checkRow(R.id.quickAudioOutput, R.id.quickBluetooth);
+            checkRow(R.id.quickBluetooth, R.id.quickApps);
             checkRow(R.id.quickPicture, R.id.quickSound);
-            checkRow(R.id.quickApps, R.id.quickClearAll);
             check(((View) panel().findViewById(R.id.quickBluetooth).getParent()).getTop()
                     < ((View) panel().findViewById(R.id.quickPicture).getParent()).getTop()
                     && ((View) panel().findViewById(R.id.quickPicture).getParent()).getTop()
-                    < ((View) panel().findViewById(R.id.quickApps).getParent()).getTop(),
-                    "Audio row comes before picture and app controls");
+                    < ((View) panel().findViewById(R.id.quickClearAll).getParent()).getTop(),
+                    "Bluetooth/Apps row comes before Picture/Sound and full-width System Cleanup");
             View contents = panel().findViewById(R.id.quickPanel);
             check(textCount(contents, activity.getString(R.string.settings)) == 0,
                     "Tiles use concise category labels");
@@ -131,8 +134,6 @@ public final class QuickSettingsSmoke extends Instrumentation {
                     "Header has a live date");
             check(panel().findViewById(R.id.quickTime) instanceof android.widget.TextClock,
                     "Header has a live clock");
-            check(textCount(panel().findViewById(R.id.quickAudioOutput), activity.getString(R.string.settings)) == 0,
-                    "Audio output has no Settings subtitle");
             check(textCount(contents, activity.getString(R.string.quick_back)) == 0,
                     "Header reserves space for date and time");
             check(textCount(contents, activity.getString(R.string.module_cards)) == 0,
@@ -141,8 +142,8 @@ public final class QuickSettingsSmoke extends Instrumentation {
                     "All Settings label is hidden while Close is focused");
             check(textCount(contents, activity.getString(R.string.wifi)) == 1,
                     "Wi-Fi is available in the panel");
-            check(focusableCount(contents) == 13,
-                    "Ten tiles plus Launcher settings, All Settings and Close are present");
+            check(focusableCount(contents) == 12,
+                    "Nine tiles plus Launcher settings, All Settings and Close are present");
             sendKeyDownUpSync(KeyEvent.KEYCODE_BACK); settle();
             check(panel() == null, "Back closes controls");
             check(activity.getCurrentFocus() != null, "Back restores Home focus");
@@ -152,7 +153,7 @@ public final class QuickSettingsSmoke extends Instrumentation {
             addMonitor(monitor);
             verifyInterruptedAction();
             for (int id : new int[]{R.id.quickBluetooth, R.id.quickScreensaver, R.id.quickPicture,
-                    R.id.quickSound, R.id.quickAudioOutput, R.id.quickApps, R.id.quickAllSettings}) {
+                    R.id.quickSound, R.id.quickApps, R.id.quickAllSettings}) {
                 runOnMainSync(() -> activity.openQuickSettings()); settle();
                 check(currentFocus() == R.id.quickAllSettings, "Reopening starts on the settings gear");
                 launched = null; launches = 0;

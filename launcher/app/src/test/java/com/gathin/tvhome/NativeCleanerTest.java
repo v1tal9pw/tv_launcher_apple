@@ -16,13 +16,30 @@ public class NativeCleanerTest {
 
     @Test public void adbCleanupCommandFiltersUnsafePackagesAndFitsAdbPacket() {
         String cmd = QuickSettingsActions.buildAdbCleanupCommand(
-                Arrays.asList("com.gathin.tvhome", "com.wireguard.android", "bad;rm -rf /", ""));
+                Arrays.asList("com.gathin.tvhome", "bad;rm -rf /", ""),
+                Arrays.asList("com.google.android.youtube.tv", "bad$(id)"),
+                Arrays.asList("com.v2raytun.android", "bad|cat"));
         assertTrue(cmd.contains(" com.gathin.tvhome "));
-        assertTrue(cmd.contains(" com.wireguard.android "));
+        assertTrue(cmd.contains("com.v2raytun.android "));
+        assertTrue(cmd.contains(" com.google.android.youtube.tv"));
         assertFalse(cmd.contains("rm -rf"));
+        assertFalse(cmd.contains("$(id)"));
+        assertFalse(cmd.contains("|cat"));
+        assertTrue(cmd.contains("dumpsys activity activities"));
+        assertTrue(cmd.contains("dumpsys vpn_management"));
+        assertTrue(cmd.contains("dumpsys connectivity"));
         assertTrue(cmd.contains("am kill-all"));
         assertTrue(cmd.contains("pm trim-caches"));
-        assertTrue(cmd.length() < 2048);
+        assertTrue(cmd.length() < 3072);
+    }
+
+    @Test public void adbCleanupCommandOmitsVpnFallbackWhenDisconnected() {
+        String cmd = QuickSettingsActions.buildAdbCleanupCommand(
+                Arrays.asList("com.gathin.tvhome"),
+                Arrays.asList("com.google.android.youtube.tv"),
+                java.util.Collections.emptyList());
+        assertTrue(cmd.contains("dumpsys vpn_management"));
+        assertFalse(cmd.contains("com.v2raytun.android"));
     }
 
     @Test public void adbCleanupOutputParsesFreedRamAndStoppedCount() {

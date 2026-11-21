@@ -4,8 +4,14 @@ import android.accessibilityservice.AccessibilityService;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Color;
 import android.graphics.PixelFormat;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.SystemClock;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
@@ -14,17 +20,27 @@ import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 /** A control panel over the current app, hosted by the enabled accessibility service. */
 final class RemoteControlOverlay {
     private static final long BACK_WINDOW_MS = 3_000L;
+    private static Handler main;
+
+    private static Handler mainHandler() {
+        if (main == null) main = new Handler(Looper.getMainLooper());
+        return main;
+    }
 
     private static AccessibilityService owner;
     private static WindowManager windows;
     private static FrameLayout root;
     private static QuickSettingsPanel activePanel;
     private static View activeInputsOverlay;
+    private static WindowManager bannerWindows;
+    private static TextView statusBanner;
+    private static Runnable hideBannerTask;
 
     /** Foreground non-settings package observed before opening the overlay. */
     private static String currentHostPackage = "";
@@ -33,6 +49,7 @@ final class RemoteControlOverlay {
     private static String pendingHostPackage = "";
     private static boolean pendingLeftHost;
     private static long lastBackAt;
+    private static long lastConfirmAt;
 
     static void toggle(AccessibilityService service) {
         clearPendingReturn();
@@ -75,6 +92,7 @@ final class RemoteControlOverlay {
             clearPendingReturn();
             close();
         }
+        hideStatusBanner();
     }
 
     static boolean dismissForHome(AccessibilityService service, Runnable after) {
@@ -113,6 +131,25 @@ final class RemoteControlOverlay {
         lastBackAt = SystemClock.elapsedRealtime();
     }
 
+    static void noteNavigationKey(boolean confirm) {
+        lastBackAt = 0L;
+        if (confirm) lastConfirmAt = SystemClock.elapsedRealtime();
+    }
+
+    static boolean wasConfirmWithoutBack(long sinceElapsedRealtime) {
+        return isConfirmWithoutBack(lastConfirmAt, lastBackAt, sinceElapsedRealtime);
+    }
+
+    static boolean isConfirmWithoutBack(long confirmAt, long backAt, long sinceElapsedRealtime) {
+        return confirmAt > sinceElapsedRealtime && confirmAt > backAt;
+    }
+
+    static boolean shouldAutoReturn(boolean returnedToHost, boolean hostEmpty,
+                                    long backAt, long confirmAt, long now) {
+        if (backAt <= 0L || backAt < confirmAt || now - backAt > BACK_WINDOW_MS) return false;
+        return returnedToHost || hostEmpty;
+    }
+
     static void onWindowChanged(AccessibilityService service, CharSequence pkgSeq, CharSequence clsSeq) {
         if (pkgSeq == null || pkgSeq.length() == 0) return;
         String pkg = pkgSeq.toString();
@@ -139,8 +176,8 @@ final class RemoteControlOverlay {
         if (launcherSettings || isSettingsPackage(pkg)) return;
 
         boolean returnedToHost = !pendingHostPackage.isEmpty() && pendingHostPackage.equals(pkg);
-        boolean recentBack = SystemClock.elapsedRealtime() - lastBackAt <= BACK_WINDOW_MS;
-        if (returnedToHost || (pendingHostPackage.isEmpty() && recentBack)) {
+        long now = SystemClock.elapsedRealtime();
+        if (shouldAutoReturn(returnedToHost, pendingHostPackage.isEmpty(), lastBackAt, lastConfirmAt, now)) {
             int control = pendingReturnControl;
             clearPendingReturn();
             currentHostPackage = pkg;
@@ -151,7 +188,7 @@ final class RemoteControlOverlay {
             } else {
                 show(service, control, false);
             }
-        } else if (!recentBack) {
+        } else {
             clearPendingReturn();
             currentHostPackage = pkg;
         }
@@ -164,7 +201,12 @@ final class RemoteControlOverlay {
     }
 
     private static boolean isIgnoredSystemWindow(String pkg) {
-        return "com.android.systemui".equals(pkg) || "android".equals(pkg);
+        return "com.android.systemui".equals(pkg)
+                || "android".equals(pkg)
+                || "com.tcl.systemui.plugin".equals(pkg)
+                || "com.tcl.globalkeyoverlay".equals(pkg)
+                || "com.tcl.inputmethod.international".equals(pkg)
+                || "com.google.android.inputmethod.latin".equals(pkg);
     }
 
     private static boolean isLauncherSettingsWindow(String ownPackage, String pkg, String cls) {
@@ -179,6 +221,10 @@ final class RemoteControlOverlay {
         return "com.android.tv.settings".equals(pkg)
                 || "com.google.android.tv.settings".equals(pkg)
                 || "com.tcl.settings".equals(pkg)
+                || "com.tcl.tv.settings".equals(pkg)
+                || "com.tcl.quickpanel".equals(pkg)
+                || pkg.startsWith("com.tcl.tvsetting")
+                || pkg.startsWith("com.tcl.common.tvsetting")
                 || "com.android.settings".equals(pkg)
                 || "com.tcl.guard".equals(pkg)
                 || "com.xiaomi.mitv.settings".equals(pkg);
@@ -231,11 +277,22 @@ final class RemoteControlOverlay {
                                 new QuickSettingsPanel.Listener() {
                                     public void onAction(int control) {
                                         if (control == R.id.quickClearAll) {
-                                            QuickSettingsActions.clearBackground(service, host, () -> {
-                                                armPendingReturn(control, host);
-                                                close();
-                                                open(service, new Intent(service, OptimizationActivity.class));
-                                            });
+                                            QuickSettingsActions.clearBackground(service, host,
+                                                    new QuickSettingsActions.CleanupFeedback() {
+                                                        @Override public void onStatus(String message, boolean finished) {
+                                                            showStatusBanner(service, message, finished ? 3600L : 25000L);
+                                                            if (finished && root == panelRoot
+                                                                    && activePanel != null && activePanel.isShowing()) {
+                                                                activePanel.dismiss();
+                                                            }
+                                                        }
+
+                                                        @Override public void onNeedAdbSetup() {
+                                                            armPendingReturn(control, host);
+                                                            close();
+                                                            open(service, new Intent(service, OptimizationActivity.class));
+                                                        }
+                                                    });
                                             return;
                                         }
                                         if (control == R.id.quickInputs) {
@@ -254,7 +311,8 @@ final class RemoteControlOverlay {
                                             });
                                             return;
                                         }
-                                        armPendingReturn(control, host);
+                                        if (control == R.id.quickAllSettings) clearPendingReturn();
+                                        else armPendingReturn(control, host);
                                         close();
                                         Intent action = control == R.id.quickLauncherSettings
                                                 ? new Intent(service, LauncherSettingsActivity.class)
@@ -454,6 +512,84 @@ final class RemoteControlOverlay {
             Toast.makeText(LauncherLocale.wrap(service), R.string.not_available, Toast.LENGTH_SHORT).show();
             return false;
         }
+    }
+
+    /**
+     * Shows a non-focusable glass status pill in TYPE_ACCESSIBILITY_OVERLAY above any foreground app
+     * and above Control Center (Android 14 suppresses or z-orders background Toast behind overlays).
+     */
+    private static void showStatusBanner(AccessibilityService service, String message, long durationMs) {
+        if (service == null || message == null || message.isEmpty()) return;
+        WindowManager manager = service.getSystemService(WindowManager.class);
+        if (manager == null) return;
+        if (hideBannerTask != null) {
+            mainHandler().removeCallbacks(hideBannerTask);
+            hideBannerTask = null;
+        }
+        if (statusBanner != null) {
+            statusBanner.animate().cancel();
+            statusBanner.setAlpha(1f);
+            statusBanner.setText(message);
+        } else {
+            Context localized = LauncherLocale.wrap(service);
+            float d = localized.getResources().getDisplayMetrics().density;
+            TextView pill = new TextView(localized);
+            pill.setText(message);
+            pill.setTextColor(Color.WHITE);
+            pill.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f);
+            pill.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+            pill.setGravity(Gravity.CENTER);
+            pill.setMaxLines(2);
+            pill.setPadding(Math.round(22 * d), Math.round(12 * d), Math.round(22 * d), Math.round(12 * d));
+            GradientDrawable bg = new GradientDrawable();
+            bg.setColor(0xE61C2230);
+            bg.setCornerRadius(24 * d);
+            bg.setStroke(Math.max(1, Math.round(1 * d)), 0x45FFFFFF);
+            pill.setBackground(bg);
+            WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                            | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                            | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                            | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+                    PixelFormat.TRANSLUCENT);
+            lp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
+            lp.y = Math.round(36 * d);
+            try {
+                manager.addView(pill, lp);
+                bannerWindows = manager;
+                statusBanner = pill;
+                pill.setAlpha(0f);
+                pill.animate().alpha(1f).setDuration(160).start();
+            } catch (RuntimeException unavailable) {
+                Toast.makeText(localized, message, Toast.LENGTH_LONG).show();
+                return;
+            }
+        }
+        hideBannerTask = () -> {
+            hideBannerTask = null;
+            TextView pill = statusBanner;
+            if (pill == null) return;
+            pill.animate().alpha(0f).setDuration(200).withEndAction(RemoteControlOverlay::hideStatusBanner).start();
+        };
+        mainHandler().postDelayed(hideBannerTask, durationMs);
+    }
+
+    private static void hideStatusBanner() {
+        if (hideBannerTask != null) {
+            mainHandler().removeCallbacks(hideBannerTask);
+            hideBannerTask = null;
+        }
+        if (statusBanner != null && bannerWindows != null) {
+            try {
+                statusBanner.animate().cancel();
+                bannerWindows.removeView(statusBanner);
+            } catch (RuntimeException ignored) { }
+        }
+        statusBanner = null;
+        bannerWindows = null;
     }
 
     private static void close() {
