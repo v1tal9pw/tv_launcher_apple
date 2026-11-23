@@ -78,6 +78,18 @@
             <action android:name="com.android.settings.SOUND_SETTINGS" />
         </intent>
         <intent>
+            <action android:name="com.tcl.settings.action.SOUND" />
+        </intent>
+        <intent>
+            <action android:name="com.tcl.settings.action.SOUND_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="com.tcl.settings.SOUND" />
+        </intent>
+        <intent>
+            <action android:name="com.tcl.settings.SOUND_SETTINGS" />
+        </intent>
+        <intent>
             <action android:name="android.settings.MANAGE_APPLICATIONS_SETTINGS" />
         </intent>
         <intent>

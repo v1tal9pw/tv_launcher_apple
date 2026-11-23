@@ -4,7 +4,9 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.media.AudioAttributes;
 import android.media.AudioFormat;
+import android.media.AudioManager;
 import android.media.AudioTrack;
+import android.os.Process;
 import android.os.SystemClock;
 import android.view.KeyEvent;
 import android.view.View;
@@ -18,21 +20,32 @@ import java.util.function.BooleanSupplier;
 
 /**
  * Unified low-latency navigation click synthesizer used across Home, Control Center,
- * Settings, and overlays so audio feedback works consistently on TV firmwares where
- * system sound effects are muted or queued behind focus rendering.
+ * Settings, and overlays so audio feedback stays in sync with TV focus animations.
+ * Uses a pre-armed pool of native-rate low-latency static AudioTracks on an
+ * URGENT_AUDIO thread so the hot path only calls {@link AudioTrack#play()}.
  */
 final class NavSound {
     static final int DEFAULT_VOLUME = 60;
+    private static final int DEFAULT_SAMPLE_RATE = 48000;
+    private static final int POOL_SIZE = 3;
     private static final long DEBOUNCE_MS = 25L;
     private static final ExecutorService AUDIO_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
-        Thread thread = new Thread(r, "TvHome-NavSound");
+        Thread thread = new Thread(() -> {
+            try {
+                Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO);
+            } catch (Throwable ignored) {
+            }
+            r.run();
+        }, "TvHome-NavSound");
         thread.setDaemon(true);
         return thread;
     });
     private static final AtomicBoolean PENDING_PLAY = new AtomicBoolean(false);
-    private static AudioTrack clickTrack;
+    private static AudioTrack[] clickPool;
+    private static boolean[] needsReload;
+    private static int[] appliedVolumes;
+    private static int nextIndex;
     private static volatile int volumePercent = DEFAULT_VOLUME;
-    private static int appliedVolume = -1;
     private static volatile long lastPlayedAt;
 
     private NavSound() { }
@@ -43,6 +56,22 @@ final class NavSound {
 
     static float gainForPercent(int percent) {
         return clampVolume(percent) / 100f;
+    }
+
+    static int chooseSampleRate(int nativeRate) {
+        return nativeRate >= 8000 && nativeRate <= 192000 ? nativeRate : DEFAULT_SAMPLE_RATE;
+    }
+
+    static short[] buildClickPcm(int sampleRate) {
+        int rate = chooseSampleRate(sampleRate);
+        int numSamples = Math.max(1, (rate * 8) / 1000); // 8 ms crisp transient click
+        short[] buffer = new short[numSamples];
+        for (int i = 0; i < numSamples; i++) {
+            double t = (double) i / rate;
+            double decay = Math.exp(-t * 580.0);
+            buffer[i] = (short) Math.round(Math.sin(2.0 * Math.PI * 950.0 * t) * decay * 24000.0);
+        }
+        return buffer;
     }
 
     static int getVolume() {
@@ -57,48 +86,102 @@ final class NavSound {
     }
 
     static void prepare() {
-        if (clickTrack != null) return;
+        if (clickPool != null) return;
         AUDIO_EXECUTOR.execute(NavSound::prepareOnAudioThread);
     }
 
     private static synchronized void applyVolumeOnAudioThread(int percent) {
-        if (clickTrack == null || appliedVolume == percent) return;
+        if (clickPool == null) return;
+        float gain = gainForPercent(percent);
+        for (int i = 0; i < clickPool.length; i++) {
+            if (appliedVolumes[i] == percent) continue;
+            try {
+                clickPool[i].setVolume(gain);
+                appliedVolumes[i] = percent;
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
+    private static AudioTrack createStaticTrack(int sampleRate, short[] buffer, boolean lowLatency) {
+        AudioTrack.Builder builder = new AudioTrack.Builder()
+                .setAudioAttributes(new AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build())
+                .setAudioFormat(new AudioFormat.Builder()
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .setSampleRate(sampleRate)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                        .build())
+                .setBufferSizeInBytes(buffer.length * 2)
+                .setTransferMode(AudioTrack.MODE_STATIC);
+        if (lowLatency) {
+            builder.setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY);
+        }
+        AudioTrack track = builder.build();
+        if (track.getState() != AudioTrack.STATE_INITIALIZED) {
+            track.release();
+            return null;
+        }
+        int written = track.write(buffer, 0, buffer.length);
+        if (written <= 0) {
+            track.release();
+            return null;
+        }
+        return track;
+    }
+
+    private static AudioTrack buildTrackWithFallback(int sampleRate, short[] buffer) {
         try {
-            clickTrack.setVolume(gainForPercent(percent));
-            appliedVolume = percent;
+            AudioTrack fast = createStaticTrack(sampleRate, buffer, true);
+            if (fast != null) return fast;
         } catch (Throwable ignored) {
+        }
+        try {
+            return createStaticTrack(sampleRate, buffer, false);
+        } catch (Throwable ignored) {
+            return null;
         }
     }
 
     private static synchronized void prepareOnAudioThread() {
-        if (clickTrack != null) return;
+        if (clickPool != null) return;
         try {
-            int sampleRate = 22050;
-            int numSamples = sampleRate / 100; // 10 ms crisp click
-            short[] buffer = new short[numSamples];
-            for (int i = 0; i < numSamples; i++) {
-                double t = (double) i / sampleRate;
-                double decay = Math.exp(-t * 500.0);
-                buffer[i] = (short) (Math.sin(2 * Math.PI * 900.0 * t) * decay * 24000);
+            int nativeRate = DEFAULT_SAMPLE_RATE;
+            try {
+                nativeRate = AudioTrack.getNativeOutputSampleRate(AudioManager.STREAM_SYSTEM);
+            } catch (Throwable ignored) {
             }
-            AudioTrack track = new AudioTrack.Builder()
-                    .setAudioAttributes(new AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                            .build())
-                    .setAudioFormat(new AudioFormat.Builder()
-                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                            .setSampleRate(sampleRate)
-                            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                            .build())
-                    .setBufferSizeInBytes(buffer.length * 2)
-                    .setTransferMode(AudioTrack.MODE_STATIC)
-                    .build();
-            track.write(buffer, 0, buffer.length);
+            int sampleRate = chooseSampleRate(nativeRate);
+            short[] buffer = buildClickPcm(sampleRate);
             int vol = volumePercent;
-            track.setVolume(gainForPercent(vol));
-            appliedVolume = vol;
-            clickTrack = track;
+            float gain = gainForPercent(vol);
+            AudioTrack[] created = new AudioTrack[POOL_SIZE];
+            int count = 0;
+            for (int i = 0; i < POOL_SIZE; i++) {
+                AudioTrack track = buildTrackWithFallback(sampleRate, buffer);
+                if (track == null) break;
+                track.setVolume(gain);
+                created[count++] = track;
+            }
+            if (count == 0) return;
+            AudioTrack[] pool = count == POOL_SIZE ? created : java.util.Arrays.copyOf(created, count);
+            boolean[] reload = new boolean[count];
+            int[] volumes = new int[count];
+            java.util.Arrays.fill(volumes, vol);
+            clickPool = pool;
+            needsReload = reload;
+            appliedVolumes = volumes;
+            nextIndex = 0;
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static void rearmTrack(AudioTrack track) {
+        try {
+            track.stop();
+            track.reloadStaticData();
         } catch (Throwable ignored) {
         }
     }
@@ -121,14 +204,26 @@ final class NavSound {
             int vol = volumePercent;
             if (vol <= 0) return;
             prepareOnAudioThread();
-            if (clickTrack == null) return;
-            if (appliedVolume != vol) {
-                clickTrack.setVolume(gainForPercent(vol));
-                appliedVolume = vol;
+            if (clickPool == null || clickPool.length == 0) return;
+            int index = nextIndex;
+            AudioTrack track = clickPool[index];
+            if (needsReload[index]) {
+                rearmTrack(track);
+                needsReload[index] = false;
             }
-            clickTrack.stop();
-            clickTrack.reloadStaticData();
-            clickTrack.play();
+            if (appliedVolumes[index] != vol) {
+                track.setVolume(gainForPercent(vol));
+                appliedVolumes[index] = vol;
+            }
+            track.play();
+            needsReload[index] = true;
+            nextIndex = (index + 1) % clickPool.length;
+            // Re-arm the oldest track (next to be used) after play() has already fired so the next
+            // click has zero stop()/reloadStaticData() overhead in the hot path.
+            if (clickPool.length > 1 && needsReload[nextIndex]) {
+                rearmTrack(clickPool[nextIndex]);
+                needsReload[nextIndex] = false;
+            }
         } catch (Throwable ignored) {
         }
     }

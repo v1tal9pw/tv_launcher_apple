@@ -436,8 +436,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         folderTitle.setOnKeyListener((v, code, event) -> {
             if (code == KeyEvent.KEYCODE_DPAD_DOWN) {
                 if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                    focusTile(Math.min(lastFocused, adapter.columns() - 1));
                     if (adapter.appCount() > 0) playNavigationSound(code);
+                    focusTile(Math.min(lastFocused, adapter.columns() - 1));
                 }
                 return true;
             }
@@ -1291,9 +1291,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 return true;
             }
             if (expanded) {
+                playNavigationSound(keyCode);
                 setExpanded(false);
                 focusTile(position);
-                playNavigationSound(keyCode);
                 return true;
             }
             if (continueShelf.isShown() && continueShelf.focusRemembered()) {
@@ -1317,10 +1317,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             if (focusLibrary()) playNavigationSound(keyCode);
             return true;
         }
-        if (target != position && adapter.activeFolder() == null && !expanded && target >= columns)
-            setExpanded(true);
+        if (target != position) {
+            playNavigationSound(keyCode);
+            if (adapter.activeFolder() == null && !expanded && target >= columns)
+                setExpanded(true);
+        }
         focusTile(target);
-        if (target != position) playNavigationSound(keyCode);
         return true;
     }
 
@@ -1724,8 +1726,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             return true;
         }
         if (code == KeyEvent.KEYCODE_DPAD_DOWN) {
-            if (!continueShelf.isShown() || !continueShelf.focusRemembered()) focusTile(Math.min(lastFocused, COLUMNS - 1));
             if (adapter.appCount() > 0) playNavigationSound(code);
+            if (!continueShelf.isShown() || !continueShelf.focusRemembered()) focusTile(Math.min(lastFocused, COLUMNS - 1));
         } else {
             focusRequest++;
             requestedFocusKey = null;
@@ -2291,9 +2293,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     : AppOrder.centeredTarget(from, adapter.appCount(), adapter.columns(), direction);
             if (adapter.activeFolder() == null && !expanded && to >= COLUMNS) setExpanded(true);
             if (to != from) {
+                playNavigationSound(code);
                 animateMove(from, to);
                 focusKey(movingKey, to);
-                playNavigationSound(code);
             }
         }
         return true;
@@ -2516,8 +2518,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             } else {
                 int columns = adapter.columns();
                 int lastRow = ((count - 1) / columns) * columns;
-                focusTile(Math.min(lastRow + Math.max(0, lastFocused) % columns, count - 1));
                 playNavigationSound(KeyEvent.KEYCODE_DPAD_UP);
+                focusTile(Math.min(lastRow + Math.max(0, lastFocused) % columns, count - 1));
             }
         }
         return true;
@@ -3135,11 +3137,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             });
             return;
         }
+        int externalSettingsFlags = Intent.FLAG_ACTIVITY_NEW_TASK
+                | Intent.FLAG_ACTIVITY_CLEAR_TASK
+                | Intent.FLAG_ACTIVITY_CLEAR_TOP;
         if (control == R.id.quickBluetooth) {
             quickSettingsFocus = control;
             QuickSettingsActions.resolveBluetooth(this, resolved -> {
                 if (paused || isFinishing() || isDestroyed()) return;
-                Intent btIntent = resolved.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                Intent btIntent = resolved.addFlags(externalSettingsFlags);
                 resumeQuickSettings = true;
                 Runnable launch = () -> launchQuickIntent(control, btIntent, false);
                 if (quickSettings != null) quickSettings.closeForAction(launch);
@@ -3151,7 +3156,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             quickSettingsFocus = control;
             QuickSettingsActions.resolveSound(this, resolved -> {
                 if (paused || isFinishing() || isDestroyed()) return;
-                Intent soundIntent = resolved.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                Intent soundIntent = resolved.addFlags(externalSettingsFlags);
                 resumeQuickSettings = true;
                 Runnable launch = () -> launchQuickIntent(control, soundIntent, false);
                 if (quickSettings != null) quickSettings.closeForAction(launch);
@@ -3159,12 +3164,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             });
             return;
         }
-        // Keep launched settings in Home's task (CLEAR_TOP without NEW_TASK) so Back always pops
-        // directly back to MainActivity.onResume() and reopens the panel on the selected control.
+        // Keep LauncherSettingsActivity in Home's task (startActivityForResult), but isolate
+        // external TV settings in their own task so OEM overlays (e.g. TCL Display & Sound)
+        // dismissing MainSettings never push MainActivity behind the last opened app.
         boolean launcherSettings = control == R.id.quickLauncherSettings;
         Intent intent = launcherSettings ? new Intent(this, LauncherSettingsActivity.class)
                 : QuickSettingsActions.intent(this, control)
-                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                .addFlags(externalSettingsFlags);
         if (launcherSettings) intent.putExtra(HomePreviewView.DOCK_PACKAGE, continueShelf.focusedPackage());
         quickSettingsFocus = control;
         resumeQuickSettings = true;

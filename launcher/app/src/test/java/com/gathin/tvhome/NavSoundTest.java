@@ -15,6 +15,23 @@ public class NavSoundTest {
         assertEquals(1.0f, NavSound.gainForPercent(100), 0.0001f);
     }
 
+    @Test public void choosesNativeSampleRateAndBuildsShortDecayingClick() {
+        assertEquals(48000, NavSound.chooseSampleRate(48000));
+        assertEquals(44100, NavSound.chooseSampleRate(44100));
+        assertEquals(48000, NavSound.chooseSampleRate(0));
+        assertEquals(48000, NavSound.chooseSampleRate(-1));
+        assertEquals(48000, NavSound.chooseSampleRate(999999));
+
+        short[] pcm = NavSound.buildClickPcm(48000);
+        assertEquals(384, pcm.length); // 8 ms at 48 kHz
+        int earlyPeak = 0;
+        for (int i = 0; i < 64; i++) earlyPeak = Math.max(earlyPeak, Math.abs(pcm[i]));
+        int tailPeak = 0;
+        for (int i = pcm.length - 32; i < pcm.length; i++) tailPeak = Math.max(tailPeak, Math.abs(pcm[i]));
+        assertTrue("Click starts with crisp transient", earlyPeak > 10000);
+        assertTrue("Click decays cleanly by tail", tailPeak < earlyPeak / 10);
+    }
+
     @Test public void overlayAutoReturnRequiresRecentBackNotConfirm() {
         // Normal Back press within window returns to Control Center
         assertTrue(RemoteControlOverlay.shouldAutoReturn(true, false, 5_000L, 1_000L, 5_500L));

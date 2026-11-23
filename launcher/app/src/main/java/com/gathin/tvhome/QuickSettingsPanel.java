@@ -436,8 +436,9 @@ final class QuickSettingsPanel extends FrameLayout {
             if (current == null) focus(selected);
             else {
                 View next = current.focusSearch(direction);
-                if (next != null && next != current && contains(next) && next.requestFocus(direction)) {
+                if (next != null && next != current && contains(next) && next.isFocusable()) {
                     NavSound.play(navigationSounds);
+                    next.requestFocus(direction);
                 }
             }
         }

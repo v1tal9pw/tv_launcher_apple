@@ -299,12 +299,14 @@ final class RemoteControlOverlay {
                                             openInputsOverlay(service, panelRoot, activePanel, config);
                                             return;
                                         }
+                                        int externalFlags = Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                                | Intent.FLAG_ACTIVITY_CLEAR_TOP;
                                         if (control == R.id.quickBluetooth) {
                                             QuickSettingsActions.resolveBluetooth(service, resolved -> {
                                                 if (root != panelRoot) return;
                                                 armPendingReturn(control, host);
                                                 close();
-                                                if (!open(service, resolved.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))) {
+                                                if (!open(service, resolved.addFlags(externalFlags))) {
                                                     clearPendingReturn();
                                                     show(service, control, false);
                                                 }
@@ -316,7 +318,7 @@ final class RemoteControlOverlay {
                                                 if (root != panelRoot) return;
                                                 armPendingReturn(control, host);
                                                 close();
-                                                if (!open(service, resolved.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))) {
+                                                if (!open(service, resolved.addFlags(externalFlags))) {
                                                     clearPendingReturn();
                                                     show(service, control, false);
                                                 }
@@ -329,7 +331,7 @@ final class RemoteControlOverlay {
                                         Intent action = control == R.id.quickLauncherSettings
                                                 ? new Intent(service, LauncherSettingsActivity.class)
                                                 : QuickSettingsActions.intent(service, control)
-                                                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                                                .addFlags(externalFlags);
                                         if (!open(service, action)) {
                                             clearPendingReturn();
                                             show(service, control, false);

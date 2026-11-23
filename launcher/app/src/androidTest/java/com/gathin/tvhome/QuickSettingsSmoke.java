@@ -171,6 +171,8 @@ public final class QuickSettingsSmoke extends Instrumentation {
                         launched.getStringExtra("slice_uri")), "Bluetooth retains accessories slice");
                 check((launched.getFlags() & Intent.FLAG_ACTIVITY_CLEAR_TOP) != 0,
                         "Settings does not reopen a stale submenu");
+                check((launched.getFlags() & Intent.FLAG_ACTIVITY_NEW_TASK) != 0,
+                        "External settings runs in its own task so hiding it keeps Home visible");
                 // Simulate returning from a native page; the monitor suppressed the real transition.
                 runOnMainSync(() -> { callActivityOnPause(activity); callActivityOnResume(activity); });
                 settle();

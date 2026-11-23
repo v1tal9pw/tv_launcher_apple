@@ -49,10 +49,24 @@ final class QuickSettingsActions {
     static final String ACTION_LEGACY_SOUND_SETTINGS = "com.android.settings.SOUND_SETTINGS";
     private static final String ACCESSORIES_SLICE_AUTHORITY = "com.android.tv.settings.accessories.sliceprovider";
     private static final String ACCESSORIES_SLICE_URI = "content://" + ACCESSORIES_SLICE_AUTHORITY + "/general";
-    private static final String DISPLAY_AND_SOUND_SLICE_RESOURCE = "display_and_sound_slice_uri";
+    private static final String[] DISPLAY_SOUND_XMLS = {
+            "display_sound_vendor", "display_sound_x", "display_sound", "display_sound_compat",
+            "display_and_sound_vendor", "display_and_sound_x", "display_and_sound"
+    };
     private static final String[] MAIN_PREFS_XMLS = {"main_prefs_vendor", "main_prefs_x", "main_prefs"};
+    private static final String[] SOUND_SLICE_RESOURCES = {
+            "sound_slice_uri", "audio_slice_uri", "sound_settings_slice_uri", "audio_settings_slice_uri"
+    };
+    private static final String[] VENDOR_SOUND_ACTIONS = {
+            "com.tcl.settings.action.SOUND",
+            "com.tcl.settings.action.SOUND_SETTINGS",
+            "com.tcl.settings.SOUND",
+            "com.tcl.settings.SOUND_SETTINGS"
+    };
     private static final String AOSP_DISPLAY_SOUND_ACTIVITY =
             "com.android.tv.settings.device.displaysound.DisplaySoundActivity";
+    private static final String AOSP_SOUND_ACTIVITY =
+            "com.android.tv.settings/.device.sound.SoundActivity";
     private static final String TCL_SETTINGS_PACKAGE = "com.tcl.settings";
     private static final String[] VENDOR_BLUETOOTH_COMPONENTS = {
             "com.tcl.settings/.accessories.AccessoriesActivity",
@@ -404,11 +418,11 @@ final class QuickSettingsActions {
     }
 
     /**
-     * Resolves the TV's native Display & Sound / Sound settings for the Sound control without ever
-     * falling back to {@link Settings#ACTION_DISPLAY_SETTINGS} (which opens Picture-only settings
-     * on TCL Google TV 14). If the firmware exposes its Display & Sound panel via a TvSettings
-     * slice behind WRITE_SECURE_SETTINGS and local ADB is active, grants the permission once so
-     * SliceActivity opens directly on this and all subsequent clicks.
+     * Resolves the TV's dedicated Sound-only side panel without opening Picture-only settings
+     * ({@link Settings#ACTION_DISPLAY_SETTINGS}) or combined Display &amp; Sound when a dedicated
+     * Sound route exists. If the firmware exposes a Sound-only TvSettings slice behind
+     * WRITE_SECURE_SETTINGS and local ADB is active, grants the permission once so SliceActivity
+     * opens directly on this and all subsequent clicks.
      */
     static void resolveSound(Context context, java.util.function.Consumer<Intent> onReady) {
         Map<String, String> routes = Config.load(context).settingsRoutes;
@@ -420,7 +434,7 @@ final class QuickSettingsActions {
         }
         Intent protectedSlice = protectedSoundSlice(context, routes, discovered);
         if (protectedSlice == null) {
-            onReady.accept(fallbackSoundIntent(context, routes));
+            onReady.accept(fallbackSoundIntent(context, routes, discovered));
             return;
         }
         Context app = context.getApplicationContext();
@@ -433,7 +447,7 @@ final class QuickSettingsActions {
             Intent chosen = app.checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS)
                     == PackageManager.PERMISSION_GRANTED
                     ? protectedSlice
-                    : fallbackSoundIntent(app, routes);
+                    : fallbackSoundIntent(app, routes, discovered);
             main.post(() -> onReady.accept(chosen));
         });
     }
@@ -478,7 +492,7 @@ final class QuickSettingsActions {
             SoundRoute discovered = inspectTvSettingsSoundRoute(context, routes);
             Intent primary = primarySoundIntent(context, routes, discovered);
             if (primary != null) return primary;
-            return fallbackSoundIntent(context, routes);
+            return fallbackSoundIntent(context, routes, discovered);
         }
         String standardAction = control == R.id.quickPicture ? Settings.ACTION_DISPLAY_SETTINGS
                 : Settings.ACTION_SETTINGS;
@@ -671,21 +685,34 @@ final class QuickSettingsActions {
     }
 
     private static final class SoundRoute {
-        Intent displayAndSoundIntent;
         Intent soundPrefIntent;
-        String slicePackage;
-        String sliceUri;
+        String soundSlicePackage;
+        String soundSliceUri;
+        Intent displayAndSoundIntent;
     }
 
     private static Intent primarySoundIntent(Context context, Map<String, String> routes, SoundRoute discovered) {
         Intent configured = component(context, routes.get("quick_sound_component"));
         if (configured != null) return configured;
         configured = action(context, routes.get("quick_sound_action"));
-        if (configured != null && isSafeVendorSoundIntent(context, configured)) return configured;
-        if (discovered.displayAndSoundIntent != null) return discovered.displayAndSoundIntent;
+        if (configured != null && isSafeSoundOnlyIntent(context, configured)) return configured;
+        if (discovered.soundPrefIntent != null) return discovered.soundPrefIntent;
+        Intent tvSound = vendorSoundAction(context, ACTION_TV_SOUND, true);
+        if (tvSound != null) return tvSound;
+        Intent soundAction = vendorSoundAction(context, Settings.ACTION_SOUND_SETTINGS, true);
+        if (soundAction != null) return soundAction;
+        soundAction = vendorSoundAction(context, ACTION_LEGACY_SOUND_SETTINGS, true);
+        if (soundAction != null) return soundAction;
+        for (String vendorAction : VENDOR_SOUND_ACTIONS) {
+            Intent candidate = vendorSoundAction(context, vendorAction, true);
+            if (candidate != null) return candidate;
+        }
         Intent slice = soundSlice(context, routes, discovered, true);
         if (slice != null) return slice;
-        if (discovered.soundPrefIntent != null) return discovered.soundPrefIntent;
+        Intent discoveredActivity = discoverVendorSoundActivity(context, routes);
+        if (discoveredActivity != null) return discoveredActivity;
+        Intent aospSound = component(context, AOSP_SOUND_ACTIVITY);
+        if (aospSound != null) return aospSound;
         return null;
     }
 
@@ -695,15 +722,10 @@ final class QuickSettingsActions {
         return soundSlice(context, routes, discovered, false);
     }
 
-    private static Intent fallbackSoundIntent(Context context, Map<String, String> routes) {
-        Intent tvSound = vendorSoundAction(context, ACTION_TV_SOUND, true);
-        if (tvSound != null) return tvSound;
-        Intent vendorSound = vendorSoundAction(context, Settings.ACTION_SOUND_SETTINGS, false);
-        if (vendorSound != null) return vendorSound;
-        vendorSound = vendorSoundAction(context, ACTION_LEGACY_SOUND_SETTINGS, false);
-        if (vendorSound != null) return vendorSound;
-        Intent discoveredActivity = discoverVendorSoundActivity(context, routes);
-        if (discoveredActivity != null) return discoveredActivity;
+    private static Intent fallbackSoundIntent(Context context, Map<String, String> routes, SoundRoute discovered) {
+        Intent sound = action(context, Settings.ACTION_SOUND_SETTINGS);
+        if (sound != null) return sound;
+        if (discovered != null && discovered.displayAndSoundIntent != null) return discovered.displayAndSoundIntent;
         return systemIntent(context, Settings.ACTION_SOUND_SETTINGS, routes);
     }
 
@@ -719,74 +741,122 @@ final class QuickSettingsActions {
             } catch (PackageManager.NameNotFoundException | RuntimeException unavailable) {
                 continue;
             }
-            for (String xmlName : MAIN_PREFS_XMLS) {
-                int xmlId = res.getIdentifier(xmlName, "xml", candidate);
-                if (xmlId == 0) continue;
-                try (XmlResourceParser parser = res.getXml(xmlId)) {
-                    String matchedKey = null;
-                    int matchedDepth = -1;
-                    int event = parser.getEventType();
-                    while (event != XmlPullParser.END_DOCUMENT) {
-                        if (event == XmlPullParser.START_TAG) {
-                            String tag = parser.getName();
-                            if (matchedKey != null && parser.getDepth() == matchedDepth + 1 && "intent".equals(tag)) {
-                                try {
-                                    Intent parsed = Intent.parseIntent(res, parser, Xml.asAttributeSet(parser));
-                                    if (isSafeVendorSoundIntent(context, parsed)) {
-                                        if ("display_and_sound".equals(matchedKey) && result.displayAndSoundIntent == null) {
-                                            result.displayAndSoundIntent = parsed;
-                                        } else if ("sound".equals(matchedKey) && result.soundPrefIntent == null) {
-                                            result.soundPrefIntent = parsed;
-                                        }
-                                    }
-                                } catch (Exception ignored) { }
-                            } else {
-                                String key = readXmlAttr(res, parser, "key");
-                                if ("display_and_sound".equals(key) || "sound".equals(key)) {
-                                    matchedKey = key;
-                                    matchedDepth = parser.getDepth();
-                                } else if (("display_and_sound_slice".equals(key) || "sound_slice".equals(key))
-                                        && result.sliceUri == null) {
-                                    String uri = readXmlAttr(res, parser, "uri");
-                                    if (isContentUri(uri)) {
-                                        result.slicePackage = candidate;
-                                        result.sliceUri = uri;
-                                    }
-                                }
-                            }
-                        } else if (event == XmlPullParser.END_TAG && matchedKey != null
-                                && parser.getDepth() <= matchedDepth) {
-                            matchedKey = null;
-                            matchedDepth = -1;
+            scanSoundPrefsXmls(context, candidate, res, DISPLAY_SOUND_XMLS, result);
+            scanSoundPrefsXmls(context, candidate, res, MAIN_PREFS_XMLS, result);
+            if (result.soundSliceUri == null) {
+                for (String resource : SOUND_SLICE_RESOURCES) {
+                    try {
+                        int id = res.getIdentifier(resource, "string", candidate);
+                        String uri = id == 0 ? null : res.getString(id);
+                        if (isContentUri(uri)) {
+                            result.soundSlicePackage = candidate;
+                            result.soundSliceUri = uri;
+                            break;
                         }
-                        event = parser.next();
-                    }
-                } catch (Exception ignored) { }
+                    } catch (RuntimeException ignored) { }
+                }
             }
-            if (result.sliceUri == null) {
-                try {
-                    int id = res.getIdentifier(DISPLAY_AND_SOUND_SLICE_RESOURCE, "string", candidate);
-                    String uri = id == 0 ? null : res.getString(id);
-                    if (isContentUri(uri)) {
-                        result.slicePackage = candidate;
-                        result.sliceUri = uri;
-                    }
-                } catch (RuntimeException ignored) { }
-            }
-            if (result.displayAndSoundIntent != null || result.sliceUri != null) break;
+            if (result.soundPrefIntent != null || result.soundSliceUri != null) break;
         }
         return result;
     }
 
+    private static void scanSoundPrefsXmls(Context context, String candidate, Resources res,
+                                           String[] xmlNames, SoundRoute result) {
+        for (String xmlName : xmlNames) {
+            int xmlId = res.getIdentifier(xmlName, "xml", candidate);
+            if (xmlId == 0) continue;
+            try (XmlResourceParser parser = res.getXml(xmlId)) {
+                String matchedKey = null;
+                boolean matchedSoundOnly = false;
+                int matchedDepth = -1;
+                int event = parser.getEventType();
+                while (event != XmlPullParser.END_DOCUMENT) {
+                    if (event == XmlPullParser.START_TAG) {
+                        String tag = parser.getName();
+                        if (matchedKey != null && parser.getDepth() == matchedDepth + 1 && "intent".equals(tag)) {
+                            try {
+                                Intent parsed = Intent.parseIntent(res, parser, Xml.asAttributeSet(parser));
+                                if (matchedSoundOnly) {
+                                    if (result.soundPrefIntent == null && isSafeSoundOnlyIntent(context, parsed)) {
+                                        result.soundPrefIntent = parsed;
+                                    }
+                                } else if (result.displayAndSoundIntent == null
+                                        && isSafeDisplayAndSoundFallbackIntent(context, parsed)) {
+                                    result.displayAndSoundIntent = parsed;
+                                }
+                            } catch (Exception ignored) { }
+                        } else {
+                            String key = readXmlAttr(res, parser, "key");
+                            if (isSoundOnlyPreferenceKey(key)) {
+                                matchedKey = key;
+                                matchedSoundOnly = true;
+                                matchedDepth = parser.getDepth();
+                            } else if ("display_and_sound".equals(key)) {
+                                matchedKey = key;
+                                matchedSoundOnly = false;
+                                matchedDepth = parser.getDepth();
+                            } else if (isSoundOnlySliceKey(key) && result.soundSliceUri == null) {
+                                String uri = readXmlAttr(res, parser, "uri");
+                                if (isContentUri(uri)) {
+                                    result.soundSlicePackage = candidate;
+                                    result.soundSliceUri = uri;
+                                }
+                            }
+                        }
+                    } else if (event == XmlPullParser.END_TAG && matchedKey != null
+                            && parser.getDepth() <= matchedDepth) {
+                        matchedKey = null;
+                        matchedSoundOnly = false;
+                        matchedDepth = -1;
+                    }
+                    event = parser.next();
+                }
+            } catch (Exception ignored) { }
+        }
+    }
+
+    static boolean isSoundOnlyPreferenceKey(String key) {
+        if (key == null || key.isEmpty()) return false;
+        String lower = key.toLowerCase(Locale.US);
+        if (lower.contains("display") || lower.contains("picture") || lower.contains("screen")
+                || lower.contains("video") || lower.contains("slice") || lower.contains("effect")
+                || lower.contains("system_sound") || lower.contains("output") || lower.contains("only")
+                || lower.contains("surround") || lower.contains("advanced") || lower.contains("format")
+                || lower.contains("volume") || lower.contains("mute") || lower.contains("tts")
+                || lower.contains("speech") || lower.contains("voice") || lower.contains("caption")
+                || lower.contains("subtitle") || lower.contains("equalizer") || lower.contains("soundbar")
+                || lower.contains("hdmi") || lower.contains("earc") || lower.contains("bluetooth")) {
+            return false;
+        }
+        return lower.equals("sound") || lower.equals("audio")
+                || lower.startsWith("sound_") || lower.endsWith("_sound") || lower.contains("_sound_")
+                || lower.startsWith("audio_") || lower.endsWith("_audio") || lower.contains("_audio_");
+    }
+
+    static boolean isSoundOnlySliceKey(String key) {
+        if (key == null || key.isEmpty()) return false;
+        String lower = key.toLowerCase(Locale.US);
+        if (!lower.contains("slice")) return false;
+        if (lower.contains("display") || lower.contains("picture") || lower.contains("screen")
+                || lower.contains("video") || lower.contains("effect") || lower.contains("output")
+                || lower.contains("only") || lower.contains("surround") || lower.contains("advanced")
+                || lower.contains("format") || lower.contains("volume") || lower.contains("tts")
+                || lower.contains("caption") || lower.contains("equalizer")) {
+            return false;
+        }
+        return lower.contains("sound") || lower.contains("audio");
+    }
+
     private static Intent soundSlice(Context context, Map<String, String> routes, SoundRoute discovered,
                                      boolean requirePermission) {
-        if (discovered == null || !isContentUri(discovered.sliceUri)) return null;
+        if (discovered == null || !isContentUri(discovered.soundSliceUri)) return null;
         String action = routes.get("settings_slice_action");
         String extra = routes.get("settings_slice_uri_extra");
-        String pkg = discovered.slicePackage != null ? discovered.slicePackage : routes.get("settings_package");
+        String pkg = discovered.soundSlicePackage != null ? discovered.soundSlicePackage : routes.get("settings_package");
         if (pkg == null || pkg.isEmpty() || action == null || action.isEmpty() || extra == null || extra.isEmpty())
             return null;
-        Intent slice = new Intent(action).setPackage(pkg).putExtra(extra, discovered.sliceUri);
+        Intent slice = new Intent(action).setPackage(pkg).putExtra(extra, discovered.soundSliceUri);
         return sliceResolvable(context, slice, requirePermission) ? slice : null;
     }
 
@@ -810,10 +880,10 @@ final class QuickSettingsActions {
         return "content".equals(uri.getScheme()) && uri.getAuthority() != null && !uri.getAuthority().isEmpty();
     }
 
-    private static boolean isSafeVendorSoundIntent(Context context, Intent intent) {
+    private static boolean isSafeSoundOnlyIntent(Context context, Intent intent) {
         if (intent == null) return false;
-        if (Settings.ACTION_DISPLAY_SETTINGS.equals(intent.getAction())
-                && (intent.getExtras() == null || intent.getExtras().isEmpty())) {
+        boolean hasExtras = intent.getExtras() != null && !intent.getExtras().isEmpty();
+        if (Settings.ACTION_DISPLAY_SETTINGS.equals(intent.getAction()) && !hasExtras) {
             return false;
         }
         try {
@@ -821,10 +891,26 @@ final class QuickSettingsActions {
             ActivityInfo info = resolved == null ? null : resolved.activityInfo;
             if (!launchable(context, info) || info.name == null || info.name.contains("CTSDummy")) return false;
             if (AOSP_DISPLAY_SOUND_ACTIVITY.equals(info.name)) return false;
-            if (isPictureOnlyClassName(info.name)
-                    && (intent.getExtras() == null || intent.getExtras().isEmpty())) {
+            if (!hasExtras && (isPictureOnlyClassName(info.name) || isCombinedDisplayAndSoundClassName(info.name))) {
                 return false;
             }
+            return true;
+        } catch (RuntimeException unavailable) {
+            return false;
+        }
+    }
+
+    private static boolean isSafeDisplayAndSoundFallbackIntent(Context context, Intent intent) {
+        if (intent == null) return false;
+        boolean hasExtras = intent.getExtras() != null && !intent.getExtras().isEmpty();
+        if (Settings.ACTION_DISPLAY_SETTINGS.equals(intent.getAction()) && !hasExtras) {
+            return false;
+        }
+        try {
+            ResolveInfo resolved = context.getPackageManager().resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY);
+            ActivityInfo info = resolved == null ? null : resolved.activityInfo;
+            if (!launchable(context, info) || info.name == null || info.name.contains("CTSDummy")) return false;
+            if (!hasExtras && isPictureOnlyClassName(info.name)) return false;
             return true;
         } catch (RuntimeException unavailable) {
             return false;
@@ -839,7 +925,9 @@ final class QuickSettingsActions {
             for (ResolveInfo handler : handlers) {
                 ActivityInfo info = handler == null ? null : handler.activityInfo;
                 if (!launchable(context, info) || info.name == null || info.name.contains("CTSDummy")) continue;
-                if (AOSP_DISPLAY_SOUND_ACTIVITY.equals(info.name) || isPictureOnlyClassName(info.name)) continue;
+                if (AOSP_DISPLAY_SOUND_ACTIVITY.equals(info.name)
+                        || isPictureOnlyClassName(info.name)
+                        || isCombinedDisplayAndSoundClassName(info.name)) continue;
                 Intent explicit = new Intent(action).setComponent(new ComponentName(info.packageName, info.name));
                 if (!"com.android.tv.settings".equals(info.packageName)
                         && !"com.android.settings".equals(info.packageName)) {
@@ -904,6 +992,15 @@ final class QuickSettingsActions {
         return hasPicture && !hasSound;
     }
 
+    static boolean isCombinedDisplayAndSoundClassName(String className) {
+        if (className == null || className.isEmpty()) return false;
+        String simple = simpleClassName(className).toLowerCase(Locale.US);
+        boolean hasDisplay = simple.contains("display") || simple.contains("picture")
+                || simple.contains("screen") || simple.contains("video");
+        boolean hasSound = simple.contains("sound") || simple.contains("audio");
+        return hasDisplay && hasSound;
+    }
+
     static int scoreSoundActivityName(String packageName, String className,
                                       String displayPackage, String displayClass) {
         if (packageName == null || className == null || className.isEmpty()) return 0;
@@ -918,10 +1015,11 @@ final class QuickSettingsActions {
                 || simple.contains("soundbar") || simple.contains("bluetooth") || simple.contains("volume")
                 || simple.contains("mute") || simple.contains("tts") || simple.contains("speech")
                 || simple.contains("voice") || simple.contains("mic") || simple.contains("caption")
-                || simple.contains("subtitle") || simple.contains("accessibility") || simple.contains("hearaid")) {
+                || simple.contains("subtitle") || simple.contains("accessibility") || simple.contains("hearaid")
+                || simple.contains("output")) {
             return 0;
         }
-        if (isPictureOnlyClassName(className)) return 0;
+        if (isPictureOnlyClassName(className) || isCombinedDisplayAndSoundClassName(className)) return 0;
 
         boolean isVendorPackage = !"com.android.tv.settings".equals(packageName)
                 && !"com.android.settings".equals(packageName);
@@ -931,15 +1029,15 @@ final class QuickSettingsActions {
 
         boolean hasSound = simple.contains("sound") || simple.contains("audio");
         if (!hasSound) return 0;
-        boolean hasDisplay = simple.contains("display") || simple.contains("picture") || simple.contains("screen");
         int bonus = packageName.equals(displayPackage) ? 20 : 0;
-        if (hasDisplay) return 300 + bonus;
         if (simple.equals("soundactivity") || simple.equals("soundsettingsactivity")
-                || simple.equals("audioactivity") || simple.equals("audiosettingsactivity")
-                || simple.equals("tvsoundactivity")) {
-            return 250 + bonus;
+                || simple.equals("soundsettingactivity") || simple.equals("audioactivity")
+                || simple.equals("audiosettingsactivity") || simple.equals("audiosettingactivity")
+                || simple.equals("tvsoundactivity") || simple.equals("quicksoundactivity")
+                || simple.equals("soundmenuactivity") || simple.equals("soundpanelactivity")) {
+            return 300 + bonus;
         }
-        return 200 + bonus;
+        return 220 + bonus;
     }
 
     private static String simpleClassName(String className) {

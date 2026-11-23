@@ -55,7 +55,7 @@
     <string name="feature_glow_intensity">Intensity</string>
     <string name="feature_glow_tile">Focused tile halo</string>
     <string name="feature_glow_tile_help">Show a colored halo around the selected app tile. Turning glow style or intensity off disables all app glow completely.</string>
-    <string name="installed_changes" formatted="false">Version 3.67 for TCL C6K. Lowered the Home dock so the next row of app tiles is completely hidden below the screen edge, completely removed the built-in equalizer from launcher settings, and added automatic relaunch back to Home right after installing an update.</string>
+    <string name="installed_changes" formatted="false">Version 3.68 for TCL C6K. Eliminated navigation click sound lag behind focus animations using a low-latency AudioTrack pool triggered before focus transitions, routed the Control Center Sound tile directly to the standalone Sound side panel instead of Display &amp; Sound, and isolated external TV settings in their own task so the last opened app no longer appears behind floating settings.</string>
     <string name="update_check_button">Check for updates</string>
     <string name="weather_show_city">Show city name</string>
     <string name="weather_show_details">Show feels-like temperature and wind</string>

@@ -738,6 +738,7 @@ final class AppLibraryDialog {
             });
             card.setOnLongClickListener(selectionMode ? null : v -> { showActions(app, v); return true; });
             card.setOnFocusChangeListener((v, gained) -> {
+                if (gained && highlightShown && !pkg.equals(selectedPackage)) NavSound.play(sounds);
                 float scale = gained ? CARD_FOCUS_SCALE : 1f;
                 v.animate().cancel();
                 if (animations) {
@@ -749,7 +750,6 @@ final class AppLibraryDialog {
                     v.setScaleY(scale);
                 }
                 if (gained) {
-                    if (highlightShown && !pkg.equals(selectedPackage)) NavSound.play(sounds);
                     selectedPackage = pkg;
                     instructions.setText(openAll || onHome.test(pkg)
                             ? R.string.library_hint_open : R.string.library_hint_add);
