@@ -665,8 +665,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         super.onResume();
         remotePanelForeground = true;
         foregroundInstance = this;
+        UpdateInstallReceiver.clearPendingRelaunch(this);
         RemoteControlOverlay.closeIfShowing();
-        SystemEqualizer.applySaved(this);
         quickSettingsWasOpenOnPause = false;
         android.content.SharedPreferences prefs = getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE);
         long revision = prefs.getLong(Config.SETTINGS_REVISION_KEY, 0);
@@ -1382,11 +1382,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         int inner = grid.getWidth() - grid.getPaddingLeft() - grid.getPaddingRight();
         int itemH = AppAdapter.itemHeightPx(AppAdapter.tileHeightPx(
                 AppAdapter.tileWidthPx(inner, COLUMNS, density)), density);
-        // Leave just 12dp of the next row's artwork below any fully visible rows. Its top
-        // starts after the dock decoration's inset and the item's own 6dp top padding.
-        int nextRowSpace = dockDecoration.rowInset() + dp(6 + 12);
+        // Hide the next row completely below the viewport while leaving clean breathing room under the dock.
         return Math.max(0, grid.getHeight() - grid.getPaddingTop()
-                - itemH * (1 + rowsBelowDock) - nextRowSpace);
+                - itemH * (1 + rowsBelowDock) - dockDecoration.rowInset());
     }
 
     private void cancelGridTransition() {

@@ -40,6 +40,11 @@ final class LocalAdbClient {
         return false;
     }
 
+    static boolean hasSavedKeys(Context context) {
+        return new File(context.getFilesDir(), "local_adb_private.key").isFile()
+                && new File(context.getFilesDir(), "local_adb_public.key").isFile();
+    }
+
     private static boolean portOpen(String host) {
         try (Socket socket = new Socket()) {
             socket.connect(new InetSocketAddress(host, 5555), 600);

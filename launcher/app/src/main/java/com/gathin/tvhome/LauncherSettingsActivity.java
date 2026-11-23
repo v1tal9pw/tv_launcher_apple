@@ -31,7 +31,6 @@ public final class LauncherSettingsActivity extends Activity {
     private SettingsRowView advancedChoice;
     private SettingsRowView soundsChoice;
     private SettingsRowView soundsVolumeChoice;
-    private SettingsRowView equalizerChoice;
     private SettingsRowView wallpaperChoice;
     private SettingsRowView rowsChoice;
     private int rowsBelowDock;
@@ -131,8 +130,6 @@ public final class LauncherSettingsActivity extends Activity {
         });
         soundsVolumeChoice = findViewById(R.id.soundsVolumeChoice);
         soundsVolumeChoice.setOnClickListener(v -> chooseSoundVolume());
-        equalizerChoice = findViewById(R.id.equalizerChoice);
-        equalizerChoice.setOnClickListener(v -> startActivity(new Intent(this, EqualizerActivity.class)));
         libraryChoice = findViewById(R.id.libraryChoice);
         libraryChoice.setOnClickListener(v -> {
             appLibrary = !appLibrary;
@@ -204,7 +201,6 @@ public final class LauncherSettingsActivity extends Activity {
         advancedChoice.setIcon(R.drawable.ic_quick_launcher_settings, 0xFFFF9F0A);
         soundsChoice.setIcon(R.drawable.ic_quick_sound, 0xFFFF375F);
         soundsVolumeChoice.setIcon(R.drawable.ic_quick_sound, 0xFFFF9F0A);
-        equalizerChoice.setIcon(R.drawable.ic_settings_equalizer, 0xFF0A84FF);
         libraryChoice.setIcon(R.drawable.ic_apps, 0xFF5E5CE6);
         statsChoice.setIcon(R.drawable.ic_settings_stats, 0xFF30D158);
         followThemeChoice.setIcon(R.drawable.ic_quick_launcher_settings, 0xFF64D2FF);
@@ -238,7 +234,7 @@ public final class LauncherSettingsActivity extends Activity {
         github.setOnClickListener(v -> openGitHub());
         // White focus and a raised shadow stay within the row's width. No scaling into a clip edge.
         for (int id : new int[]{R.id.columns4, R.id.columns5, R.id.columns6, R.id.columns7, R.id.animationsChoice,
-                R.id.advancedChoice, R.id.soundsChoice, R.id.soundsVolumeChoice, R.id.equalizerChoice,
+                R.id.advancedChoice, R.id.soundsChoice, R.id.soundsVolumeChoice,
                 R.id.libraryChoice, R.id.statsChoice,
                 R.id.continueWatchingChoice,
                 R.id.wallpaperChoice, R.id.rowsChoice, R.id.glowChoice, R.id.weatherChoice, R.id.idleClockChoice,
@@ -306,7 +302,6 @@ public final class LauncherSettingsActivity extends Activity {
         soundsVolumeChoice.setValue(navigationSoundVolume + "%", true);
         soundsVolumeChoice.setEnabled(navigationSounds);
         soundsVolumeChoice.setAlpha(navigationSounds ? 1f : 0.5f);
-        equalizerChoice.setValue(SystemEqualizer.summary(this), true);
         libraryChoice.setToggle(appLibrary);
         statsChoice.setToggle(showStats);
         continueChoice.setToggle(continueWatching);
@@ -362,8 +357,6 @@ public final class LauncherSettingsActivity extends Activity {
             title = R.string.settings_sounds; hint = R.string.settings_sounds_hint;
         } else if (id == R.id.soundsVolumeChoice) {
             title = R.string.settings_sounds_volume; hint = R.string.settings_sounds_volume_hint;
-        } else if (id == R.id.equalizerChoice) {
-            title = R.string.settings_equalizer; hint = R.string.settings_equalizer_hint;
         } else if (id == R.id.libraryChoice) {
             title = R.string.app_library; hint = R.string.settings_app_library_hint;
         } else if (id == R.id.statsChoice) {
@@ -471,7 +464,6 @@ public final class LauncherSettingsActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
-        if (equalizerChoice != null) equalizerChoice.setValue(SystemEqualizer.summary(this), true);
         updatePreview();
     }
 

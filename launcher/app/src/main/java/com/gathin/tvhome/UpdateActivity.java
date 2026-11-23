@@ -148,13 +148,16 @@ public final class UpdateActivity extends Activity {
                         while ((count = in.read(bytes)) != -1) out.write(bytes, 0, count);
                         session.fsync(out);
                     }
-                    Intent callback = new Intent(this, UpdateInstallReceiver.class);
-                    PendingIntent pending = PendingIntent.getBroadcast(this, id, callback,
+                    Intent callback = new Intent(this, UpdateInstallActivity.class)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    PendingIntent pending = PendingIntent.getActivity(this, id, callback,
                             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+                    UpdateInstallReceiver.markPendingRelaunch(this, UpdateInstallReceiver.INSTALL_WINDOW_MS);
                     session.commit(pending.getIntentSender());
                 }
                 runOnUiThread(() -> { if (!isFinishing() && !isDestroyed()) finish(); });
             } catch (Exception error) {
+                UpdateInstallReceiver.clearPendingRelaunch(this);
                 runOnUiThread(() -> {
                     if (isFinishing() || isDestroyed()) return;
                     Toast.makeText(this, R.string.update_failed, Toast.LENGTH_LONG).show();

@@ -161,8 +161,6 @@
                 <View style="@style/SettingsDivider" />
                 <com.gathin.tvhome.SettingsRowView android:id="@+id/soundsVolumeChoice" style="@style/SettingsRow" android:text="@string/settings_sounds_volume" />
                 <View style="@style/SettingsDivider" />
-                <com.gathin.tvhome.SettingsRowView android:id="@+id/equalizerChoice" style="@style/SettingsRow" android:text="@string/settings_equalizer" />
-                <View style="@style/SettingsDivider" />
                 <com.gathin.tvhome.SettingsRowView android:id="@+id/libraryChoice" style="@style/SettingsRow" android:text="@string/app_library" />
                 <View style="@style/SettingsDivider" />
                 <com.gathin.tvhome.SettingsRowView android:id="@+id/continueWatchingChoice" style="@style/SettingsRow" android:text="@string/continue_watching" />

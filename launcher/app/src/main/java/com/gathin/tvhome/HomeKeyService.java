@@ -123,7 +123,9 @@ public class HomeKeyService extends AccessibilityService {
         try {
             settingsScancodes = getResources().getIntArray(R.array.settings_key_scancodes);
             loadConfig();
-            SystemEqualizer.applySaved(this);
+            if (UpdateInstallReceiver.isPendingRelaunch(this) && !MainActivity.remotePanelForeground) {
+                handler.postDelayed(this::openHomeAfterUpdate, 150);
+            }
         } catch (RuntimeException error) {
             Log.e(TAG, "Service initialization failed", error);
         }
@@ -546,6 +548,12 @@ public class HomeKeyService extends AccessibilityService {
     void openHome() {
         if (MainActivity.dismissForegroundPanelForHome()) return;
         if (RemoteControlOverlay.dismissForHome(this, this::launchHomeActivity)) return;
+        RemoteControlOverlay.closeFor(this);
+        launchHomeActivity();
+    }
+
+    void openHomeAfterUpdate() {
+        if (!UpdateInstallReceiver.consumePendingRelaunch(this) || MainActivity.remotePanelForeground) return;
         RemoteControlOverlay.closeFor(this);
         launchHomeActivity();
     }
