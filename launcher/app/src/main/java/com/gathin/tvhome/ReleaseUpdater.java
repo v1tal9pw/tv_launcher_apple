@@ -15,14 +15,18 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.net.ssl.HttpsURLConnection;
 
-/** Checks the personal fork's published release when Home opens, at most once a day. */
+/** Checks the personal fork's published release in the background and caches badge state. */
 final class ReleaseUpdater {
     static final String REPOSITORY = "v1tal9pw/tv_launcher_apple";
     static final String GITHUB_URL = "https://github.com/" + REPOSITORY;
     private static final String API = "https://api.github.com/repos/" + REPOSITORY + "/releases/latest";
-    private static final long DAY_MS = 24L * 60 * 60 * 1000;
+    private static final long AUTO_CHECK_INTERVAL_MS = 3L * 60 * 60 * 1000;
     private static final long FAILURE_RETRY_MS = 15L * 60 * 1000;
     private static final String LAST_CHECK = "release_last_check";
+    private static final String CACHED_CODE = "release_available_code";
+    private static final String CACHED_URL = "release_available_url";
+    private static final String CACHED_SHA = "release_available_sha256";
+    private static final String CACHED_NOTES = "release_available_notes";
     private static volatile long retryAfterMs;
     private static volatile boolean checking;
 
@@ -44,6 +48,10 @@ final class ReleaseUpdater {
         if (tag == null || !tag.matches("v[1-9][0-9]{0,8}")) return -1;
         try { return Integer.parseInt(tag.substring(1)); }
         catch (NumberFormatException ignored) { return -1; }
+    }
+
+    static boolean isUpdateNewer(int availableCode, int installedCode) {
+        return availableCode > 0 && installedCode > 0 && availableCode > installedCode;
     }
 
     static Release parse(JSONObject json, int installedCode) {
@@ -71,9 +79,68 @@ final class ReleaseUpdater {
         return notes.length() <= 3000 ? notes : notes.substring(0, 3000).trim() + "…";
     }
 
+    static boolean hasAvailableUpdate(Context context) {
+        return cachedUpdate(context) != null;
+    }
+
+    static Release cachedUpdate(Context context) {
+        if (context == null) return null;
+        SharedPreferences prefs = FeaturePreferences.prefs(context);
+        int code = prefs.getInt(CACHED_CODE, 0);
+        if (code <= 0) return null;
+        int installed = installedVersionCode(context);
+        String url = prefs.getString(CACHED_URL, "");
+        String sha = prefs.getString(CACHED_SHA, "");
+        String notes = prefs.getString(CACHED_NOTES, "");
+        if (!isUpdateNewer(code, installed)
+                || url == null || !url.startsWith("https://github.com/" + REPOSITORY + "/releases/download/")
+                || sha == null || !sha.matches("[0-9a-f]{64}")) {
+            clearCachedUpdate(prefs);
+            return null;
+        }
+        return new Release(code, url, sha, notes == null ? "" : notes);
+    }
+
+    private static int installedVersionCode(Context context) {
+        try {
+            return context.getPackageManager().getPackageInfo(context.getPackageName(), 0).versionCode;
+        } catch (Throwable ignored) {
+            return 0;
+        }
+    }
+
+    private static void saveCachedUpdate(SharedPreferences prefs, Release release) {
+        if (release == null) {
+            clearCachedUpdate(prefs);
+        } else {
+            prefs.edit()
+                    .putInt(CACHED_CODE, release.code)
+                    .putString(CACHED_URL, release.url)
+                    .putString(CACHED_SHA, release.sha256)
+                    .putString(CACHED_NOTES, release.notes)
+                    .apply();
+        }
+    }
+
+    private static void clearCachedUpdate(SharedPreferences prefs) {
+        prefs.edit()
+                .remove(CACHED_CODE)
+                .remove(CACHED_URL)
+                .remove(CACHED_SHA)
+                .remove(CACHED_NOTES)
+                .apply();
+    }
+
     static void check(Activity activity, Consumer<Release> available) {
         check(activity, false, (release, checked) -> {
             if (release != null) available.accept(release);
+        });
+    }
+
+    /** Automatic periodic background check; notifies the caller whenever a check completes. */
+    static void checkAuto(Activity activity, Consumer<Release> completed) {
+        check(activity, false, (release, checked) -> {
+            if (checked && completed != null) completed.accept(release);
         });
     }
 
@@ -96,9 +163,10 @@ final class ReleaseUpdater {
                 release = fetch(context);
                 checked = true;
                 prefs.edit().putLong(LAST_CHECK, System.currentTimeMillis()).apply();
+                saveCachedUpdate(prefs, release);
                 retryAfterMs = 0;
             } catch (Exception ignored) {
-                /* Offline Home remains usable; retry later instead of skipping a full day. */
+                /* Offline Home remains usable; retry later instead of skipping a full interval. */
                 retryAfterMs = System.currentTimeMillis() + FAILURE_RETRY_MS;
             } finally {
                 checking = false;
@@ -110,7 +178,7 @@ final class ReleaseUpdater {
     }
 
     static boolean shouldCheck(long last, long now, boolean force) {
-        return force || last <= 0 || now < last || now - last >= DAY_MS;
+        return force || last <= 0 || now < last || now - last >= AUTO_CHECK_INTERVAL_MS;
     }
 
     private static Release fetch(Context context) throws Exception {
@@ -129,7 +197,7 @@ final class ReleaseUpdater {
                     bytes.write(buffer, 0, n);
                 }
             }
-            int installed = context.getPackageManager().getPackageInfo(context.getPackageName(), 0).versionCode;
+            int installed = installedVersionCode(context);
             return parse(new JSONObject(bytes.toString("UTF-8")), installed);
         } finally { connection.disconnect(); }
     }

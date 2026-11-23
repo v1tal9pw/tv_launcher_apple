@@ -15,17 +15,36 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-/** Remote-friendly settings owned by the launcher; system settings stay one row away. */
+/** Remote-friendly settings owned by the launcher, organized into tvOS-style sections. */
 public final class LauncherSettingsActivity extends Activity {
     @Override protected void attachBaseContext(android.content.Context base) {
         super.attachBaseContext(LauncherLocale.wrap(base));
     }
 
+    private static final String STATE_SECTION = "current_section";
+    private static final String STATE_LAST_CATEGORY = "last_category";
     private static final int[] SOUND_VOLUMES = {10, 25, 40, 60, 80, 100};
+    private static final int[] SECTION_IDS = {
+            R.id.sectionHome, R.id.sectionAppearance, R.id.sectionWidgets,
+            R.id.sectionSoundRemote, R.id.sectionSystem, R.id.sectionAbout
+    };
+
     private SharedPreferences choices;
+    private ScrollView settingsScroll;
+    private View categoriesContainer;
+    private TextView settingsKicker;
+    private TextView settingsTitle;
+    private TextView settingsBackHint;
+    private SettingsRowView categoryHome;
+    private SettingsRowView categoryAppearance;
+    private SettingsRowView categoryWidgets;
+    private SettingsRowView categorySoundRemote;
+    private SettingsRowView categorySystem;
+    private SettingsRowView categoryAbout;
     private final TextView[] columnChoices = new TextView[4];
     private SettingsRowView animationsChoice;
     private SettingsRowView advancedChoice;
@@ -33,6 +52,8 @@ public final class LauncherSettingsActivity extends Activity {
     private SettingsRowView soundsVolumeChoice;
     private SettingsRowView wallpaperChoice;
     private SettingsRowView rowsChoice;
+    private SettingsRowView weatherChoice;
+    private SettingsRowView idleClockChoice;
     private int rowsBelowDock;
     private SettingsRowView libraryChoice;
     private SettingsRowView statsChoice;
@@ -52,6 +73,9 @@ public final class LauncherSettingsActivity extends Activity {
     private String wallpaper;
     private String glowStyle;
     private int glowIntensity;
+    private int idleClockMinutes;
+    private int currentSection;
+    private int lastCategoryId = R.id.categoryHome;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -59,21 +83,12 @@ public final class LauncherSettingsActivity extends Activity {
         setContentView(R.layout.activity_launcher_settings);
         ((HomePreviewView) findViewById(R.id.settingsPreviewImage)).setDockPackage(getIntent().getStringExtra(HomePreviewView.DOCK_PACKAGE));
         choices = getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE);
-        Config config = Config.load(this);
-        columns = config.columns;
-        rowsBelowDock = config.rowsBelowDock;
-        animations = config.animations;
-        advancedEffects = config.animations && config.advancedEffects;
-        navigationSounds = config.navigationSounds;
-        navigationSoundVolume = config.navigationSoundVolume;
-        NavSound.setVolume(navigationSoundVolume);
-        if (navigationSounds) NavSound.prepare();
-        appLibrary = config.appLibrary;
-        showStats = config.showStats;
-        continueWatching = config.continueWatching;
-        wallpaper = config.wallpaperChoice;
-        glowStyle = config.glowStyle;
-        glowIntensity = config.glowIntensity;
+        settingsScroll = findViewById(R.id.settingsScroll);
+        categoriesContainer = findViewById(R.id.settingsCategoriesContainer);
+        settingsKicker = findViewById(R.id.settingsKicker);
+        settingsTitle = findViewById(R.id.settingsTitle);
+        settingsBackHint = findViewById(R.id.settingsBackHint);
+        loadConfigState();
 
         int[] ids = {R.id.columns4, R.id.columns5, R.id.columns6, R.id.columns7};
         for (int i = 0; i < ids.length; i++) {
@@ -164,9 +179,9 @@ public final class LauncherSettingsActivity extends Activity {
         glowChoice = findViewById(R.id.glowChoice);
         glowChoice.setIcon(R.drawable.ic_quick_picture, 0xFFBF5AF2);
         glowChoice.setOnClickListener(v -> openFeature(FeatureSettingsActivity.GLOW));
-        featureRow(R.id.weatherChoice, FeatureSettingsActivity.WEATHER, R.drawable.ic_quick_picture, 0xFF64D2FF);
-        featureRow(R.id.idleClockChoice, FeatureSettingsActivity.CLOCK, R.drawable.ic_quick_screensaver, 0xFFBF5AF2);
-        featureRow(R.id.appCustomizationChoice, FeatureSettingsActivity.APPS, R.drawable.ic_apps, 0xFF5E5CE6);
+        weatherChoice = featureRow(R.id.weatherChoice, FeatureSettingsActivity.WEATHER, R.drawable.ic_quick_picture, 0xFF64D2FF);
+        idleClockChoice = featureRow(R.id.idleClockChoice, FeatureSettingsActivity.CLOCK, R.drawable.ic_quick_screensaver, 0xFFBF5AF2);
+        featureRow(R.id.appCustomizationChoice, FeatureSettingsActivity.APPS, R.drawable.ic_apps, 0xFFBF5AF2);
         featureRow(R.id.remoteButtonsChoice, FeatureSettingsActivity.REMOTE, R.drawable.ic_quick_apps, 0xFF30D158);
         followThemeChoice = findViewById(R.id.followThemeChoice);
         followThemeChoice.setVisibility(View.GONE);
@@ -176,32 +191,22 @@ public final class LauncherSettingsActivity extends Activity {
                     .remove("navigation_sounds").remove(Config.NAV_SOUND_VOLUME_KEY).remove("wallpaper_choice")
                     .remove("app_library").remove("show_stats").remove(Config.ROWS_BELOW_DOCK_KEY).commit();
             FeaturePreferences.clearAppearance(this);
-            Config current = Config.load(this);
-            columns = current.columns;
-            rowsBelowDock = current.rowsBelowDock;
-            animations = current.animations;
-            advancedEffects = current.animations && current.advancedEffects;
-            navigationSounds = current.navigationSounds;
-            navigationSoundVolume = current.navigationSoundVolume;
-            NavSound.setVolume(navigationSoundVolume);
-            appLibrary = current.appLibrary;
-            showStats = current.showStats;
-            continueWatching = current.continueWatching;
-            wallpaper = current.wallpaperChoice;
-            glowStyle = current.glowStyle;
-            glowIntensity = current.glowIntensity;
+            loadConfigState();
             Config.markSettingsChanged(LauncherSettingsActivity.this); setResult(RESULT_OK);
             refresh();
         });
         findViewById(R.id.defaultHomeChoice).setOnClickListener(v -> chooseDefaultHome());
         findViewById(R.id.tvSettingsChoice).setOnClickListener(v ->
-                open(new Intent(Settings.ACTION_SETTINGS)));
+                open(new Intent(Settings.ACTION_SETTINGS)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                                | Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                | Intent.FLAG_ACTIVITY_CLEAR_TOP)));
         wallpaperChoice.setIcon(R.drawable.ic_quick_screensaver, 0xFF0A84FF);
-        animationsChoice.setIcon(R.drawable.ic_settings_motion, 0xFFBF5AF2);
+        animationsChoice.setIcon(R.drawable.ic_settings_motion, 0xFF30D158);
         advancedChoice.setIcon(R.drawable.ic_quick_launcher_settings, 0xFFFF9F0A);
         soundsChoice.setIcon(R.drawable.ic_quick_sound, 0xFFFF375F);
         soundsVolumeChoice.setIcon(R.drawable.ic_quick_sound, 0xFFFF9F0A);
-        libraryChoice.setIcon(R.drawable.ic_apps, 0xFF5E5CE6);
+        libraryChoice.setIcon(R.drawable.ic_apps, 0xFF0A84FF);
         statsChoice.setIcon(R.drawable.ic_settings_stats, 0xFF30D158);
         followThemeChoice.setIcon(R.drawable.ic_quick_launcher_settings, 0xFF64D2FF);
         SettingsRowView defaultHome = findViewById(R.id.defaultHomeChoice);
@@ -214,16 +219,8 @@ public final class LauncherSettingsActivity extends Activity {
         optimization.setOnClickListener(v -> startActivity(new Intent(this, OptimizationActivity.class)));
         tvSettings.setIcon(R.drawable.ic_settings, 0xFF737989);
         tvSettings.setValue("", true);
-        SettingsRowView aboutLauncher = findViewById(R.id.aboutLauncherChoice);
-        aboutLauncher.setIcon(R.drawable.ic_settings_info, 0xFF64D2FF);
-        aboutLauncher.setValue(installedVersion(), true);
-        aboutLauncher.setOnClickListener(v -> {
-            AlertDialog dialog = new AlertDialog.Builder(this)
-                    .setTitle(R.string.about_launcher)
-                    .setMessage(getString(R.string.about_launcher_message, installedVersion()))
-                    .setPositiveButton(android.R.string.ok, null).show();
-            glass(dialog);
-        });
+        ((TextView) findViewById(R.id.aboutVersionText)).setText(
+                getString(R.string.about_launcher_version, installedVersion()));
         checkUpdatesChoice = findViewById(R.id.checkUpdatesChoice);
         checkUpdatesChoice.setIcon(R.drawable.ic_settings_update, 0xFF30D158);
         checkUpdatesChoice.setValue("", true);
@@ -232,14 +229,32 @@ public final class LauncherSettingsActivity extends Activity {
         github.setIcon(R.drawable.ic_settings_link, 0xFF5E5CE6);
         github.setValue("v1tal9pw", true);
         github.setOnClickListener(v -> openGitHub());
+
+        // Top-level tvOS category entries
+        categoryHome = setupCategory(R.id.categoryHome, R.id.sectionHome,
+                R.drawable.ic_home_settings, 0xFF0A84FF);
+        categoryAppearance = setupCategory(R.id.categoryAppearance, R.id.sectionAppearance,
+                R.drawable.ic_quick_picture, 0xFFBF5AF2);
+        categoryWidgets = setupCategory(R.id.categoryWidgets, R.id.sectionWidgets,
+                R.drawable.ic_quick_screensaver, 0xFF64D2FF);
+        categorySoundRemote = setupCategory(R.id.categorySoundRemote, R.id.sectionSoundRemote,
+                R.drawable.ic_quick_sound, 0xFFFF375F);
+        categorySystem = setupCategory(R.id.categorySystem, R.id.sectionSystem,
+                R.drawable.ic_settings, 0xFF737989);
+        categoryAbout = setupCategory(R.id.categoryAbout, R.id.sectionAbout,
+                R.drawable.ic_settings_info, 0xFF5E5CE6);
+
         // White focus and a raised shadow stay within the row's width. No scaling into a clip edge.
-        for (int id : new int[]{R.id.columns4, R.id.columns5, R.id.columns6, R.id.columns7, R.id.animationsChoice,
+        for (int id : new int[]{
+                R.id.categoryHome, R.id.categoryAppearance, R.id.categoryWidgets,
+                R.id.categorySoundRemote, R.id.categorySystem, R.id.categoryAbout,
+                R.id.columns4, R.id.columns5, R.id.columns6, R.id.columns7, R.id.animationsChoice,
                 R.id.advancedChoice, R.id.soundsChoice, R.id.soundsVolumeChoice,
                 R.id.libraryChoice, R.id.statsChoice,
                 R.id.continueWatchingChoice,
                 R.id.wallpaperChoice, R.id.rowsChoice, R.id.glowChoice, R.id.weatherChoice, R.id.idleClockChoice,
                 R.id.appCustomizationChoice, R.id.remoteButtonsChoice, R.id.followThemeChoice,
-                R.id.defaultHomeChoice, R.id.tvSettingsChoice, R.id.aboutLauncherChoice,
+                R.id.defaultHomeChoice, R.id.tvSettingsChoice,
                 R.id.checkUpdatesChoice, R.id.githubChoice, R.id.optimizationChoice}) {
             findViewById(id).setOnFocusChangeListener((v, focused) -> {
                 v.animate().translationZ(focused ? 6 * getResources().getDisplayMetrics().density : 0)
@@ -247,9 +262,134 @@ public final class LauncherSettingsActivity extends Activity {
                 if (focused) showDetail(id);
             });
         }
-        for (TextView column : columnChoices) column.setNextFocusDownId(R.id.wallpaperChoice);
+        for (TextView column : columnChoices) column.setNextFocusDownId(R.id.rowsChoice);
         refresh();
-        aboutLauncher.requestFocus();
+
+        if (state != null) {
+            lastCategoryId = state.getInt(STATE_LAST_CATEGORY, R.id.categoryHome);
+            int savedSection = state.getInt(STATE_SECTION, 0);
+            if (savedSection != 0) {
+                openSection(savedSection, lastCategoryId, false);
+                return;
+            }
+        }
+        showCategories(false);
+    }
+
+    private void loadConfigState() {
+        Config config = Config.load(this);
+        columns = config.columns;
+        rowsBelowDock = config.rowsBelowDock;
+        animations = config.animations;
+        advancedEffects = config.animations && config.advancedEffects;
+        navigationSounds = config.navigationSounds;
+        navigationSoundVolume = config.navigationSoundVolume;
+        NavSound.setVolume(navigationSoundVolume);
+        if (navigationSounds) NavSound.prepare();
+        appLibrary = config.appLibrary;
+        showStats = config.showStats;
+        continueWatching = config.continueWatching;
+        wallpaper = config.wallpaperChoice;
+        glowStyle = config.glowStyle;
+        glowIntensity = config.glowIntensity;
+        idleClockMinutes = config.homeIdleClockMinutes;
+    }
+
+    private SettingsRowView setupCategory(int categoryId, int sectionId, int icon, int color) {
+        SettingsRowView row = findViewById(categoryId);
+        row.setIcon(icon, color);
+        row.setValue("", true);
+        row.setOnClickListener(v -> openSection(sectionId, categoryId, true));
+        return row;
+    }
+
+    private void openSection(int sectionId, int categoryId, boolean animate) {
+        View targetSection = findViewById(sectionId);
+        if (targetSection == null) return;
+        currentSection = sectionId;
+        lastCategoryId = categoryId;
+        categoriesContainer.setVisibility(View.GONE);
+        for (int id : SECTION_IDS) {
+            findViewById(id).setVisibility(id == sectionId ? View.VISIBLE : View.GONE);
+        }
+        settingsScroll.scrollTo(0, 0);
+        settingsKicker.setText(R.string.launcher_settings);
+        settingsTitle.setText(titleForSection(sectionId));
+        settingsBackHint.setVisibility(View.VISIBLE);
+        if (animate && animations) {
+            float shift = 16f * getResources().getDisplayMetrics().density;
+            targetSection.animate().cancel();
+            targetSection.setAlpha(0f);
+            targetSection.setTranslationX(shift);
+            targetSection.animate().alpha(1f).translationX(0f).setDuration(150).start();
+        } else {
+            targetSection.setAlpha(1f);
+            targetSection.setTranslationX(0f);
+        }
+        View initialFocus = initialFocusForSection(sectionId);
+        if (initialFocus != null) {
+            showDetail(initialFocus.getId());
+            initialFocus.post(initialFocus::requestFocus);
+        }
+    }
+
+    private void showCategories(boolean animate) {
+        currentSection = 0;
+        for (int id : SECTION_IDS) findViewById(id).setVisibility(View.GONE);
+        categoriesContainer.setVisibility(View.VISIBLE);
+        settingsScroll.scrollTo(0, 0);
+        settingsKicker.setText(R.string.launcher_brand);
+        settingsTitle.setText(R.string.launcher_settings);
+        settingsBackHint.setVisibility(View.GONE);
+        if (animate && animations) {
+            float shift = -14f * getResources().getDisplayMetrics().density;
+            categoriesContainer.animate().cancel();
+            categoriesContainer.setAlpha(0f);
+            categoriesContainer.setTranslationX(shift);
+            categoriesContainer.animate().alpha(1f).translationX(0f).setDuration(150).start();
+        } else {
+            categoriesContainer.setAlpha(1f);
+            categoriesContainer.setTranslationX(0f);
+        }
+        View target = findViewById(lastCategoryId);
+        if (target == null) target = categoryHome;
+        showDetail(target.getId());
+        View focus = target;
+        focus.post(focus::requestFocus);
+    }
+
+    private int titleForSection(int sectionId) {
+        if (sectionId == R.id.sectionHome) return R.string.settings_cat_home;
+        if (sectionId == R.id.sectionAppearance) return R.string.settings_cat_appearance;
+        if (sectionId == R.id.sectionWidgets) return R.string.settings_cat_widgets;
+        if (sectionId == R.id.sectionSoundRemote) return R.string.settings_cat_sound_remote;
+        if (sectionId == R.id.sectionSystem) return R.string.settings_cat_system;
+        if (sectionId == R.id.sectionAbout) return R.string.settings_cat_about;
+        return R.string.launcher_settings;
+    }
+
+    private View initialFocusForSection(int sectionId) {
+        if (sectionId == R.id.sectionHome) return columnChoices[Math.max(0, Math.min(columns - 4, 3))];
+        if (sectionId == R.id.sectionAppearance) return wallpaperChoice;
+        if (sectionId == R.id.sectionWidgets) return weatherChoice;
+        if (sectionId == R.id.sectionSoundRemote) return soundsChoice;
+        if (sectionId == R.id.sectionSystem) return findViewById(R.id.defaultHomeChoice);
+        if (sectionId == R.id.sectionAbout) return checkUpdatesChoice;
+        return categoryHome;
+    }
+
+    @Override protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putInt(STATE_SECTION, currentSection);
+        outState.putInt(STATE_LAST_CATEGORY, lastCategoryId);
+    }
+
+    @Override public void onBackPressed() {
+        if (currentSection != 0) {
+            showCategories(true);
+            return;
+        }
+        super.onBackPressed();
     }
 
     /** The confirmation in Home's frosted dialog colours: dark rounded panel, white glass buttons. */
@@ -262,7 +402,7 @@ public final class LauncherSettingsActivity extends Activity {
             dialog.getWindow().setBackgroundDrawable(panel);
             dialog.getWindow().setDimAmount(.32f);
         }
-        for (int which : new int[]{AlertDialog.BUTTON_NEGATIVE, AlertDialog.BUTTON_POSITIVE}) {
+        for (int which : new int[]{AlertDialog.BUTTON_NEGATIVE, AlertDialog.BUTTON_NEUTRAL, AlertDialog.BUTTON_POSITIVE}) {
             Button button = dialog.getButton(which);
             if (button == null) continue;
             int pad = Math.round(18 * density), padV = Math.round(10 * density);
@@ -315,7 +455,36 @@ public final class LauncherSettingsActivity extends Activity {
         wallpaperChoice.setValue(wallpaperLabel, true);
         rowsChoice.setValue(String.valueOf(rowsBelowDock), true);
         glowChoice.setValue(glowSummary(), true);
-        wallpaperChoice.setNextFocusUpId(columnChoices[Math.max(0, Math.min(columns - 4, 3))].getId());
+        rowsChoice.setNextFocusUpId(columnChoices[Math.max(0, Math.min(columns - 4, 3))].getId());
+
+        SharedPreferences features = FeaturePreferences.prefs(this);
+        boolean weatherEnabled = features.getBoolean("weather_enabled", true);
+        String city = features.getString("city", "");
+        String shortCity = shortCityName(city);
+        String weatherSummary = !weatherEnabled ? getString(R.string.off)
+                : (!shortCity.isEmpty() ? shortCity : getString(R.string.on));
+        weatherChoice.setValue(weatherSummary, true);
+        String clockSummary = idleClockMinutes > 0
+                ? getString(R.string.feature_minutes, idleClockMinutes)
+                : getString(R.string.off);
+        idleClockChoice.setValue(clockSummary, true);
+
+        categoryHome.setValue(getString(R.string.settings_cat_home_value, columns), true);
+        categoryAppearance.setValue(wallpaperLabel, true);
+        categoryWidgets.setValue(weatherEnabled && !shortCity.isEmpty() ? shortCity
+                : (idleClockMinutes > 0 ? clockSummary : ""), true);
+        categorySoundRemote.setValue(navigationSounds ? navigationSoundVolume + "%" : getString(R.string.off), true);
+        categorySystem.setValue("", true);
+        ReleaseUpdater.Release pendingUpdate = ReleaseUpdater.cachedUpdate(this);
+        boolean hasUpdate = pendingUpdate != null;
+        categoryAbout.setValue(installedVersion(), true);
+        categoryAbout.setBadge(hasUpdate);
+        checkUpdatesChoice.setBadge(hasUpdate);
+        if (!checkingUpdate) {
+            checkUpdatesChoice.setValue(hasUpdate
+                    ? getString(R.string.update_available_short, pendingUpdate.code) : "", true);
+        }
+
         followThemeChoice.setSelected(!hasOnTvChoices());
         followThemeChoice.setValue(getString(hasOnTvChoices() ? R.string.settings_custom : R.string.wallpaper_theme), true);
         ((TextView) findViewById(R.id.settingsPreviewCaption)).setText(getString(R.string.wallpaper_state, wallpaperLabel));
@@ -331,9 +500,27 @@ public final class LauncherSettingsActivity extends Activity {
         return getString(label) + " · " + glowIntensity + "%";
     }
 
+    static String shortCityName(String city) {
+        if (city == null) return "";
+        int comma = city.indexOf(',');
+        return (comma >= 0 ? city.substring(0, comma) : city).trim();
+    }
+
     private void showDetail(int id) {
         int title, hint;
-        if (id == R.id.optimizationChoice) {
+        if (id == R.id.categoryHome) {
+            title = R.string.settings_cat_home; hint = R.string.settings_cat_home_hint;
+        } else if (id == R.id.categoryAppearance) {
+            title = R.string.settings_cat_appearance; hint = R.string.settings_cat_appearance_hint;
+        } else if (id == R.id.categoryWidgets) {
+            title = R.string.settings_cat_widgets; hint = R.string.settings_cat_widgets_hint;
+        } else if (id == R.id.categorySoundRemote) {
+            title = R.string.settings_cat_sound_remote; hint = R.string.settings_cat_sound_remote_hint;
+        } else if (id == R.id.categorySystem) {
+            title = R.string.settings_cat_system; hint = R.string.settings_cat_system_hint;
+        } else if (id == R.id.categoryAbout) {
+            title = R.string.settings_cat_about; hint = R.string.settings_cat_about_hint;
+        } else if (id == R.id.optimizationChoice) {
             title = R.string.optimize_title; hint = R.string.optimize_help;
         } else if (id == R.id.wallpaperChoice) {
             title = R.string.settings_wallpaper; hint = R.string.wallpaper_hint;
@@ -369,8 +556,6 @@ public final class LauncherSettingsActivity extends Activity {
             title = R.string.home_settings; hint = R.string.home_settings_help;
         } else if (id == R.id.tvSettingsChoice) {
             title = R.string.tv_settings; hint = R.string.settings_system_hint;
-        } else if (id == R.id.aboutLauncherChoice) {
-            title = R.string.about_launcher; hint = R.string.about_launcher_hint;
         } else if (id == R.id.checkUpdatesChoice) {
             title = R.string.check_for_updates; hint = R.string.check_updates_hint;
         } else if (id == R.id.githubChoice) {
@@ -399,6 +584,18 @@ public final class LauncherSettingsActivity extends Activity {
     }
 
     private void showUpdateCenter() {
+        ReleaseUpdater.Release pending = ReleaseUpdater.cachedUpdate(this);
+        if (pending != null) {
+            AlertDialog dialog = new AlertDialog.Builder(this)
+                    .setTitle(R.string.update_available)
+                    .setMessage(ReleaseUpdater.prompt(this, pending))
+                    .setPositiveButton(R.string.update_install, (d, which) ->
+                            startActivity(UpdateActivity.intent(this, pending)))
+                    .setNeutralButton(R.string.update_recheck_button, (d, which) -> checkForUpdates())
+                    .setNegativeButton(android.R.string.cancel, null).show();
+            glass(dialog);
+            return;
+        }
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(R.string.check_for_updates)
                 .setMessage(getString(R.string.about_launcher_message, installedVersion())
@@ -415,7 +612,7 @@ public final class LauncherSettingsActivity extends Activity {
         ReleaseUpdater.checkNow(this, (release, checked) -> {
             if (isFinishing() || isDestroyed()) return;
             checkingUpdate = false;
-            checkUpdatesChoice.setValue("", true);
+            refresh();
             if (!checked) {
                 Toast.makeText(this, R.string.update_check_failed, Toast.LENGTH_LONG).show();
             } else if (release == null) {
@@ -464,7 +661,11 @@ public final class LauncherSettingsActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
-        updatePreview();
+        loadConfigState();
+        refresh();
+        ReleaseUpdater.checkAuto(this, release -> {
+            if (!isFinishing() && !isDestroyed()) refresh();
+        });
     }
 
     private void setSounds(View view) {
@@ -583,22 +784,16 @@ public final class LauncherSettingsActivity extends Activity {
                 .putExtra(HomePreviewView.DOCK_PACKAGE, getIntent().getStringExtra(HomePreviewView.DOCK_PACKAGE)), 43);
     }
 
-    private void featureRow(int id, String page, int icon, int color) {
+    private SettingsRowView featureRow(int id, String page, int icon, int color) {
         SettingsRowView row = findViewById(id); row.setIcon(icon, color); row.setValue("", true);
         row.setOnClickListener(v -> openFeature(page));
+        return row;
     }
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == 43 && resultCode == RESULT_OK) {
-            Config current = Config.load(this);
-            columns = current.columns; rowsBelowDock = current.rowsBelowDock;
-            animations = current.animations; advancedEffects = current.animations && current.advancedEffects;
-            navigationSounds = current.navigationSounds; navigationSoundVolume = current.navigationSoundVolume;
-            NavSound.setVolume(navigationSoundVolume); appLibrary = current.appLibrary;
-            showStats = current.showStats; wallpaper = current.wallpaperChoice;
-            continueWatching = current.continueWatching;
-            glowStyle = current.glowStyle; glowIntensity = current.glowIntensity;
+            loadConfigState();
             Config.markSettingsChanged(LauncherSettingsActivity.this); setResult(RESULT_OK); refresh();
         }
     }

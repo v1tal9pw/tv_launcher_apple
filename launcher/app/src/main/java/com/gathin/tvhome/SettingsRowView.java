@@ -19,7 +19,7 @@ public final class SettingsRowView extends TextView {
     private Drawable icon;
     private int iconColor;
     private String value = "";
-    private boolean toggle, checked, chevron;
+    private boolean toggle, checked, chevron, badge;
 
     public SettingsRowView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -29,6 +29,13 @@ public final class SettingsRowView extends TextView {
     void setIcon(int resource, int color) {
         icon = getContext().getDrawable(resource).mutate();
         iconColor = color;
+        invalidate();
+    }
+
+    void setBadge(boolean show) {
+        if (badge == show) return;
+        badge = show;
+        updateValuePadding();
         invalidate();
     }
 
@@ -76,7 +83,16 @@ public final class SettingsRowView extends TextView {
             valuePaint.set(paint);
             valuePaint.setTextAlign(rtl ? Paint.Align.LEFT : Paint.Align.RIGHT);
             float textEnd = end + (chevron ? dp(rtl ? 18 : -18) : 0);
-            canvas.drawText(shortValue(), textEnd, cy - (valuePaint.ascent() + valuePaint.descent()) / 2, valuePaint);
+            String rendered = shortValue();
+            canvas.drawText(rendered, textEnd, cy - (valuePaint.ascent() + valuePaint.descent()) / 2, valuePaint);
+            if (badge) {
+                float textWidth = rendered.isEmpty() ? 0f : valuePaint.measureText(rendered);
+                float gap = rendered.isEmpty() ? dp(5) : dp(10);
+                float dotX = rtl ? textEnd + textWidth + gap : textEnd - textWidth - gap;
+                paint.setColor(0xFFFF3B30);
+                canvas.drawCircle(dotX, cy, dp(4.5f), paint);
+                paint.setColor(isFocused() ? 0xFF666970 : 0xFFB7BBC6);
+            }
             if (chevron) {
                 float x = end + dp(rtl ? 2 : -2);
                 Path path = new Path();
@@ -99,7 +115,8 @@ public final class SettingsRowView extends TextView {
         return TextUtils.ellipsize(value, valuePaint, available, TextUtils.TruncateAt.END).toString();
     }
     private void updateValuePadding() {
-        int end = Math.round(toggle ? dp(112) : Math.max(dp(112), valuePaint.measureText(shortValue()) + dp(42)));
+        float badgeExtra = badge ? dp(16) : 0f;
+        int end = Math.round(toggle ? dp(112) : Math.max(dp(112), valuePaint.measureText(shortValue()) + dp(42) + badgeExtra));
         if (getPaddingEnd() != end) setPaddingRelative(getPaddingStart(), getPaddingTop(), end, getPaddingBottom());
     }
     @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {

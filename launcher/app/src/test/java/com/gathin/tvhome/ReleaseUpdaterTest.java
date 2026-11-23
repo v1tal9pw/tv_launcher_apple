@@ -12,9 +12,17 @@ public class ReleaseUpdaterTest {
     }
 
     @Test public void manualCheckIgnoresAutomaticCooldown() {
-        long now = 1_000_000L;
+        long now = 20_000_000L;
         assertFalse(ReleaseUpdater.shouldCheck(now - 1000, now, false));
+        assertTrue(ReleaseUpdater.shouldCheck(now - 3L * 60 * 60 * 1000, now, false));
         assertTrue(ReleaseUpdater.shouldCheck(now - 1000, now, true));
+    }
+
+    @Test public void badgeShowsOnlyWhenCachedVersionIsNewerThanInstalled() {
+        assertTrue(ReleaseUpdater.isUpdateNewer(72, 71));
+        assertFalse(ReleaseUpdater.isUpdateNewer(71, 71));
+        assertFalse(ReleaseUpdater.isUpdateNewer(70, 71));
+        assertFalse(ReleaseUpdater.isUpdateNewer(0, 71));
     }
 
     @Test public void releaseNotesAreBoundedForTheTvDialog() {

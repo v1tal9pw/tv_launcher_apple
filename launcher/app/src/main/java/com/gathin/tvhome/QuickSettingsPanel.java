@@ -68,6 +68,8 @@ final class QuickSettingsPanel extends FrameLayout {
     private final ArrayList<HomeChildState> homeChildren = new ArrayList<>();
     private final Rect tempRegion = new Rect();
     private TextView launcherSettingsLabel, allSettingsLabel, closeLabel;
+    private ImageView launcherSettingsButton;
+    private boolean updateBadgeVisible;
     private ValueAnimator transition;
     private ViewTreeObserver.OnPreDrawListener entryDraw;
     private Runnable pendingEntryAnimation;
@@ -193,6 +195,7 @@ final class QuickSettingsPanel extends FrameLayout {
     void open(int focus) {
         removeEntryListener();
         cancelTransition();
+        refreshUpdateBadge();
         showing = true;
         closing = false;
         restoreFocus = true;
@@ -505,9 +508,11 @@ final class QuickSettingsPanel extends FrameLayout {
         launcherSettings.setClipChildren(false);
         // As far from All settings as All settings is from Close; All settings sits 10 to the right.
         launcherSettings.setTranslationX(px(12));
-        launcherSettings.addView(circle(R.id.quickLauncherSettings, R.drawable.ic_quick_launcher_settings,
-                R.string.quick_launcher_settings, () -> listener.onAction(R.id.quickLauncherSettings)));
-        launcherSettings.getChildAt(0).setOnLongClickListener(v -> !closing && listener.onLauncherMenu());
+        launcherSettingsButton = circle(R.id.quickLauncherSettings, R.drawable.ic_quick_launcher_settings,
+                R.string.quick_launcher_settings, () -> listener.onAction(R.id.quickLauncherSettings));
+        launcherSettings.addView(launcherSettingsButton);
+        launcherSettingsButton.setOnLongClickListener(v -> !closing && listener.onLauncherMenu());
+        refreshUpdateBadge();
         launcherSettingsLabel = text(activity.getString(R.string.quick_launcher_settings), 11, 500, 0xDBFFFFFF);
         launcherSettingsLabel.setId(R.id.quickLauncherSettingsLabel);
         launcherSettingsLabel.setGravity(Gravity.CENTER);
@@ -654,8 +659,31 @@ final class QuickSettingsPanel extends FrameLayout {
         return button;
     }
 
+    void refreshUpdateBadge() {
+        boolean show = ReleaseUpdater.hasAvailableUpdate(activity);
+        if (updateBadgeVisible != show) {
+            updateBadgeVisible = show;
+            if (launcherSettingsButton != null) launcherSettingsButton.invalidate();
+        }
+    }
+
     private ImageView circle(int id, int icon, int description, Runnable action) {
-        ImageView view = new ImageView(activity);
+        final boolean isLauncherSettings = id == R.id.quickLauncherSettings;
+        ImageView view = isLauncherSettings ? new ImageView(activity) {
+            private final android.graphics.Paint badgePaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+            @Override protected void onDraw(android.graphics.Canvas canvas) {
+                super.onDraw(canvas);
+                if (!updateBadgeVisible) return;
+                float r = 4.6f * unit;
+                float cx = getWidth() - 4.2f * unit;
+                float cy = 4.2f * unit;
+                badgePaint.setStyle(android.graphics.Paint.Style.FILL);
+                badgePaint.setColor(0xFF20242C);
+                canvas.drawCircle(cx, cy, r + 1.4f * unit, badgePaint);
+                badgePaint.setColor(0xFFFF3B30);
+                canvas.drawCircle(cx, cy, r, badgePaint);
+            }
+        } : new ImageView(activity);
         view.setId(id);
         view.setImageResource(icon);
         view.setColorFilter(Color.WHITE);

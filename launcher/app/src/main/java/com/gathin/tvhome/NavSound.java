@@ -41,9 +41,9 @@ final class NavSound {
         return thread;
     });
     private static final AtomicBoolean PENDING_PLAY = new AtomicBoolean(false);
-    private static AudioTrack[] clickPool;
-    private static boolean[] needsReload;
+    private static volatile AudioTrack[] clickPool;
     private static int[] appliedVolumes;
+    private static boolean[] needsReload;
     private static int nextIndex;
     private static volatile int volumePercent = DEFAULT_VOLUME;
     private static volatile long lastPlayedAt;
@@ -60,6 +60,19 @@ final class NavSound {
 
     static int chooseSampleRate(int nativeRate) {
         return nativeRate >= 8000 && nativeRate <= 192000 ? nativeRate : DEFAULT_SAMPLE_RATE;
+    }
+
+    /**
+     * A {@link AudioTrack#MODE_STATIC} track starts in {@link AudioTrack#STATE_NO_STATIC_DATA}
+     * right after build() and only transitions to {@link AudioTrack#STATE_INITIALIZED} after
+     * {@link AudioTrack#write(short[], int, int)}.
+     */
+    static boolean isStaticStateBeforeWrite(int state) {
+        return state != AudioTrack.STATE_UNINITIALIZED;
+    }
+
+    static boolean isStaticStateAfterWrite(int state) {
+        return state == AudioTrack.STATE_INITIALIZED;
     }
 
     static short[] buildClickPcm(int sampleRate) {
@@ -91,64 +104,76 @@ final class NavSound {
     }
 
     private static synchronized void applyVolumeOnAudioThread(int percent) {
-        if (clickPool == null) return;
+        AudioTrack[] pool = clickPool;
+        if (pool == null) return;
         float gain = gainForPercent(percent);
-        for (int i = 0; i < clickPool.length; i++) {
+        for (int i = 0; i < pool.length; i++) {
             if (appliedVolumes[i] == percent) continue;
             try {
-                clickPool[i].setVolume(gain);
+                pool[i].setVolume(gain);
                 appliedVolumes[i] = percent;
             } catch (Throwable ignored) {
             }
         }
     }
 
-    private static AudioTrack createStaticTrack(int sampleRate, short[] buffer, boolean lowLatency) {
-        AudioTrack.Builder builder = new AudioTrack.Builder()
-                .setAudioAttributes(new AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build())
-                .setAudioFormat(new AudioFormat.Builder()
-                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                        .setSampleRate(sampleRate)
-                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                        .build())
-                .setBufferSizeInBytes(buffer.length * 2)
-                .setTransferMode(AudioTrack.MODE_STATIC);
-        if (lowLatency) {
-            builder.setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY);
-        }
-        AudioTrack track = builder.build();
-        if (track.getState() != AudioTrack.STATE_INITIALIZED) {
-            track.release();
+    private static AudioTrack createStaticTrack(int sampleRate, short[] buffer, float gain,
+                                                boolean lowLatency) {
+        AudioTrack track = null;
+        try {
+            AudioTrack.Builder builder = new AudioTrack.Builder()
+                    .setAudioAttributes(new AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build())
+                    .setAudioFormat(new AudioFormat.Builder()
+                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                            .setSampleRate(sampleRate)
+                            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                            .build())
+                    .setBufferSizeInBytes(buffer.length * 2)
+                    .setTransferMode(AudioTrack.MODE_STATIC);
+            if (lowLatency) {
+                builder.setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY);
+            }
+            track = builder.build();
+            if (!isStaticStateBeforeWrite(track.getState())) {
+                track.release();
+                return null;
+            }
+            int written = track.write(buffer, 0, buffer.length);
+            if (written <= 0 || !isStaticStateAfterWrite(track.getState())) {
+                track.release();
+                return null;
+            }
+            track.setVolume(gain);
+            return track;
+        } catch (Throwable ignored) {
+            if (track != null) {
+                try { track.release(); } catch (Throwable ignored2) { }
+            }
             return null;
         }
-        int written = track.write(buffer, 0, buffer.length);
-        if (written <= 0) {
-            track.release();
-            return null;
-        }
-        return track;
     }
 
-    private static AudioTrack buildTrackWithFallback(int sampleRate, short[] buffer) {
-        try {
-            AudioTrack fast = createStaticTrack(sampleRate, buffer, true);
-            if (fast != null) return fast;
-        } catch (Throwable ignored) {
-        }
-        try {
-            return createStaticTrack(sampleRate, buffer, false);
-        } catch (Throwable ignored) {
-            return null;
+    private static synchronized void releasePoolOnAudioThread() {
+        AudioTrack[] pool = clickPool;
+        clickPool = null;
+        appliedVolumes = null;
+        needsReload = null;
+        nextIndex = 0;
+        if (pool == null) return;
+        for (AudioTrack track : pool) {
+            if (track == null) continue;
+            try { track.stop(); } catch (Throwable ignored) { }
+            try { track.release(); } catch (Throwable ignored) { }
         }
     }
 
     private static synchronized void prepareOnAudioThread() {
         if (clickPool != null) return;
         try {
-            int nativeRate = DEFAULT_SAMPLE_RATE;
+            int nativeRate = 0;
             try {
                 nativeRate = AudioTrack.getNativeOutputSampleRate(AudioManager.STREAM_SYSTEM);
             } catch (Throwable ignored) {
@@ -159,31 +184,33 @@ final class NavSound {
             float gain = gainForPercent(vol);
             AudioTrack[] created = new AudioTrack[POOL_SIZE];
             int count = 0;
+            boolean lowLatency = true;
             for (int i = 0; i < POOL_SIZE; i++) {
-                AudioTrack track = buildTrackWithFallback(sampleRate, buffer);
+                AudioTrack track = createStaticTrack(sampleRate, buffer, gain, lowLatency);
+                if (track == null && lowLatency) {
+                    lowLatency = false;
+                    track = createStaticTrack(sampleRate, buffer, gain, false);
+                }
                 if (track == null) break;
-                track.setVolume(gain);
                 created[count++] = track;
             }
             if (count == 0) return;
             AudioTrack[] pool = count == POOL_SIZE ? created : java.util.Arrays.copyOf(created, count);
-            boolean[] reload = new boolean[count];
             int[] volumes = new int[count];
             java.util.Arrays.fill(volumes, vol);
-            clickPool = pool;
-            needsReload = reload;
             appliedVolumes = volumes;
+            needsReload = new boolean[count];
             nextIndex = 0;
+            clickPool = pool;
         } catch (Throwable ignored) {
         }
     }
 
-    private static void rearmTrack(AudioTrack track) {
-        try {
+    private static boolean rearmTrack(AudioTrack track) {
+        if (track.getPlayState() != AudioTrack.PLAYSTATE_STOPPED) {
             track.stop();
-            track.reloadStaticData();
-        } catch (Throwable ignored) {
         }
+        return track.reloadStaticData() == AudioTrack.SUCCESS;
     }
 
     static void play(boolean enabled) {
@@ -200,31 +227,46 @@ final class NavSound {
 
     private static synchronized void playOnAudioThread() {
         PENDING_PLAY.set(false);
-        try {
-            int vol = volumePercent;
-            if (vol <= 0) return;
-            prepareOnAudioThread();
-            if (clickPool == null || clickPool.length == 0) return;
-            int index = nextIndex;
-            AudioTrack track = clickPool[index];
-            if (needsReload[index]) {
-                rearmTrack(track);
-                needsReload[index] = false;
+        int vol = volumePercent;
+        if (vol <= 0) return;
+        for (int attempt = 0; attempt < 2; attempt++) {
+            try {
+                prepareOnAudioThread();
+                AudioTrack[] pool = clickPool;
+                if (pool == null || pool.length == 0) return;
+                int index = nextIndex;
+                AudioTrack track = pool[index];
+                if (!isStaticStateAfterWrite(track.getState())) {
+                    releasePoolOnAudioThread();
+                    continue;
+                }
+                if (appliedVolumes[index] != vol) {
+                    track.setVolume(gainForPercent(vol));
+                    appliedVolumes[index] = vol;
+                }
+                if (needsReload[index]) {
+                    if (!rearmTrack(track)) {
+                        releasePoolOnAudioThread();
+                        continue;
+                    }
+                    needsReload[index] = false;
+                }
+                track.play();
+                needsReload[index] = true;
+                int next = (index + 1) % pool.length;
+                nextIndex = next;
+                if (pool.length > 1 && needsReload[next]) {
+                    try {
+                        if (rearmTrack(pool[next])) {
+                            needsReload[next] = false;
+                        }
+                    } catch (Throwable ignored) {
+                    }
+                }
+                return;
+            } catch (Throwable ignored) {
+                releasePoolOnAudioThread();
             }
-            if (appliedVolumes[index] != vol) {
-                track.setVolume(gainForPercent(vol));
-                appliedVolumes[index] = vol;
-            }
-            track.play();
-            needsReload[index] = true;
-            nextIndex = (index + 1) % clickPool.length;
-            // Re-arm the oldest track (next to be used) after play() has already fired so the next
-            // click has zero stop()/reloadStaticData() overhead in the hot path.
-            if (clickPool.length > 1 && needsReload[nextIndex]) {
-                rearmTrack(clickPool[nextIndex]);
-                needsReload[nextIndex] = false;
-            }
-        } catch (Throwable ignored) {
         }
     }
 

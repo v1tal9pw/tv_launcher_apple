@@ -723,15 +723,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         restartIdleClock();
         if (showStats) startStats();
         weatherFetcher.refresh();
-        ReleaseUpdater.check(this, release -> {
-            if (paused || isFinishing() || isDestroyed()) return;
-            new AlertDialog.Builder(this)
-                    .setTitle(R.string.update_available)
-                    .setMessage(ReleaseUpdater.prompt(this, release))
-                    .setPositiveButton(R.string.update_install, (dialog, which) ->
-                            startActivity(UpdateActivity.intent(this, release)))
-                    .setNegativeButton(android.R.string.cancel, null)
-                    .show();
+        ReleaseUpdater.checkAuto(this, release -> {
+            if (isFinishing() || isDestroyed()) return;
+            if (quickSettings != null) quickSettings.refreshUpdateBadge();
         });
         handler.postDelayed(minuteTick, MINUTE_MS);
         if (festive && diya != null) {
@@ -2986,8 +2980,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     private void openSettings(String action) {
         // Settings shares one task across its panels. NEW_TASK alone can bring its previous
-        // submenu back to the front instead of opening the screen the user requested.
-        open(systemIntent(this, action).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP));
+        // submenu or an underlying app task back to the front instead of opening cleanly.
+        open(systemIntent(this, action).addFlags(
+                Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP));
     }
 
     static boolean toggleForegroundPanel() {

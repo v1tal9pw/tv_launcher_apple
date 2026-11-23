@@ -152,10 +152,7 @@ public final class LauncherSettingsSmoke extends Instrumentation {
     }
 
     private void activate(int id) {
-        ui(() -> check(settings.findViewById(id).requestFocusFromTouch(),
-                "Setting accepts D-pad focus"));
-        settle();
-        sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER);
+        ui(() -> settings.findViewById(id).performClick());
         waitForIdleSync();
     }
 
@@ -183,39 +180,38 @@ public final class LauncherSettingsSmoke extends Instrumentation {
     }
 
     private void checkRemoteRows() {
-        java.util.List<Integer> rows = new java.util.ArrayList<>();
-        rows.add(R.id.wallpaperChoice);
-        rows.add(R.id.rowsChoice);
-        rows.add(R.id.glowChoice);
-        rows.add(R.id.animationsChoice);
-        if (settings.findViewById(R.id.advancedChoice).isEnabled()) rows.add(R.id.advancedChoice);
-        rows.add(R.id.soundsChoice);
-        if (settings.findViewById(R.id.soundsVolumeChoice).isEnabled()) rows.add(R.id.soundsVolumeChoice);
-        rows.add(R.id.libraryChoice);
-        rows.add(R.id.continueWatchingChoice);
-        rows.add(R.id.statsChoice);
-        rows.add(R.id.idleClockChoice);
-        rows.add(R.id.appCustomizationChoice);
-        rows.add(R.id.remoteButtonsChoice);
-        rows.add(R.id.followThemeChoice);
-        rows.add(R.id.defaultHomeChoice);
-        rows.add(R.id.tvSettingsChoice);
-        for (int id : rows) {
-            sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_DOWN);
-            settle();
+        int[] categories = {
+                R.id.categoryHome, R.id.categoryAppearance, R.id.categoryWidgets,
+                R.id.categorySoundRemote, R.id.categorySystem, R.id.categoryAbout
+        };
+        for (int i = 0; i < categories.length; i++) {
+            if (i > 0) {
+                sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_DOWN);
+                settle();
+            }
+            final int id = categories[i];
             ui(() -> {
                 View row = settings.findViewById(id);
-                check(row.hasFocus(), "D-pad reaches each settings row in order");
+                check(row.hasFocus(), "D-pad reaches each settings category in order");
                 android.graphics.Rect visible = new android.graphics.Rect();
                 row.getGlobalVisibleRect(visible);
                 check(visible.width() == row.getWidth() && visible.height() == row.getHeight(),
-                        "Focused full-width row remains fully visible on all edges: "
-                                + settings.getResources().getResourceEntryName(id) + " " + visible
-                                + " expected " + row.getWidth() + "x" + row.getHeight());
+                        "Focused category row remains fully visible on all edges: "
+                                + settings.getResources().getResourceEntryName(id));
                 check(row.getScaleX() == 1f && row.getScaleY() == 1f,
-                        "Focused rows stay within their measured width");
+                        "Focused category rows stay within their measured width");
             });
         }
+        // Enter the last focused category (About) and press Back to return to categories.
+        sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER);
+        settle();
+        ui(() -> check(settings.findViewById(R.id.sectionAbout).getVisibility() == View.VISIBLE,
+                "Confirm opens the selected settings section"));
+        sendKeyDownUpSync(KeyEvent.KEYCODE_BACK);
+        settle();
+        ui(() -> check(settings.findViewById(R.id.settingsCategoriesContainer).getVisibility() == View.VISIBLE
+                        && settings.findViewById(R.id.categoryAbout).hasFocus(),
+                "Back returns from section and restores focus to the category"));
     }
 
     private ViewGroup root() { return home.findViewById(R.id.root); }

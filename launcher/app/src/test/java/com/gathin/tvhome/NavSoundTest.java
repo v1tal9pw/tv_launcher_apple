@@ -1,5 +1,7 @@
 package com.gathin.tvhome;
 
+import android.media.AudioTrack;
+
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -15,9 +17,10 @@ public class NavSoundTest {
         assertEquals(1.0f, NavSound.gainForPercent(100), 0.0001f);
     }
 
-    @Test public void choosesNativeSampleRateAndBuildsShortDecayingClick() {
+    @Test public void choosesSampleRateAndBuildsShortDecayingClick() {
         assertEquals(48000, NavSound.chooseSampleRate(48000));
         assertEquals(44100, NavSound.chooseSampleRate(44100));
+        assertEquals(22050, NavSound.chooseSampleRate(22050));
         assertEquals(48000, NavSound.chooseSampleRate(0));
         assertEquals(48000, NavSound.chooseSampleRate(-1));
         assertEquals(48000, NavSound.chooseSampleRate(999999));
@@ -25,11 +28,22 @@ public class NavSoundTest {
         short[] pcm = NavSound.buildClickPcm(48000);
         assertEquals(384, pcm.length); // 8 ms at 48 kHz
         int earlyPeak = 0;
-        for (int i = 0; i < 64; i++) earlyPeak = Math.max(earlyPeak, Math.abs(pcm[i]));
+        for (int i = 0; i < 80; i++) earlyPeak = Math.max(earlyPeak, Math.abs(pcm[i]));
         int tailPeak = 0;
-        for (int i = pcm.length - 32; i < pcm.length; i++) tailPeak = Math.max(tailPeak, Math.abs(pcm[i]));
+        for (int i = pcm.length - 40; i < pcm.length; i++) tailPeak = Math.max(tailPeak, Math.abs(pcm[i]));
         assertTrue("Click starts with crisp transient", earlyPeak > 10000);
         assertTrue("Click decays cleanly by tail", tailPeak < earlyPeak / 10);
+    }
+
+    @Test public void staticAudioTrackStatesAllowNoStaticDataBeforeWriteOnly() {
+        // MODE_STATIC starts in STATE_NO_STATIC_DATA before write() and moves to STATE_INITIALIZED after write().
+        assertTrue(NavSound.isStaticStateBeforeWrite(AudioTrack.STATE_NO_STATIC_DATA));
+        assertTrue(NavSound.isStaticStateBeforeWrite(AudioTrack.STATE_INITIALIZED));
+        assertFalse(NavSound.isStaticStateBeforeWrite(AudioTrack.STATE_UNINITIALIZED));
+
+        assertTrue(NavSound.isStaticStateAfterWrite(AudioTrack.STATE_INITIALIZED));
+        assertFalse(NavSound.isStaticStateAfterWrite(AudioTrack.STATE_NO_STATIC_DATA));
+        assertFalse(NavSound.isStaticStateAfterWrite(AudioTrack.STATE_UNINITIALIZED));
     }
 
     @Test public void overlayAutoReturnRequiresRecentBackNotConfirm() {
