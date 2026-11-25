@@ -16,7 +16,7 @@ final class FeaturePreferences {
     static final String SCENE_PREFIX = "scene:";
     static final String[] APPEARANCE = {"wallpaper_rotation_minutes", "wallpaper_order", "wallpaper_true_color",
             "wallpaper_dim", "dock_opacity", "clock_wallpaper", "clock_glow", "clock_wallpaper_dim", "open_on_start_network_wait",
-            "sky_intensity", "glow_style", "glow_intensity", "tile_glow", "home_idle_clock_minutes", "races_enabled", "continue_watching", "weather_enabled", "city", "latitude", "longitude"};
+            "sky_intensity", "glow_style", "glow_intensity", "tile_glow", "tile_glow_intensity", "home_idle_clock_minutes", "races_enabled", "continue_watching", "weather_enabled", "city", "latitude", "longitude"};
 
     static SharedPreferences prefs(Context context) { return context.getSharedPreferences(NAME, 0); }
 
@@ -95,13 +95,13 @@ final class FeaturePreferences {
                 if (!(value instanceof Boolean)) throw new IllegalArgumentException(key);
                 edit.putBoolean(key, (Boolean) value);
             } else if (key.equals("wallpaper_rotation_minutes") || key.equals("home_idle_clock_minutes")
-                    || key.equals("wallpaper_dim") || key.equals("sky_intensity") || key.equals("glow_intensity") || key.equals("dock_opacity")
+                    || key.equals("wallpaper_dim") || key.equals("sky_intensity") || key.equals("glow_intensity")
+                    || key.equals("tile_glow_intensity") || key.equals("dock_opacity")
                     || key.equals("clock_wallpaper_dim") || key.equals("open_on_start_network_wait")) {
-                int max = key.equals("wallpaper_dim") || key.equals("clock_wallpaper_dim") ? 90
-                        : key.equals("open_on_start_network_wait") ? 600
-                        : key.equals("sky_intensity") || key.equals("glow_intensity") || key.equals("dock_opacity") ? 100 : 1440;
-                if (key.equals("dock_opacity") && value instanceof Number && ((Number)value).doubleValue()<30)
-                    throw new IllegalArgumentException(key);
+                int max = key.equals("open_on_start_network_wait") ? 600
+                        : key.equals("wallpaper_dim") || key.equals("clock_wallpaper_dim")
+                        || key.equals("sky_intensity") || key.equals("glow_intensity")
+                        || key.equals("tile_glow_intensity") || key.equals("dock_opacity") ? 100 : 1440;
                 if (!(value instanceof Number) || ((Number) value).doubleValue() != ((Number) value).intValue()
                         || ((Number) value).intValue() < 0 || ((Number) value).intValue() > max)
                     throw new IllegalArgumentException(key);

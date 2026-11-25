@@ -124,6 +124,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private ImageView heroArt;
     private boolean cinematic, ambientEnabled, tileGlowEnabled, started, pillsShown;
     private float glowAlpha = 1f;
+    private float tileGlowAlpha = 1f;
     private String glowStyle = Config.GLOW_RADIAL;
     private CharSequence wifiLabel;
     private int wifiIcon;
@@ -467,7 +468,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         ambient = findViewById(R.id.ambient);
         ambientEnabled = cfg.ambientGlow && glowActive;
         if (!ambientEnabled) ambient.setVisibility(View.GONE);
-        tileGlowEnabled = cfg.tileGlow && glowActive;
+        tileGlowAlpha = cfg.tileGlowIntensity / 100f;
+        tileGlowEnabled = cfg.tileGlowIntensity > 0;
         if (!tileGlowEnabled) glass.setVisibility(View.INVISIBLE);
         hero = findViewById(R.id.hero);
         hero.forceHasOverlappingRendering(false);
@@ -689,8 +691,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         long revision = prefs.getLong(Config.SETTINGS_REVISION_KEY, 0);
         if (Config.settingsChanged(settingsRevision, revision)) { recreate(); return; }
         String savedWallpaper = prefs.getString(Config.WALLPAPER_CHOICE_KEY, Config.WALLPAPER_THEME);
-        if (PersonalWallpapers.isUserImported(savedWallpaper)
-                && PersonalWallpapers.file(this, savedWallpaper) == null) {
+        if ((PersonalWallpapers.isUserImported(savedWallpaper)
+                && PersonalWallpapers.file(this, savedWallpaper) == null)
+                || (PersonalWallpapers.isCollection(savedWallpaper)
+                && PersonalWallpapers.listPhotos(this).isEmpty())) {
             prefs.edit().remove(Config.WALLPAPER_CHOICE_KEY).apply();
             recreate();
             return;
@@ -1045,7 +1049,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             glass.setTranslationX(x);
             glass.setTranslationY(y);
             if (tileGlowEnabled) {
-                glass.animate().alpha(glowAlpha).setDuration(motion(reducedMotion ? 100 : 180)).start();
+                glass.animate().alpha(tileGlowAlpha).setDuration(motion(reducedMotion ? 100 : 180)).start();
             } else {
                 glass.setAlpha(0f);
             }

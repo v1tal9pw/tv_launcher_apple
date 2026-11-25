@@ -201,7 +201,7 @@
     <string name="settings_animations">Animations</string>
     <string name="settings_sounds">Navigation sounds</string>
     <string name="settings_sounds_volume">Navigation sound volume</string>
-    <string name="settings_sounds_volume_hint">Press OK to adjust how loud navigation clicks play across menus and tiles.</string>
+    <string name="settings_sounds_volume_hint" formatted="false">Use ◀ and ▶ to adjust navigation click volume in 5% steps. Press OK to reset to 60%.</string>
     <string name="settings_wallpaper">Wallpaper</string>
     <string name="settings_follow_theme">Default</string>
     <string name="settings_custom">Custom</string>

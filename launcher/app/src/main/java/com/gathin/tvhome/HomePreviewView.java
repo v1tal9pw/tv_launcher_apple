@@ -198,13 +198,16 @@ public final class HomePreviewView extends View {
             boolean continuation = !continueItems.isEmpty();
             int rowCount = 1 + config.rowsBelowDock;
             float top = Math.max(140, 510 - itemHeight * rowCount);
-            rounded(canvas, new RectF(12, top - 12, 948, top + height + 14), 24, 0x44FFFFFF);
+            int dockAlpha = Math.round(0x44 * config.dockOpacity / 100f);
+            if (dockAlpha > 0) {
+                rounded(canvas, new RectF(12, top - 12, 948, top + height + 14), 24, (dockAlpha << 24) | 0x00FFFFFF);
+            }
             for (int row = 0; row < rowCount; row++) for (int col = 0; col < config.columns; col++) {
                 int index = row * config.columns + col; if (index >= tiles.size()) break;
                 float x = 24 + col * (912f / config.columns) + (912f / config.columns - width) / 2;
                 float y = top + row * itemHeight;
-                if (index == 0 && config.tileGlow && glowActive) {
-                    int haloAlpha = Math.round(160 * config.glowIntensity / 100f);
+                if (index == 0 && config.tileGlowIntensity > 0) {
+                    int haloAlpha = Math.round(160 * config.tileGlowIntensity / 100f);
                     rounded(canvas, new RectF(x - 6, y - 6, x + width + 6, y + height + 6), 16,
                             (haloAlpha << 24) | (previewGlowColor & 0x00FFFFFF));
                 }

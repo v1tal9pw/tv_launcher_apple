@@ -12,6 +12,9 @@
     <string name="personal_wallpaper_delete_action">Delete</string>
     <string name="personal_wallpaper_deleted">Wallpaper deleted</string>
     <string name="personal_wallpaper_source_gone">Wallpapers whose original file was deleted have been removed</string>
+    <string name="personal_wallpaper_collection">My photos</string>
+    <string name="personal_wallpaper_collection_count">My photos (%1$d)</string>
+    <string name="personal_wallpaper_rotation_need_more">Add more photos via “Choose my photo” to rotate between them.</string>
     <string name="remote_single">Single press (1×)</string>
     <string name="remote_double">Double press (2×)</string>
     <string name="remote_triple">Triple press (3×)</string>
@@ -34,7 +37,7 @@
     <string name="home_default_unavailable">This TV firmware does not expose the standard Home selection dialog. Opening Google TV does not make this launcher the default. Home must be configured separately for this TV, for example through ADB. The remote button helper does not change the default Home.</string>
     <string name="feature_back">Press Back to return</string>
     <string name="feature_wallpapers">Wallpapers</string>
-    <string name="feature_wallpaper_help">Choose a background, rotate the six built-in Apple-style 4K wallpapers, or use your own theme pictures. Changes apply when you return Home.</string>
+    <string name="feature_wallpaper_help">Choose a background, rotate the six built-in Apple-style 4K wallpapers, or rotate your own photos. Changes apply when you return Home.</string>
     <string name="feature_source">Background</string>
     <string name="feature_scenes">Apple-style 4K wallpapers</string>
     <string name="feature_rotation">Change picture</string>
@@ -44,18 +47,21 @@
     <string name="feature_true_color">Full-color wallpapers</string>
     <string name="feature_true_color_help">Smoother gradients with less banding. Uses more memory than standard wallpaper color.</string>
     <string name="feature_dim">Wallpaper dimming</string>
+    <string name="feature_slider_help">Use ◀ and ▶ to adjust in 5% steps. Press OK to reset to default.</string>
     <string name="feature_minutes">%1$d minutes</string>
     <string name="feature_glow">App glow</string>
-    <string name="feature_glow_help">Choose how the focused app’s color glows on Home: behind the dock, along the screen edges, as a horizon wash, or completely off. Adjust intensity or turn off tile glow separately.</string>
+    <string name="feature_glow_help">Choose how the focused app’s color glows on Home: behind the dock, along the screen edges, as a horizon wash, or completely off. Background intensity and tile halo are adjusted separately.</string>
     <string name="feature_glow_style">Glow style</string>
     <string name="feature_glow_radial">Behind dock</string>
     <string name="feature_glow_edge">Screen edge</string>
     <string name="feature_glow_horizon">Horizon</string>
     <string name="feature_glow_off">Off</string>
     <string name="feature_glow_intensity">Intensity</string>
+    <string name="feature_glow_intensity_help" formatted="false">Brightness of the background glow behind the focused app (◀ / ▶ in 5% steps, OK to reset to 100%).</string>
     <string name="feature_glow_tile">Focused tile halo</string>
-    <string name="feature_glow_tile_help">Show a colored halo around the selected app tile. Turning glow style or intensity off disables all app glow completely.</string>
-    <string name="installed_changes" formatted="false">Version 3.70 for TCL C6K. Fixed intermittent navigation click sound dropouts by moving to native 48 kHz SoundPool with automatic recovery on audio route changes, TV standby, and app return, restored sound when scrolling AlertDialog lists, and routed the Control Center Sound tile to the native Display &amp; Sound side panel.</string>
+    <string name="feature_glow_tile_short">Tile · %1$d%%</string>
+    <string name="feature_glow_tile_help" formatted="false">Intensity of the colored halo around the focused app tile (◀ / ▶ in 5% steps, OK to reset to 100%). Adjusted independently of background glow.</string>
+    <string name="installed_changes" formatted="false">Version 3.71 for TCL C6K. Added personal photo slideshow rotation (My photos collection, multi-photo import, 1-minute minimum interval), decoupled Focused tile halo into its own 0–100% slider, and converted all percentage settings (glow intensity, tile halo, dock opacity, wallpaper dimming, idle clock dimming, and navigation sound volume) to live 0–100% (5% step) D-pad sliders.</string>
     <string name="update_check_button">Check for updates</string>
     <string name="weather_show_city">Show city name</string>
     <string name="weather_show_details">Show feels-like temperature and wind</string>

@@ -249,7 +249,11 @@
                 <LinearLayout style="@style/SettingsGroup">
                     <com.gathin.tvhome.SettingsRowView android:id="@+id/soundsChoice" style="@style/SettingsRow" android:text="@string/settings_sounds" />
                     <View style="@style/SettingsDivider" />
-                    <com.gathin.tvhome.SettingsRowView android:id="@+id/soundsVolumeChoice" style="@style/SettingsRow" android:text="@string/settings_sounds_volume" />
+                    <com.gathin.tvhome.SettingsSliderView
+                        android:id="@+id/soundsVolumeChoice"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/settings_sounds_volume" />
                     <View style="@style/SettingsDivider" />
                     <com.gathin.tvhome.SettingsRowView android:id="@+id/remoteButtonsChoice" style="@style/SettingsRow" android:text="@string/feature_remote" />
                 </LinearLayout>

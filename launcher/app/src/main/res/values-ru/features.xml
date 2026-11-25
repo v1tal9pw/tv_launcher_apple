@@ -12,6 +12,9 @@
     <string name="personal_wallpaper_delete_action">Удалить</string>
     <string name="personal_wallpaper_deleted">Обои удалены</string>
     <string name="personal_wallpaper_source_gone">Обои, исходный файл которых удалён, убраны из списка</string>
+    <string name="personal_wallpaper_collection">Мои фото</string>
+    <string name="personal_wallpaper_collection_count">Мои фото (%1$d)</string>
+    <string name="personal_wallpaper_rotation_need_more">Добавьте ещё фото через «Выбрать своё фото», чтобы обои чередовались.</string>
     <string name="remote_single">Одинарное нажатие (1×)</string>
     <string name="remote_double">Двойное нажатие (2×)</string>
     <string name="remote_triple">Тройное нажатие (3×)</string>
@@ -34,7 +37,7 @@
     <string name="home_default_unavailable">Прошивка телевизора не предоставляет стандартное окно выбора главного экрана. Открытие Google TV не назначает этот лаунчер по умолчанию. Главный экран нужно настроить отдельно для телевизора, например через ADB. Помощник кнопок пульта не меняет главный экран по умолчанию.</string>
     <string name="feature_back">Нажмите «Назад», чтобы вернуться</string>
     <string name="feature_wallpapers">Обои</string>
-    <string name="feature_wallpaper_help">Выберите фон, включите смену шести встроенных 4K-обоев в стиле Apple или используйте изображения своей темы. Изменения применятся при возвращении на главный экран.</string>
+    <string name="feature_wallpaper_help">Выберите фон, включите смену шести встроенных 4K-обоев в стиле Apple или собственных фото. Изменения применятся при возвращении на главный экран.</string>
     <string name="feature_source">Фон</string>
     <string name="feature_scenes">Обои в стиле Apple 4K</string>
     <string name="feature_rotation">Смена изображения</string>
@@ -44,18 +47,21 @@
     <string name="feature_true_color">Полноцветные обои</string>
     <string name="feature_true_color_help">Более плавные градиенты с меньшим количеством полос. Использует больше памяти, чем обычный режим.</string>
     <string name="feature_dim">Затемнение обоев</string>
+    <string name="feature_slider_help">Используйте ◀ и ▶ для настройки с шагом 5%. Нажмите OK для сброса по умолчанию.</string>
     <string name="feature_minutes">Минут: %1$d</string>
     <string name="feature_glow">Свечение от приложения</string>
-    <string name="feature_glow_help">Настройте цветное свечение выбранного приложения: за доком, по краю экрана, горизонт или полное отключение. Можно регулировать интенсивность и свечение вокруг плитки.</string>
+    <string name="feature_glow_help">Настройте цветное свечение выбранного приложения: за доком, по краю экрана, горизонт или полное отключение. Интенсивность фона и ореол вокруг плитки настраиваются отдельно.</string>
     <string name="feature_glow_style">Режим свечения</string>
     <string name="feature_glow_radial">За доком</string>
     <string name="feature_glow_edge">По краю экрана</string>
     <string name="feature_glow_horizon">Горизонт</string>
     <string name="feature_glow_off">Выключено</string>
     <string name="feature_glow_intensity">Интенсивность</string>
+    <string name="feature_glow_intensity_help" formatted="false">Яркость фонового свечения от выбранного приложения (◀ / ▶ с шагом 5%, OK — сброс к 100%).</string>
     <string name="feature_glow_tile">Свечение вокруг плитки</string>
-    <string name="feature_glow_tile_help">Цветной ореол вокруг выбранной плитки приложения. При полном отключении или интенсивности 0% выключается любое свечение.</string>
-    <string name="installed_changes" formatted="false">• Версия 3.70 для TCL C6K.\n• Исправлено периодическое пропадание звуков клавиш: переход на нативный SoundPool (48 кГц) с автовосстановлением после сна ТВ, других приложений и смены аудиовыхода.\n• Возвращён звук прокрутки списков в диалогах настроек (включая громкость), добавлена озвучка меню плитки и нажатий OK.\n• Плитка «Звук» в панели управления теперь открывает родное боковое меню «Экран и звук».</string>
+    <string name="feature_glow_tile_short">Плитка · %1$d%%</string>
+    <string name="feature_glow_tile_help" formatted="false">Интенсивность цветного ореола вокруг выбранной плитки приложения (◀ / ▶ с шагом 5%, OK — сброс к 100%). Настраивается независимо от фонового свечения.</string>
+    <string name="installed_changes" formatted="false">• Версия 3.71 для TCL C6K.\n• Слайд-шоу для своих обоев: коллекция «Мои фото», мультивыбор при импорте и «Смена изображения» с интервалом от 1 минуты.\n• Независимый ползунок «Свечение вокруг плитки» (0–100% с шагом 5%) — работает отдельно от фонового свечения.\n• Все процентные настройки переведены на плавные слайдеры 0–100% (шаг 5%, ◀ / ▶, OK — сброс): интенсивность свечения, ореол плитки, непрозрачность дока, затемнение обоев, затемнение часов и громкость звуков навигации.</string>
     <string name="update_check_button">Проверить обновления</string>
     <string name="weather_show_city">Показывать название города</string>
     <string name="weather_show_details">Показывать ощущаемую температуру и ветер</string>

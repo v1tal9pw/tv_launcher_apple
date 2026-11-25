@@ -200,7 +200,7 @@ final class Config {
     final List<File> wallpapers;
     final int wallpaperRotationMinutes;
     final int wallpaperDim;
-    /** The dock band's opacity in percent (config.json dock_opacity, 30-100): below 100 the wallpaper shows through. */
+    /** The dock band's opacity in percent (config.json dock_opacity, 0-100): below 100 the wallpaper shows through. */
     final int dockOpacity;
     /**
      * Playback order for a wallpaper collection: {@code sequential} or {@code shuffle}. Missing or
@@ -243,10 +243,12 @@ final class Config {
     final Map<String, Set<String>> wallpaperMoods;
     /** Shape of the glow behind the focused app (config.xml, glow_style): {@link #GLOW_RADIAL}, {@link #GLOW_HORIZON}, {@link #GLOW_EDGE}, or {@link #GLOW_OFF}. */
     final String glowStyle;
-    /** Strength of the focused app's glow, 0 to 100 percent (0 disables glow completely). */
+    /** Strength of the focused app's glow, 0 to 100 percent (0 disables background glow completely). */
     final int glowIntensity;
     /** Whether the focused tile keeps its app-coloured halo around the card. */
     final boolean tileGlow;
+    /** Strength of the focused tile halo around the card, 0 to 100 percent (independent of background glow). */
+    final int tileGlowIntensity;
     /** The focus highlight's look (config.xml, glass_style): {@link #GLASS_DEFAULT}, {@link #GLASS_RIM} or {@link #GLASS_HALO}. */
     final String glassStyle;
 
@@ -268,7 +270,7 @@ final class Config {
     final boolean headerWhite;
     /** The clock screensaver over Home's wallpaper instead of the black glow (config.xml, clock_wallpaper). */
     final boolean clockWallpaper;
-    /** How dark the clock screensaver's wallpaper is, 0 to 90 % (config.xml, clock_wallpaper_dim). */
+    /** How dark the clock screensaver's wallpaper is, 0 to 100 % (config.xml, clock_wallpaper_dim). */
     final int clockWallpaperDim;
     /** The clock screensaver's coloured glow; false leaves the clock on plain black, e.g. for an OLED (config.xml, clock_glow). */
     final boolean clockGlow;
@@ -288,7 +290,7 @@ final class Config {
                    int wallpaperRotationMinutes, int wallpaperDim, int dockOpacity, String wallpaperOrder, boolean overlayApplied,
                    Festival festival, int[] inputKeycodes, List<String> appKeys, String stockHomeRedirect,
                    List<RaceWeekend.Race> raceCalendar, boolean cinematicHome, boolean ambientGlow, boolean appGlow, boolean fadeRows, int homeIdleClockMinutes,
-                   boolean keyFilter, boolean dockGlass, String glowStyle, int glowIntensity, boolean tileGlow, boolean wallpaperCaptions,
+                   boolean keyFilter, boolean dockGlass, String glowStyle, int glowIntensity, boolean tileGlow, int tileGlowIntensity, boolean wallpaperCaptions,
                    boolean handleViewInputs, boolean tileMenu, boolean dockEvenPadding, boolean dockBand, boolean cinematicDots, boolean cinematicWhiteFocus, boolean wifiStatusColor, int cinematicScrim, int cinematicArt,
                    Map<String, Set<String>> wallpaperMoods, boolean gamepadPassthrough, boolean consumeVolumeKeys, boolean powerOnHome, boolean homeLongPressHome, boolean wifiStatusWarnings, List<String> topBarApps, boolean showGreeting, boolean headerWhite, boolean clockWallpaper, int clockWallpaperDim, boolean clockGlow, String glassStyle, boolean singleRow, boolean dockBandAll, boolean lunarDate, int lunarUtcOffset, boolean dateBelowClock, boolean vpnPill, String locale, boolean powerOnHomeAlways, boolean inputsConnectedOnly,
                    int openOnStartNetworkWait, boolean navigationSounds, int navigationSoundVolume, boolean continueWatching,
@@ -407,7 +409,8 @@ final class Config {
         this.dockBandAll = dockBandAll;
         this.glowStyle = glowStyle(glowStyle);
         this.glowIntensity = Math.max(0, Math.min(100, glowIntensity));
-        this.tileGlow = tileGlow;
+        this.tileGlowIntensity = Math.max(0, Math.min(100, tileGlowIntensity));
+        this.tileGlow = tileGlow && this.tileGlowIntensity > 0;
         this.wallpaperCaptions = wallpaperCaptions;
         this.glassStyle = glassStyle(glassStyle);
     }
@@ -531,6 +534,7 @@ final class Config {
         String glowStyle = res.getString(R.string.glow_style);
         int glowIntensity = 100;
         boolean tileGlow = true;
+        int tileGlowIntensity = 100;
         boolean wifiStatusWarnings = res.getBoolean(R.bool.wifi_status_warnings);
         boolean dateBelowClock = res.getBoolean(R.bool.date_below_clock);
         boolean vpnPill = res.getBoolean(R.bool.vpn_pill);
@@ -651,13 +655,17 @@ final class Config {
             showGreeting = bool(json, "show_greeting", showGreeting);
             headerWhite = bool(json, "header_white", headerWhite);
             clockWallpaper = bool(json, "clock_wallpaper", clockWallpaper);
-            clockWallpaperDim = integer(json, "clock_wallpaper_dim", clockWallpaperDim, 0, 90);
+            clockWallpaperDim = integer(json, "clock_wallpaper_dim", clockWallpaperDim, 0, 100);
             clockGlow = bool(json, "clock_glow", clockGlow);
             singleRow = bool(json, "single_row", singleRow);
             dockBandAll = bool(json, "dock_band_all", dockBandAll);
             glowStyle = string(json, "glow_style", glowStyle);
             glowIntensity = integer(json, "glow_intensity", glowIntensity, 0, 100);
             tileGlow = bool(json, "tile_glow", tileGlow);
+            int explicitTileGlow = json.has("tile_glow_intensity")
+                    ? integer(json, "tile_glow_intensity", tileGlowIntensity, 0, 100) : -1;
+            tileGlowIntensity = resolveTileGlowIntensity(explicitTileGlow, tileGlow, glowIntensity);
+            tileGlow = tileGlowIntensity > 0;
             glassStyle = string(json, "glass_style", glassStyle);
         }
         // Keep Home/folder membership stable: the fork's top-bar shortcuts do not erase layout entries.
@@ -678,19 +686,35 @@ final class Config {
         File wallpaper = null;
         boolean wallpaperEnabled = json == null || bool(json, "wallpaper", true);
         int rotationMinutes = json == null ? 0 : integer(json, "wallpaper_rotation_minutes", 0, 0, 1440);
-        int wallpaperDim = json == null ? 0 : integer(json, "wallpaper_dim", 0, 0, 90);
+        int wallpaperDim = json == null ? 0 : integer(json, "wallpaper_dim", 0, 0, 100);
         String wallpaperOrder = json == null ? WallpaperRotation.ORDER_SHUFFLE
                 : string(json, "wallpaper_order", WallpaperRotation.ORDER_SHUFFLE);
         if (!WallpaperRotation.validOrder(wallpaperOrder)) wallpaperOrder = WallpaperRotation.ORDER_SHUFFLE;
         List<File> wallpapers = new ArrayList<>();
         // Keep Default / Aurora / Off / Scenes / Personal choices from this launcher.
-        if (wallpaperChoice.startsWith(PersonalWallpapers.PREFIX) || PersonalWallpapers.COAST_VIDEO.equals(wallpaperChoice)) {
+        if (PersonalWallpapers.isCollection(wallpaperChoice)) {
+            List<File> photos = PersonalWallpapers.listPhotos(ctx);
+            if (!photos.isEmpty()) {
+                wallpapers.addAll(photos);
+                wallpaper = photos.get(0);
+                wallpaperEnabled = true;
+            } else {
+                choices.edit().remove(WALLPAPER_CHOICE_KEY).apply();
+                wallpaperChoice = WALLPAPER_THEME;
+            }
+        } else if (wallpaperChoice.startsWith(PersonalWallpapers.PREFIX) || PersonalWallpapers.COAST_VIDEO.equals(wallpaperChoice)) {
             File personal = PersonalWallpapers.file(ctx, wallpaperChoice);
             File resolved = personal != null && PersonalWallpapers.video(wallpaperChoice)
                     ? PersonalWallpapers.poster(personal) : personal;
             if (resolved != null && resolved.isFile() && resolved.length() > 0) {
                 wallpaper = resolved;
-                wallpapers.add(resolved);
+                if (PersonalWallpapers.isUserPhoto(wallpaperChoice) && rotationMinutes > 0) {
+                    List<File> photos = PersonalWallpapers.listPhotos(ctx);
+                    if (photos.size() > 1) wallpapers.addAll(photos);
+                    else wallpapers.add(resolved);
+                } else {
+                    wallpapers.add(resolved);
+                }
                 wallpaperEnabled = true;
             } else {
                 if (PersonalWallpapers.isUserImported(wallpaperChoice)) {
@@ -738,7 +762,7 @@ final class Config {
             wallpaper = null;
             wallpaperEnabled = WALLPAPER_AURORA.equals(wallpaperChoice);
         }
-        int dockOpacity = json == null ? 100 : integer(json, "dock_opacity", 100, 30, 100);
+        int dockOpacity = json == null ? 100 : integer(json, "dock_opacity", 100, 0, 100);
         dockOpacity = chosenDockOpacity(choices.getInt(DOCK_OPACITY_KEY, -1), dockOpacity);
         // A festive skin comes only from a theme; config.xml has no festival.
         Festival festival = json == null ? Festival.NONE : Festival.parse(string(json, "festival", ""),
@@ -753,10 +777,10 @@ final class Config {
                 Math.max(0, Math.min(100, skyIntensity)), settingsKeycodes, settingsKeyPanel, restoreKeyServices, wallpaperEnabled, wallpaper,
                 wallpapers, rotationMinutes, wallpaperDim, dockOpacity, wallpaperOrder, applied, festival, inputKeycodes, appKeys, stockHomeRedirect,
                 Collections.emptyList(), cinematic, ambientGlow, appGlow, fadeRows,
-                Math.max(0, idleClockMinutes), keyFilter, dockGlass, glowStyle, glowIntensity, tileGlow, wallpaperCaptions, handleViewInputs, tileMenu, dockEvenPadding,
+                Math.max(0, idleClockMinutes), keyFilter, dockGlass, glowStyle, glowIntensity, tileGlow, tileGlowIntensity, wallpaperCaptions, handleViewInputs, tileMenu, dockEvenPadding,
                 dockBand, cinematicDots, cinematicWhiteFocus, wifiStatusColor, cinematicScrim, cinematicArt, wallpaperMoods, gamepadPassthrough,
                 consumeVolumeKeys, powerOnHome, homeLongPressHome, wifiStatusWarnings, topBarApps, showGreeting, headerWhite, clockWallpaper,
-                Math.max(0, Math.min(90, clockWallpaperDim)), clockGlow, glassStyle, singleRow && dockRow, dockBandAll, lunar, lunarOffset,
+                Math.max(0, Math.min(100, clockWallpaperDim)), clockGlow, glassStyle, singleRow && dockRow, dockBandAll, lunar, lunarOffset,
                 dateBelowClock, vpnPill, locale, powerOnHomeAlways, inputsConnectedOnly,
                 Math.max(0, Math.min(600, openOnStartNetworkWait)), navigationSounds, navigationSoundVolume, continueWatching,
                 wallpaperChoice, settingsRoutes(res, json));
@@ -830,7 +854,13 @@ final class Config {
 
     /** The dock band opacity chosen in Launcher settings, or the theme's when none (or an out-of-range one) is saved. */
     static int chosenDockOpacity(int chosen, int theme) {
-        return chosen >= 30 && chosen <= 100 ? chosen : theme;
+        return chosen >= 0 && chosen <= 100 ? chosen : theme;
+    }
+
+    /** Resolves independent tile halo intensity (0..100), falling back to legacy tile_glow + glow_intensity. */
+    static int resolveTileGlowIntensity(int explicit, boolean legacyTileGlow, int legacyGlowIntensity) {
+        if (explicit >= 0 && explicit <= 100) return explicit;
+        return legacyTileGlow ? Math.max(0, Math.min(100, legacyGlowIntensity)) : 0;
     }
 
     private static String fileStamp(File file) {

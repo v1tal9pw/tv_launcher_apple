@@ -27,7 +27,6 @@ public final class LauncherSettingsActivity extends Activity {
 
     private static final String STATE_SECTION = "current_section";
     private static final String STATE_LAST_CATEGORY = "last_category";
-    private static final int[] SOUND_VOLUMES = {10, 25, 40, 60, 80, 100};
     private static final int[] SECTION_IDS = {
             R.id.sectionHome, R.id.sectionAppearance, R.id.sectionWidgets,
             R.id.sectionSoundRemote, R.id.sectionSystem, R.id.sectionAbout
@@ -49,7 +48,7 @@ public final class LauncherSettingsActivity extends Activity {
     private SettingsRowView animationsChoice;
     private SettingsRowView advancedChoice;
     private SettingsRowView soundsChoice;
-    private SettingsRowView soundsVolumeChoice;
+    private SettingsSliderView soundsVolumeChoice;
     private SettingsRowView wallpaperChoice;
     private SettingsRowView rowsChoice;
     private SettingsRowView weatherChoice;
@@ -73,6 +72,7 @@ public final class LauncherSettingsActivity extends Activity {
     private String wallpaper;
     private String glowStyle;
     private int glowIntensity;
+    private int tileGlowIntensity;
     private int idleClockMinutes;
     private int currentSection;
     private int lastCategoryId = R.id.categoryHome;
@@ -144,7 +144,17 @@ public final class LauncherSettingsActivity extends Activity {
             refresh();
         });
         soundsVolumeChoice = findViewById(R.id.soundsVolumeChoice);
-        soundsVolumeChoice.setOnClickListener(v -> chooseSoundVolume());
+        soundsVolumeChoice.setStepSoundEnabled(false);
+        soundsVolumeChoice.bind(SettingsSliderView.DEFAULT_MIN, SettingsSliderView.DEFAULT_MAX,
+                SettingsSliderView.DEFAULT_STEP, navigationSoundVolume, NavSound.DEFAULT_VOLUME, 0xFFFF9F0A, val -> {
+                    navigationSoundVolume = val;
+                    choices.edit().putInt(Config.NAV_SOUND_VOLUME_KEY, navigationSoundVolume).apply();
+                    NavSound.setVolume(navigationSoundVolume);
+                    if (navigationSounds && navigationSoundVolume > 0) NavSound.play(true);
+                    Config.markSettingsChanged(LauncherSettingsActivity.this);
+                    setResult(RESULT_OK);
+                    categorySoundRemote.setValue(navigationSounds ? navigationSoundVolume + "%" : getString(R.string.off), true);
+                });
         libraryChoice = findViewById(R.id.libraryChoice);
         libraryChoice.setOnClickListener(v -> {
             appLibrary = !appLibrary;
@@ -292,6 +302,7 @@ public final class LauncherSettingsActivity extends Activity {
         wallpaper = config.wallpaperChoice;
         glowStyle = config.glowStyle;
         glowIntensity = config.glowIntensity;
+        tileGlowIntensity = config.tileGlowIntensity;
         idleClockMinutes = config.homeIdleClockMinutes;
     }
 
@@ -439,7 +450,7 @@ public final class LauncherSettingsActivity extends Activity {
         advancedChoice.setEnabled(animations);
         advancedChoice.setAlpha(animations ? 1f : 0.5f);
         soundsChoice.setToggle(navigationSounds);
-        soundsVolumeChoice.setValue(navigationSoundVolume + "%", true);
+        soundsVolumeChoice.setValue(navigationSoundVolume);
         soundsVolumeChoice.setEnabled(navigationSounds);
         soundsVolumeChoice.setAlpha(navigationSounds ? 1f : 0.5f);
         libraryChoice.setToggle(appLibrary);
@@ -493,7 +504,12 @@ public final class LauncherSettingsActivity extends Activity {
     }
 
     private String glowSummary() {
-        if (Config.GLOW_OFF.equals(glowStyle) || glowIntensity <= 0) return getString(R.string.off);
+        boolean bgActive = !Config.GLOW_OFF.equals(glowStyle) && glowIntensity > 0;
+        if (!bgActive) {
+            return tileGlowIntensity > 0
+                    ? getString(R.string.feature_glow_tile_short, tileGlowIntensity)
+                    : getString(R.string.off);
+        }
         int label = Config.GLOW_EDGE.equals(glowStyle) ? R.string.feature_glow_edge
                 : Config.GLOW_HORIZON.equals(glowStyle) ? R.string.feature_glow_horizon
                 : R.string.feature_glow_radial;
@@ -669,45 +685,11 @@ public final class LauncherSettingsActivity extends Activity {
     }
 
     private void setSounds(View view) {
-        view.setSoundEffectsEnabled(navigationSounds);
+        view.setSoundEffectsEnabled(navigationSounds && !(view instanceof SettingsSliderView));
         if (view instanceof ViewGroup) {
             ViewGroup group = (ViewGroup) view;
             for (int i = 0; i < group.getChildCount(); i++) setSounds(group.getChildAt(i));
         }
-    }
-
-    private void chooseSoundVolume() {
-        String[] labels = new String[SOUND_VOLUMES.length];
-        int selected = -1;
-        for (int i = 0; i < SOUND_VOLUMES.length; i++) {
-            labels[i] = SOUND_VOLUMES[i] + "%";
-            if (SOUND_VOLUMES[i] == navigationSoundVolume) selected = i;
-        }
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(R.string.settings_sounds_volume)
-                .setSingleChoiceItems(labels, selected, (d, which) -> {
-                    navigationSoundVolume = SOUND_VOLUMES[which];
-                    choices.edit().putInt(Config.NAV_SOUND_VOLUME_KEY, navigationSoundVolume).apply();
-                    NavSound.setVolume(navigationSoundVolume);
-                    if (navigationSounds) NavSound.play(true);
-                    Config.markSettingsChanged(LauncherSettingsActivity.this);
-                    setResult(RESULT_OK);
-                    d.dismiss();
-                    refresh();
-                })
-                .setNegativeButton(android.R.string.cancel, null)
-                .show();
-        dialog.setOnDismissListener(d -> NavSound.setVolume(navigationSoundVolume));
-        android.widget.ListView list = dialog.getListView();
-        if (list != null) {
-            list.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
-                @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int pos, long id) {
-                    if (pos >= 0 && pos < SOUND_VOLUMES.length) NavSound.setVolume(SOUND_VOLUMES[pos]);
-                }
-                @Override public void onNothingSelected(android.widget.AdapterView<?> parent) { }
-            });
-        }
-        glass(dialog);
     }
 
     private boolean hasOnTvChoices() {

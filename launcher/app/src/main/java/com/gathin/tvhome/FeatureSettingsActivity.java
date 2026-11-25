@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 /** Focusable, grouped glass settings for features that previously required editing a theme by hand. */
 public final class FeatureSettingsActivity extends Activity {
@@ -163,6 +164,36 @@ public final class FeatureSettingsActivity extends Activity {
         if (help != 0) row.setOnFocusChangeListener((v, focused) -> { if (focused) { selectedKey = key; summary.setText(help); } });
     }
     private void markChanged() { changed = true; Config.markSettingsChanged(FeatureSettingsActivity.this); setResult(RESULT_OK); }
+    private SettingsSliderView slider(String key, int label, int icon, int iconColor, int accentColor,
+                                      int value, int defaultValue, int helpRes, IntConsumer onChanged) {
+        if (group.getChildCount() > 0) {
+            View divider = new View(this); divider.setBackgroundColor(0x14FFFFFF);
+            LinearLayout.LayoutParams line = new LinearLayout.LayoutParams(-1, Math.max(1, dp(.5f)));
+            line.setMarginStart(dp(62)); line.setMarginEnd(dp(16)); group.addView(divider, line);
+        }
+        SettingsSliderView view = new SettingsSliderView(this);
+        view.setId(View.generateViewId());
+        view.setTag(key);
+        view.setLabel(getString(label));
+        view.setIcon(icon, iconColor);
+        view.setStepSoundEnabled(sounds);
+        view.setSoundEffectsEnabled(false);
+        view.bind(SettingsSliderView.DEFAULT_MIN, SettingsSliderView.DEFAULT_MAX,
+                SettingsSliderView.DEFAULT_STEP, value, defaultValue, accentColor, next -> {
+                    onChanged.accept(next);
+                    config = Config.load(this);
+                    updatePreview();
+                    markChanged();
+                });
+        view.setOnFocusChangeListener((v, focused) -> {
+            if (focused) {
+                selectedKey = key;
+                if (!busy) summary.setText(helpRes != 0 ? helpRes : pageHelp);
+            }
+        });
+        group.addView(view, new LinearLayout.LayoutParams(-1, -2));
+        return view;
+    }
     private void integerChoice(String key, int label, int current, int[] values, String[] labels, int icon) {
         int checked = -1; for (int i = 0; i < values.length; i++) if (values[i] == current) checked = i;
         final int selected = checked;
@@ -171,8 +202,6 @@ public final class FeatureSettingsActivity extends Activity {
                     features.edit().putInt(key, values[which]).apply(); markChanged(); render();
                 }));
     }
-
-    static final int[] DOCK_OPACITIES = {100, 70, 50, 30};
 
     private void wallpapers() {
         heading(R.string.feature_wallpapers, R.string.feature_wallpaper_help); section(R.string.feature_wallpapers);
@@ -189,8 +218,27 @@ public final class FeatureSettingsActivity extends Activity {
         }
         row("personal_help", R.string.personal_wallpaper_limits, "", R.drawable.ic_quick_picture, 0xFF0A84FF,
                 () -> message(R.string.personal_wallpaper_help));
-        int[] minutes = {0, 5, 15, 30, 60, 120};
-        integerChoice("wallpaper_rotation_minutes", R.string.feature_rotation, config.wallpaperRotationMinutes, minutes, minuteLabels(minutes), R.drawable.ic_settings_motion);
+        int[] minutes = {0, 1, 5, 15, 30, 60, 120};
+        String[] rotationLabels = minuteLabels(minutes);
+        int rotationSelected = -1;
+        for (int i = 0; i < minutes.length; i++) if (minutes[i] == config.wallpaperRotationMinutes) rotationSelected = i;
+        final int currentRotationChoice = rotationSelected;
+        String rotationText = currentRotationChoice < 0
+                ? String.valueOf(config.wallpaperRotationMinutes) : rotationLabels[currentRotationChoice];
+        row("wallpaper_rotation_minutes", R.string.feature_rotation, rotationText,
+                R.drawable.ic_settings_motion, 0xFF0A84FF,
+                () -> choose(getString(R.string.feature_rotation), rotationLabels, currentRotationChoice, which -> {
+                    int picked = minutes[which];
+                    features.edit().putInt("wallpaper_rotation_minutes", picked).apply();
+                    if (picked > 0 && PersonalWallpapers.isUserPhoto(config.wallpaperChoice)) {
+                        if (PersonalWallpapers.listPhotos(this).size() >= 2) {
+                            choices.edit().putString(Config.WALLPAPER_CHOICE_KEY, PersonalWallpapers.COLLECTION).apply();
+                        } else {
+                            Toast.makeText(this, R.string.personal_wallpaper_rotation_need_more, Toast.LENGTH_LONG).show();
+                        }
+                    }
+                    markChanged(); render();
+                }));
         String[] orders = {getString(R.string.feature_sequential), getString(R.string.feature_shuffle)};
         row("wallpaper_order", R.string.feature_order, orders[WallpaperRotation.ORDER_SEQUENTIAL.equals(config.wallpaperOrder) ? 0 : 1],
                 R.drawable.ic_quick_apps, 0xFFBF5AF2, () -> choose(getString(R.string.feature_order), orders,
@@ -199,10 +247,14 @@ public final class FeatureSettingsActivity extends Activity {
                             markChanged(); render();
                         }));
         toggle("wallpaper_true_color", R.string.feature_true_color, config.wallpaperTrueColor, R.drawable.ic_quick_picture, 0xFFFF9F0A, R.string.feature_true_color_help);
-        integerChoice("dock_opacity", R.string.dock_opacity_label, config.dockOpacity, DOCK_OPACITIES,
-                new String[]{"100%","70%","50%","30%"}, R.drawable.ic_quick_picture);
-        integerChoice("wallpaper_dim", R.string.feature_dim, config.wallpaperDim, new int[]{0, 20, 35, 50, 70},
-                new String[]{"0%", "20%", "35%", "50%", "70%"}, R.drawable.ic_quick_picture);
+        slider("dock_opacity", R.string.dock_opacity_label, R.drawable.ic_quick_picture, 0xFF0A84FF, 0xFF0A84FF,
+                config.dockOpacity, 100, R.string.feature_slider_help, val -> {
+                    choices.edit().remove(Config.DOCK_OPACITY_KEY).apply();
+                    features.edit().putInt("dock_opacity", val).apply();
+                });
+        slider("wallpaper_dim", R.string.feature_dim, R.drawable.ic_quick_picture, 0xFFBF5AF2, 0xFFBF5AF2,
+                config.wallpaperDim, 0, R.string.feature_slider_help,
+                val -> features.edit().putInt("wallpaper_dim", val).apply());
     }
 
     private String wallpaperLabel(String value) {
@@ -219,15 +271,20 @@ public final class FeatureSettingsActivity extends Activity {
 
     private void chooseWallpaper() {
         List<String> values = new ArrayList<>(java.util.Arrays.asList(Config.WALLPAPER_THEME, Config.WALLPAPER_AURORA, Config.WALLPAPER_OFF, FeaturePreferences.SCENES));
+        List<File> personalFiles = PersonalWallpapers.list(this);
+        if (PersonalWallpapers.listPhotos(this).size() >= 2 || PersonalWallpapers.isCollection(config.wallpaperChoice)) {
+            values.add(PersonalWallpapers.COLLECTION);
+        }
         values.add(PersonalWallpapers.COAST_VIDEO);
         for (File file : SceneFiles.images(this)) values.add(FeaturePreferences.SCENE_PREFIX + file.getName());
-        for (File file : PersonalWallpapers.list(this)) values.add(PersonalWallpapers.PREFIX + file.getName());
+        for (File file : personalFiles) values.add(PersonalWallpapers.PREFIX + file.getName());
         String[] labels = new String[values.size()]; for (int i = 0; i < labels.length; i++) labels[i] = wallpaperLabel(values.get(i));
         choose(getString(R.string.feature_source), labels, values.indexOf(config.wallpaperChoice), which -> {
             String value = values.get(which);
             if (Config.WALLPAPER_THEME.equals(value)) choices.edit().remove(Config.WALLPAPER_CHOICE_KEY).apply();
             else choices.edit().putString(Config.WALLPAPER_CHOICE_KEY, value).apply();
-            if (FeaturePreferences.SCENES.equals(value) && config.wallpaperRotationMinutes == 0)
+            if ((FeaturePreferences.SCENES.equals(value) || PersonalWallpapers.isCollection(value))
+                    && config.wallpaperRotationMinutes == 0)
                 features.edit().putInt("wallpaper_rotation_minutes", 60).apply();
             markChanged(); render();
         });
@@ -248,7 +305,9 @@ public final class FeatureSettingsActivity extends Activity {
                     .setMessage(getString(R.string.personal_wallpaper_delete_confirm, label))
                     .setPositiveButton(R.string.personal_wallpaper_delete_action, (d, btn) -> {
                         PersonalWallpapers.delete(this, choice);
-                        if (choice.equals(choices.getString(Config.WALLPAPER_CHOICE_KEY, ""))) {
+                        String active = choices.getString(Config.WALLPAPER_CHOICE_KEY, "");
+                        if (choice.equals(active)
+                                || (PersonalWallpapers.isCollection(active) && PersonalWallpapers.listPhotos(this).isEmpty())) {
                             choices.edit().remove(Config.WALLPAPER_CHOICE_KEY).apply();
                         }
                         Toast.makeText(this, R.string.personal_wallpaper_deleted, Toast.LENGTH_SHORT).show();
@@ -267,7 +326,6 @@ public final class FeatureSettingsActivity extends Activity {
 
     private void glow() {
         heading(R.string.feature_glow, R.string.feature_glow_help); section(R.string.feature_glow);
-        boolean active = !Config.GLOW_OFF.equals(config.glowStyle) && config.glowIntensity > 0;
         String[] styleValues = {Config.GLOW_RADIAL, Config.GLOW_EDGE, Config.GLOW_HORIZON, Config.GLOW_OFF};
         String[] styleLabels = {
                 getString(R.string.feature_glow_radial),
@@ -278,7 +336,8 @@ public final class FeatureSettingsActivity extends Activity {
         int selectedStyle = 0;
         for (int i = 0; i < styleValues.length; i++) if (styleValues[i].equals(config.glowStyle)) selectedStyle = i;
         final int currentStyleIndex = selectedStyle;
-        row("glow_style", R.string.feature_glow_style, styleLabels[selectedStyle], R.drawable.ic_quick_picture, 0xFFBF5AF2,
+        SettingsRowView styleRow = row("glow_style", R.string.feature_glow_style, styleLabels[selectedStyle],
+                R.drawable.ic_quick_picture, 0xFFBF5AF2,
                 () -> choose(getString(R.string.feature_glow_style), styleLabels, currentStyleIndex, which -> {
                     String nextStyle = styleValues[which];
                     SharedPreferences.Editor edit = features.edit().putString("glow_style", nextStyle);
@@ -286,31 +345,23 @@ public final class FeatureSettingsActivity extends Activity {
                     edit.apply(); markChanged(); render();
                 }));
 
-        int[] intensities = {0, 20, 40, 60, 80, 100};
-        String[] intensityLabels = {getString(R.string.off), "20%", "40%", "60%", "80%", "100%"};
         int effectiveIntensity = Config.GLOW_OFF.equals(config.glowStyle) ? 0 : config.glowIntensity;
-        int checkedIntensity = -1;
-        for (int i = 0; i < intensities.length; i++) if (intensities[i] == effectiveIntensity) checkedIntensity = i;
-        final int selectedIntensity = checkedIntensity;
-        row("glow_intensity", R.string.feature_glow_intensity,
-                checkedIntensity < 0 ? effectiveIntensity + "%" : intensityLabels[checkedIntensity],
-                R.drawable.ic_settings_motion, 0xFF0A84FF,
-                () -> choose(getString(R.string.feature_glow_intensity), intensityLabels, selectedIntensity, which -> {
-                    int value = intensities[which];
-                    SharedPreferences.Editor edit = features.edit().putInt("glow_intensity", value);
-                    if (value > 0 && Config.GLOW_OFF.equals(config.glowStyle)) edit.putString("glow_style", Config.GLOW_RADIAL);
-                    edit.apply(); markChanged(); render();
-                }));
+        slider("glow_intensity", R.string.feature_glow_intensity, R.drawable.ic_settings_motion, 0xFF0A84FF, 0xFF0A84FF,
+                effectiveIntensity, 100, R.string.feature_glow_intensity_help, val -> {
+                    SharedPreferences.Editor edit = features.edit().putInt("glow_intensity", val);
+                    if (val > 0 && Config.GLOW_OFF.equals(config.glowStyle)) {
+                        edit.putString("glow_style", Config.GLOW_RADIAL);
+                        styleRow.setValue(getString(R.string.feature_glow_radial), true);
+                    }
+                    edit.apply();
+                });
 
-        SettingsRowView tileRow = row("tile_glow", R.string.feature_glow_tile, "", R.drawable.ic_quick_picture, 0xFF64D2FF, () -> {
-            features.edit().putBoolean("tile_glow", !config.tileGlow).apply(); markChanged(); render();
-        });
-        tileRow.setToggle(config.tileGlow && active);
-        tileRow.setEnabled(active);
-        tileRow.setAlpha(active ? 1f : 0.5f);
-        tileRow.setOnFocusChangeListener((v, focused) -> {
-            if (focused) { selectedKey = "tile_glow"; summary.setText(R.string.feature_glow_tile_help); }
-        });
+        slider("tile_glow_intensity", R.string.feature_glow_tile, R.drawable.ic_quick_picture, 0xFF64D2FF, 0xFF64D2FF,
+                config.tileGlowIntensity, 100, R.string.feature_glow_tile_help, val ->
+                        features.edit()
+                                .putInt("tile_glow_intensity", val)
+                                .putBoolean("tile_glow", val > 0)
+                                .apply());
     }
 
     private void weather() {
@@ -363,8 +414,10 @@ public final class FeatureSettingsActivity extends Activity {
         integerChoice("home_idle_clock_minutes", R.string.feature_clock_timer, config.homeIdleClockMinutes, minutes, minuteLabels(minutes), R.drawable.ic_settings_motion);
         toggle("clock_wallpaper", R.string.feature_clock_wallpaper, config.clockWallpaper, R.drawable.ic_quick_picture,0xFF0A84FF,0);
         toggle("clock_glow", R.string.feature_clock_glow, config.clockGlow,R.drawable.ic_quick_picture,0xFFBF5AF2,0);
-        integerChoice("clock_wallpaper_dim",R.string.feature_dim,config.clockWallpaperDim,new int[]{0,20,35,50,70,90},
-                new String[]{"0%","20%","35%","50%","70%","90%"},R.drawable.ic_quick_picture);
+        slider("clock_wallpaper_dim", R.string.feature_dim, R.drawable.ic_quick_picture, 0xFFBF5AF2, 0xFFBF5AF2,
+                config.clockWallpaperDim, getResources().getInteger(R.integer.clock_wallpaper_dim),
+                R.string.feature_slider_help,
+                val -> features.edit().putInt("clock_wallpaper_dim", val).apply());
         if(config.openOnStartChoice) {
             String picked=choices.getString(OpenOnStart.KEY,"");
             row("open_on_start",R.string.open_on_start_label,picked.isEmpty()?getString(R.string.off):appName(picked),
@@ -477,16 +530,58 @@ public final class FeatureSettingsActivity extends Activity {
         Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT).setType(video ? "video/*" : "image/*")
                 .addCategory(Intent.CATEGORY_OPENABLE)
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        if (!video) pick.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
         try { startActivityForResult(pick, video ? 22 : 21); }
         catch (ActivityNotFoundException unavailable) { message(R.string.feature_no_image_picker); }
     }
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if ((requestCode == 21 || requestCode == 22) && resultCode == RESULT_OK && data != null && data.getData() != null) {
-            android.net.Uri uri = data.getData();
-            boolean persisted = PersonalWallpapers.tryPersistReadPermission(this, uri, data.getFlags());
-            async(() -> PersonalWallpapers.importFile(getApplicationContext(), uri, requestCode == 22, persisted), value -> {
-                choices.edit().putString(Config.WALLPAPER_CHOICE_KEY, value).apply();
+        if ((requestCode == 21 || requestCode == 22) && resultCode == RESULT_OK && data != null) {
+            boolean isVideo = requestCode == 22;
+            List<android.net.Uri> uris = new ArrayList<>();
+            if (!isVideo && data.getClipData() != null) {
+                android.content.ClipData clip = data.getClipData();
+                for (int i = 0; i < clip.getItemCount(); i++) {
+                    android.net.Uri u = clip.getItemAt(i).getUri();
+                    if (u != null) uris.add(u);
+                }
+            } else if (data.getData() != null) {
+                uris.add(data.getData());
+            }
+            if (uris.isEmpty()) return;
+            int flags = data.getFlags();
+            List<Boolean> persistedFlags = new ArrayList<>(uris.size());
+            for (android.net.Uri uri : uris) {
+                persistedFlags.add(PersonalWallpapers.tryPersistReadPermission(this, uri, flags));
+            }
+            async(() -> {
+                List<String> imported = new ArrayList<>();
+                Exception lastError = null;
+                for (int i = 0; i < uris.size(); i++) {
+                    try {
+                        imported.add(PersonalWallpapers.importFile(
+                                getApplicationContext(), uris.get(i), isVideo, persistedFlags.get(i)));
+                    } catch (Exception e) {
+                        lastError = e;
+                    }
+                }
+                if (imported.isEmpty()) {
+                    throw lastError != null ? lastError : new java.io.IOException("Import failed");
+                }
+                return imported;
+            }, imported -> {
+                String current = choices.getString(Config.WALLPAPER_CHOICE_KEY, "");
+                boolean rotating = features.getInt("wallpaper_rotation_minutes", 0) > 0;
+                if (!isVideo && (imported.size() > 1
+                        || ((PersonalWallpapers.isCollection(current) || rotating)
+                        && PersonalWallpapers.listPhotos(this).size() >= 2))) {
+                    choices.edit().putString(Config.WALLPAPER_CHOICE_KEY, PersonalWallpapers.COLLECTION).apply();
+                    if (imported.size() > 1 && !rotating) {
+                        features.edit().putInt("wallpaper_rotation_minutes", 60).apply();
+                    }
+                } else {
+                    choices.edit().putString(Config.WALLPAPER_CHOICE_KEY, imported.get(imported.size() - 1)).apply();
+                }
                 markChanged(); render();
             }, R.string.personal_wallpaper_import_failed);
             return;

@@ -28,6 +28,7 @@ import java.util.UUID;
 /** Private, validated local wallpaper files, synced with their original source files when verifiable. */
 final class PersonalWallpapers {
     static final String PREFIX = "personal:";
+    static final String COLLECTION = PREFIX + "collection";
     static final String COAST_VIDEO = "coast-video";
     private static final String PRIVATE_DIR = "personal-wallpapers";
     private static final String META_PREFS = "personal_wallpapers_meta";
@@ -49,6 +50,14 @@ final class PersonalWallpapers {
 
     static boolean isUserImported(String choice) {
         return extractName(choice) != null;
+    }
+
+    static boolean isCollection(String choice) {
+        return COLLECTION.equals(choice);
+    }
+
+    static boolean isUserPhoto(String choice) {
+        return isUserImported(choice) && !video(choice);
     }
 
     static boolean tryPersistReadPermission(Context context, Uri uri, int intentFlags) {
@@ -169,6 +178,31 @@ final class PersonalWallpapers {
         return listExisting(context);
     }
 
+    /** Valid user-imported photo files in deterministic chronological order for wallpaper rotation. */
+    static synchronized List<File> listPhotos(Context context) {
+        if (context == null) return new ArrayList<>();
+        return listPhotosIn(privateDir(context));
+    }
+
+    static List<File> listPhotosIn(File directory) {
+        List<File> result = new ArrayList<>();
+        if (directory == null) return result;
+        File[] files = directory.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                String name = file.getName();
+                if (validName(name) && !name.endsWith(".mp4") && existsOnDisk(file)) {
+                    result.add(file);
+                }
+            }
+        }
+        result.sort((a, b) -> {
+            int cmp = Long.compare(a.lastModified(), b.lastModified());
+            return cmp != 0 ? cmp : a.getName().compareTo(b.getName());
+        });
+        return result;
+    }
+
     static synchronized boolean delete(Context context, String choice) {
         String name = extractName(choice);
         if (name == null || context == null) return false;
@@ -213,6 +247,12 @@ final class PersonalWallpapers {
 
     static String label(Context context, String choice) {
         if (COAST_VIDEO.equals(choice)) return context.getString(R.string.personal_wallpaper_coast);
+        if (isCollection(choice)) {
+            int count = listPhotos(context).size();
+            return count > 0
+                    ? context.getString(R.string.personal_wallpaper_collection_count, count)
+                    : context.getString(R.string.personal_wallpaper_collection);
+        }
         String name = extractName(choice);
         String fallback = context.getString(video(choice)
                 ? R.string.personal_wallpaper_video : R.string.personal_wallpaper_photo);
