@@ -72,7 +72,12 @@ final class QuickSettingsActions {
             "com.spotify.tv.android",
             "tv.twitch.android.app",
             "com.google.android.play.games",
-            "com.android.vending"
+            "ru.kinopoisk.tv",
+            "ru.rt.video.app.tv",
+            "ru.ivi.client",
+            "tv.okko.androidtv",
+            "ru.more.play",
+            "ru.mts.mtstv"
     };
     private static final Set<String> CORE_SYSTEM_PACKAGES = new LinkedHashSet<>(java.util.Arrays.asList(
             "android",
@@ -80,6 +85,7 @@ final class QuickSettingsActions {
             "com.android.settings",
             "com.android.tv.settings",
             "com.google.android.tv.settings",
+            "com.android.vending",
             "com.tcl.settings",
             "com.xiaomi.mitv.settings",
             "com.tcl.tv",
@@ -276,30 +282,14 @@ final class QuickSettingsActions {
 
     private static Set<String> collectExtraCleanupPackages(Context context, Set<String> excluded) {
         Set<String> extras = new LinkedHashSet<>();
+        PackageManager pm = context.getPackageManager();
         for (String pkg : MEDIA_CLEANUP_PACKAGES) {
-            if (!excluded.contains(pkg) && !CORE_SYSTEM_PACKAGES.contains(pkg)) extras.add(pkg);
+            if (excluded.contains(pkg) || CORE_SYSTEM_PACKAGES.contains(pkg)) continue;
+            try {
+                pm.getApplicationInfo(pkg, 0);
+                extras.add(pkg);
+            } catch (PackageManager.NameNotFoundException | RuntimeException ignored) { }
         }
-        try {
-            PackageManager pm = context.getPackageManager();
-            String[] categories = {Intent.CATEGORY_LEANBACK_LAUNCHER, Intent.CATEGORY_LAUNCHER};
-            for (String category : categories) {
-                List<ResolveInfo> activities = pm.queryIntentActivities(
-                        new Intent(Intent.ACTION_MAIN).addCategory(category), 0);
-                for (ResolveInfo info : activities) {
-                    if (info == null || info.activityInfo == null || info.activityInfo.applicationInfo == null) continue;
-                    ApplicationInfo appInfo = info.activityInfo.applicationInfo;
-                    // Third-party apps are already listed via `pm list packages -3` in the shell script;
-                    // only add pre-installed/system launchable apps here so the ADB packet stays small.
-                    if ((appInfo.flags & (ApplicationInfo.FLAG_SYSTEM | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) == 0) {
-                        continue;
-                    }
-                    String pkg = info.activityInfo.packageName;
-                    if (pkg == null || excluded.contains(pkg) || CORE_SYSTEM_PACKAGES.contains(pkg)) continue;
-                    extras.add(pkg);
-                    if (extras.size() >= 24) return extras;
-                }
-            }
-        } catch (RuntimeException ignored) { }
         return extras;
     }
 
@@ -325,7 +315,9 @@ final class QuickSettingsActions {
         StringBuilder extra = new StringBuilder();
         if (extraPackages != null) {
             for (String pkg : extraPackages) {
-                if (pkg != null && SAFE_PACKAGE.matcher(pkg).matches()) extra.append(' ').append(pkg);
+                if (pkg != null && SAFE_PACKAGE.matcher(pkg).matches() && !CORE_SYSTEM_PACKAGES.contains(pkg)) {
+                    extra.append(' ').append(pkg);
+                }
             }
         }
         return "before=0; "
@@ -345,9 +337,9 @@ final class QuickSettingsActions {
                 + "skip=\"$skip$p \"; "
                 + "case \"$running\" in *\" $p \"*|*\" $p:\"*) am force-stop \"$p\" >/dev/null 2>&1 && stopped=$((stopped+1)) ;; esac; "
                 + "done; "
-                + "am kill-all >/dev/null 2>&1; "
-                + "if command -v timeout >/dev/null 2>&1; then timeout 5 pm trim-caches 999999999999 >/dev/null 2>&1; "
-                + "else pm trim-caches 999999999999 >/dev/null 2>&1; fi; "
+                + "if command -v timeout >/dev/null 2>&1; then timeout 5 pm trim-caches 512M >/dev/null 2>&1; "
+                + "else pm trim-caches 512M >/dev/null 2>&1; fi; "
+                + "[ \"$stopped\" -gt 0 ] && sleep 1; "
                 + "after=0; "
                 + "while read k v _; do [ \"$k\" = \"MemAvailable:\" ] && after=$v && break; done < /proc/meminfo; "
                 + "echo \"BEFORE=$before\"; echo \"AFTER=$after\"; echo \"STOPPED=$stopped\"";

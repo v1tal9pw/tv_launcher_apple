@@ -17,19 +17,21 @@ public class NativeCleanerTest {
     @Test public void adbCleanupCommandFiltersUnsafePackagesAndFitsAdbPacket() {
         String cmd = QuickSettingsActions.buildAdbCleanupCommand(
                 Arrays.asList("com.gathin.tvhome", "bad;rm -rf /", ""),
-                Arrays.asList("com.google.android.youtube.tv", "bad$(id)"),
+                Arrays.asList("com.google.android.youtube.tv", "com.android.vending", "bad$(id)"),
                 Arrays.asList("com.v2raytun.android", "bad|cat"));
         assertTrue(cmd.contains(" com.gathin.tvhome "));
         assertTrue(cmd.contains("com.v2raytun.android "));
         assertTrue(cmd.contains(" com.google.android.youtube.tv"));
+        assertFalse(cmd.contains("com.android.vending"));
         assertFalse(cmd.contains("rm -rf"));
         assertFalse(cmd.contains("$(id)"));
         assertFalse(cmd.contains("|cat"));
         assertTrue(cmd.contains("dumpsys activity activities"));
         assertTrue(cmd.contains("dumpsys vpn_management"));
         assertTrue(cmd.contains("dumpsys connectivity"));
-        assertTrue(cmd.contains("am kill-all"));
-        assertTrue(cmd.contains("pm trim-caches"));
+        assertFalse(cmd.contains("am kill-all"));
+        assertFalse(cmd.contains("999999999999"));
+        assertTrue(cmd.contains("pm trim-caches 512M"));
         assertTrue(cmd.length() < 3072);
     }
 
