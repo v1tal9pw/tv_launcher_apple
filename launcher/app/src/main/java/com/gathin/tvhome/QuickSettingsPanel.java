@@ -106,7 +106,7 @@ final class QuickSettingsPanel extends FrameLayout {
         animationsEnabled = animations && ValueAnimator.areAnimatorsEnabled();
         this.reducedMotion = reducedMotion || !animationsEnabled;
         this.navigationSounds = navigationSounds;
-        if (navigationSounds) NavSound.prepare();
+        if (navigationSounds) NavSound.prepare(activity);
         unit = Math.min(home.getWidth() / 960f, home.getHeight() / 540f);
         fontScale = activity.getResources().getConfiguration().fontScale;
         homeShortcuts = home.findViewById(R.id.topButtons);

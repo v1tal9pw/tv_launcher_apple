@@ -111,7 +111,7 @@ public final class FeatureSettingsActivity extends Activity {
             Toast.makeText(this, R.string.personal_wallpaper_source_gone, Toast.LENGTH_SHORT).show();
         }
         config = Config.load(this); sounds = config.navigationSounds;
-        if (sounds) NavSound.prepare();
+        if (sounds) NavSound.prepare(this);
         rows.removeAllViews(); group = null;
         switch (page) {
             case GLOW: glow(); break;

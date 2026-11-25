@@ -265,7 +265,7 @@ final class RemoteControlOverlay {
             activePanel = null;
             activeInputsOverlay = null;
             Config config = Config.load(service);
-            if (config.navigationSounds) NavSound.prepare();
+            if (config.navigationSounds) NavSound.prepare(service);
             Runnable attachPanel = new Runnable() {
                 private boolean opened;
                 @Override public void run() {

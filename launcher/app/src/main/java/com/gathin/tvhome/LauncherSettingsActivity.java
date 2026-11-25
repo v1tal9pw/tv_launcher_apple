@@ -285,7 +285,7 @@ public final class LauncherSettingsActivity extends Activity {
         navigationSounds = config.navigationSounds;
         navigationSoundVolume = config.navigationSoundVolume;
         NavSound.setVolume(navigationSoundVolume);
-        if (navigationSounds) NavSound.prepare();
+        if (navigationSounds) NavSound.prepare(this);
         appLibrary = config.appLibrary;
         showStats = config.showStats;
         continueWatching = config.continueWatching;

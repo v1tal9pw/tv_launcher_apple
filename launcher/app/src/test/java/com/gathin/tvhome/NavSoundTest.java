@@ -26,13 +26,34 @@ public class NavSoundTest {
         assertEquals(48000, NavSound.chooseSampleRate(999999));
 
         short[] pcm = NavSound.buildClickPcm(48000);
-        assertEquals(384, pcm.length); // 8 ms at 48 kHz
+        assertEquals(1536, pcm.length); // 32 ms at 48 kHz (safely above 10-20 ms TV mixer period)
         int earlyPeak = 0;
-        for (int i = 0; i < 80; i++) earlyPeak = Math.max(earlyPeak, Math.abs(pcm[i]));
+        for (int i = 0; i < 160; i++) earlyPeak = Math.max(earlyPeak, Math.abs(pcm[i]));
         int tailPeak = 0;
-        for (int i = pcm.length - 40; i < pcm.length; i++) tailPeak = Math.max(tailPeak, Math.abs(pcm[i]));
+        for (int i = pcm.length - 400; i < pcm.length; i++) tailPeak = Math.max(tailPeak, Math.abs(pcm[i]));
         assertTrue("Click starts with crisp transient", earlyPeak > 10000);
-        assertTrue("Click decays cleanly by tail", tailPeak < earlyPeak / 10);
+        assertEquals("Trailing buffer tail is clean silence", 0, tailPeak);
+
+        byte[] wav = NavSound.buildWavBytes(48000, pcm);
+        assertEquals(44 + pcm.length * 2, wav.length);
+        assertEquals('R', wav[0]); assertEquals('I', wav[1]); assertEquals('F', wav[2]); assertEquals('F', wav[3]);
+        assertEquals('W', wav[8]); assertEquals('A', wav[9]); assertEquals('V', wav[10]); assertEquals('E', wav[11]);
+        assertEquals('d', wav[36]); assertEquals('a', wav[37]); assertEquals('t', wav[38]); assertEquals('a', wav[39]);
+        int parsedRate = (wav[24] & 0xFF) | ((wav[25] & 0xFF) << 8)
+                | ((wav[26] & 0xFF) << 16) | ((wav[27] & 0xFF) << 24);
+        assertEquals(48000, parsedRate);
+    }
+
+    @Test public void detectsFocusAndAdapterViewSelectionChanges() {
+        Object list = new Object();
+        Object buttonA = new Object();
+        Object buttonB = new Object();
+        assertTrue(NavSound.focusOrSelectionChanged(buttonA, -1, buttonB, -1));
+        assertFalse(NavSound.focusOrSelectionChanged(buttonA, -1, buttonA, -1));
+        assertFalse(NavSound.focusOrSelectionChanged(buttonA, -1, null, -1));
+        // Inside AlertDialog ListView focus stays on the same View while selectedPosition changes
+        assertTrue(NavSound.focusOrSelectionChanged(list, 1, list, 2));
+        assertFalse(NavSound.focusOrSelectionChanged(list, 2, list, 2));
     }
 
     @Test public void staticAudioTrackStatesAllowNoStaticDataBeforeWriteOnly() {

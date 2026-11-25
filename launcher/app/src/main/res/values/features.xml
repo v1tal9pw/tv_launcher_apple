@@ -55,7 +55,7 @@
     <string name="feature_glow_intensity">Intensity</string>
     <string name="feature_glow_tile">Focused tile halo</string>
     <string name="feature_glow_tile_help">Show a colored halo around the selected app tile. Turning glow style or intensity off disables all app glow completely.</string>
-    <string name="installed_changes" formatted="false">Version 3.69 for TCL C6K. Fixed silent navigation sounds by validating MODE_STATIC AudioTrack state before and after PCM write at 48 kHz, reorganized Launcher Settings into 6 Apple TV-style category sub-screens with live summaries, replaced the clickable About row with an inline info card focusing System Update on entry, and added periodic auto-update checks with a red notification dot in Control Center and Settings.</string>
+    <string name="installed_changes" formatted="false">Version 3.70 for TCL C6K. Fixed intermittent navigation click sound dropouts by moving to native 48 kHz SoundPool with automatic recovery on audio route changes, TV standby, and app return, restored sound when scrolling AlertDialog lists, and routed the Control Center Sound tile to the native Display &amp; Sound side panel.</string>
     <string name="update_check_button">Check for updates</string>
     <string name="weather_show_city">Show city name</string>
     <string name="weather_show_details">Show feels-like temperature and wind</string>

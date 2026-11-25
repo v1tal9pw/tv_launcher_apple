@@ -28,31 +28,24 @@ public class QuickSoundRoutingTest {
     }
 
     @Test
-    public void soundOnlyPreferenceAndSliceKeysExcludeDisplayAndSound() {
-        assertTrue(QuickSettingsActions.isSoundOnlyPreferenceKey("sound"));
-        assertTrue(QuickSettingsActions.isSoundOnlyPreferenceKey("audio"));
-        assertTrue(QuickSettingsActions.isSoundOnlyPreferenceKey("sound_settings"));
-        assertTrue(QuickSettingsActions.isSoundOnlyPreferenceKey("tcl_sound"));
-        assertTrue(QuickSettingsActions.isSoundOnlyPreferenceKey("device_audio_settings"));
-        assertFalse(QuickSettingsActions.isSoundOnlyPreferenceKey("display_and_sound"));
-        assertFalse(QuickSettingsActions.isSoundOnlyPreferenceKey("picture"));
-        assertFalse(QuickSettingsActions.isSoundOnlyPreferenceKey("sound_effects"));
-        assertFalse(QuickSettingsActions.isSoundOnlyPreferenceKey("system_sounds"));
-        assertFalse(QuickSettingsActions.isSoundOnlyPreferenceKey("default_audio_output"));
-        assertFalse(QuickSettingsActions.isSoundOnlyPreferenceKey("audio_only"));
-        assertFalse(QuickSettingsActions.isSoundOnlyPreferenceKey("advanced_sound_settings"));
-        assertFalse(QuickSettingsActions.isSoundOnlyPreferenceKey("sound_slice"));
+    public void displayAndSoundPreferenceAndSliceKeysMatchNativePanel() {
+        assertTrue(QuickSettingsActions.isDisplayAndSoundPreferenceKey("display_and_sound"));
+        assertTrue(QuickSettingsActions.isDisplayAndSoundPreferenceKey("display_sound"));
+        assertTrue(QuickSettingsActions.isDisplayAndSoundPreferenceKey("device_display_and_sound"));
+        assertTrue(QuickSettingsActions.isDisplayAndSoundPreferenceKey("picture_and_sound"));
+        assertFalse(QuickSettingsActions.isDisplayAndSoundPreferenceKey("picture"));
+        assertFalse(QuickSettingsActions.isDisplayAndSoundPreferenceKey("sound"));
+        assertFalse(QuickSettingsActions.isDisplayAndSoundPreferenceKey("display_and_sound_slice"));
 
-        assertTrue(QuickSettingsActions.isSoundOnlySliceKey("sound_slice"));
-        assertTrue(QuickSettingsActions.isSoundOnlySliceKey("audio_slice"));
-        assertTrue(QuickSettingsActions.isSoundOnlySliceKey("sound_settings_slice"));
-        assertFalse(QuickSettingsActions.isSoundOnlySliceKey("display_and_sound_slice"));
-        assertFalse(QuickSettingsActions.isSoundOnlySliceKey("audio_output_slice"));
-        assertFalse(QuickSettingsActions.isSoundOnlySliceKey("sound"));
+        assertTrue(QuickSettingsActions.isDisplayAndSoundSliceKey("display_and_sound_slice"));
+        assertTrue(QuickSettingsActions.isDisplayAndSoundSliceKey("display_sound_slice"));
+        assertTrue(QuickSettingsActions.isDisplayAndSoundSliceKey("sound_slice"));
+        assertFalse(QuickSettingsActions.isDisplayAndSoundSliceKey("picture_slice"));
+        assertFalse(QuickSettingsActions.isDisplayAndSoundSliceKey("display_and_sound"));
     }
 
     @Test
-    public void pureSoundActivityWinsAndRejectsPictureAndCombinedDisplaySound() {
+    public void displayAndSoundActivityWinsOverSoundOnlyAndRejectsPicture() {
         String displayPkg = "com.tcl.settings";
         String displayClass = "com.tcl.settings.PictureActivity";
 
@@ -62,29 +55,25 @@ public class QuickSoundRoutingTest {
                 displayPkg, "com.tcl.settings.DisplayAndSoundActivity", displayPkg, displayClass);
         int sound = QuickSettingsActions.scoreSoundActivityName(
                 displayPkg, "com.tcl.settings.SoundActivity", displayPkg, displayClass);
-        int quickSound = QuickSettingsActions.scoreSoundActivityName(
-                displayPkg, "com.tcl.settings.QuickSoundActivity", displayPkg, displayClass);
         int audioMenu = QuickSettingsActions.scoreSoundActivityName(
                 displayPkg, "com.tcl.settings.AudioMenuActivity", displayPkg, displayClass);
 
         assertEquals(0, picture);
-        assertEquals(0, displayAndSound);
+        assertTrue(displayAndSound > sound);
         assertTrue(sound > audioMenu);
-        assertEquals(sound, quickSound);
         assertTrue(audioMenu > 0);
     }
 
     @Test
-    public void partnerCustomizerSoundSubpackageInsideTvSettingsIsDiscovered() {
+    public void partnerCustomizerDisplaySoundSubpackageInsideTvSettingsIsDiscovered() {
         String pkg = "com.android.tv.settings";
         String displayClass = "com.android.tv.settings.partnercustomizer.picture.PictureActivity";
 
         assertEquals(0, QuickSettingsActions.scoreSoundActivityName(pkg, displayClass, pkg, displayClass));
         assertTrue(QuickSettingsActions.scoreSoundActivityName(
+                pkg, "com.android.tv.settings.partnercustomizer.DisplayAndSoundActivity", pkg, displayClass) > 0);
+        assertTrue(QuickSettingsActions.scoreSoundActivityName(
                 pkg, "com.android.tv.settings.partnercustomizer.sound.SoundActivity", pkg, displayClass) > 0);
-        // Combined Display & Sound must be rejected even inside a partner customizer subpackage.
-        assertEquals(0, QuickSettingsActions.scoreSoundActivityName(
-                pkg, "com.android.tv.settings.partnercustomizer.DisplayAndSoundActivity", pkg, displayClass));
         // Generic AOSP TvSettings activities must not be matched as vendor overrides.
         assertEquals(0, QuickSettingsActions.scoreSoundActivityName(
                 pkg, "com.android.tv.settings.device.displaysound.DisplaySoundActivity",

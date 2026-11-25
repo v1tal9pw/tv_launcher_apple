@@ -245,6 +245,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** Hebrew mirrors the app grid and the header buttons (values-iw/bools.xml). */
     private boolean rtlAppGrid, rtlMenuBar;
     private boolean navigationSounds;
+    private boolean wasStopped;
     /** config settings_key_keycodes / settings_key_panel, so the Settings button works on Home without the helper. */
     private int[] settingsKeycodes = new int[0];
     private boolean settingsKeyPanel;
@@ -413,9 +414,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     View header = firstTopButton();
                     if (header != root) {
                         focusRequest++; requestedFocusKey = null;
-                        header.requestFocusFromTouch();
+                        if (header.requestFocusFromTouch()) playNavigationSound(keyCode);
                     }
-                } else focusTile(Math.min(lastFocused, COLUMNS - 1));
+                } else {
+                    playNavigationSound(keyCode);
+                    focusTile(Math.min(lastFocused, COLUMNS - 1));
+                }
             }
         }, cfg);
         root.setFocusableInTouchMode(true);
@@ -431,7 +435,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         folderTitle.setSoundEffectsEnabled(navigationSounds);
         folderTitle.setTextColor(getResources().getColorStateList(R.color.app_action_text, getTheme()));
         folderPanel.setBackground(new GlassPanelDrawable(density, 36));
-        folderTitle.setOnClickListener(v -> renameFolder(adapter.activeFolder()));
+        folderTitle.setOnClickListener(v -> {
+            playNavigationSound(KeyEvent.KEYCODE_DPAD_CENTER);
+            renameFolder(adapter.activeFolder());
+        });
         folderTitle.setOnFocusChangeListener((v, focused) -> updateFolderTitle());
         folderTitle.setOnKeyListener((v, code, event) -> {
             if (code == KeyEvent.KEYCODE_DPAD_DOWN) {
@@ -551,18 +558,28 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         btnInputs.setSoundEffectsEnabled(navigationSounds);
         btnWifi.setSoundEffectsEnabled(navigationSounds);
         btnSettings.setSoundEffectsEnabled(navigationSounds);
-        btnInputs.setOnClickListener(v -> showInputs());
-        btnWifi.setOnClickListener(v -> openNetworkPill());
+        btnInputs.setOnClickListener(v -> {
+            playNavigationSound(KeyEvent.KEYCODE_DPAD_CENTER);
+            showInputs();
+        });
+        btnWifi.setOnClickListener(v -> {
+            playNavigationSound(KeyEvent.KEYCODE_DPAD_CENTER);
+            openNetworkPill();
+        });
         btnWifi.setOnLongClickListener(v -> {
             openSettings(Settings.ACTION_WIFI_SETTINGS);
             return true;
         });
-        btnSettings.setOnClickListener(v -> openQuickSettings());
+        btnSettings.setOnClickListener(v -> {
+            playNavigationSound(KeyEvent.KEYCODE_DPAD_CENTER);
+            openQuickSettings();
+        });
         if (!cfg.showNetworkPill) btnWifi.setVisibility(View.GONE);
         btnLibraryTop = findViewById(R.id.btnLibraryTop);
         btnLibraryTop.setVisibility(cfg.libraryButton && cfg.appLibrary ? View.VISIBLE : View.GONE);
         btnLibraryTop.setSoundEffectsEnabled(navigationSounds);
         btnLibraryTop.setOnClickListener(v -> {
+            playNavigationSound(KeyEvent.KEYCODE_DPAD_CENTER);
             libraryFromTopBar = true;
             onLibraryRequested();
         });
@@ -687,8 +704,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // handing it to a tile. After an app, or Home pressed, focus returns to the tile as before.
         View focused = getCurrentFocus();
         boolean keepHeader = onlyPaused && headerButtons().contains(focused);
+        boolean returnedFromStop = wasStopped;
+        wasStopped = false;
         onlyPaused = false;
         paused = false;
+        if (navigationSounds) {
+            if (returnedFromStop) NavSound.refresh(this);
+            else NavSound.prepare(this);
+        }
         if (integration == null) integration = new IntegrationController(this, root, integrationConfig);
         integration.resume();
         continueShelf.start(continueEnabled);
@@ -870,6 +893,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     protected void onStop() {
         super.onStop();
         started = false;
+        wasStopped = true;
         stopStats();
         unregisterReceiver(timeReceiver);
         handler.removeCallbacks(clockCheck);
@@ -1321,7 +1345,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     private void prepareSyntheticClick() {
-        NavSound.prepare();
+        NavSound.prepare(this);
     }
 
     private void playSyntheticClick() {
@@ -1752,8 +1776,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     public boolean onTileClicked() {
         if (folderMotion.isRunning()) return true;
-        if (movingKey != null) { saveMove(); return true; }
-        return tileMenu != null || savingOrderNow;
+        if (movingKey != null) {
+            playNavigationSound(KeyEvent.KEYCODE_DPAD_CENTER);
+            saveMove();
+            return true;
+        }
+        if (tileMenu != null || savingOrderNow) return true;
+        playNavigationSound(KeyEvent.KEYCODE_DPAD_CENTER);
+        return false;
     }
 
     @android.annotation.SuppressLint("RtlHardcoded")
@@ -2134,7 +2164,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         row.setBackgroundResource(R.drawable.glass_menu_row);
         row.setFocusable(true);
         row.setClickable(true);
-        row.setOnClickListener(v -> action.run());
+        row.setSoundEffectsEnabled(navigationSounds);
+        row.setOnClickListener(v -> {
+            playNavigationSound(KeyEvent.KEYCODE_DPAD_CENTER);
+            action.run();
+        });
         row.setOnKeyListener((v, code, event) -> {
             if (isConfirm(code)) {
                 // The release of the long press must not activate the newly focused menu action.
@@ -2144,7 +2178,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     if (event.getAction() == KeyEvent.ACTION_UP) menuReleaseGuard = false;
                     return true;
                 }
-                if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) action.run();
+                if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
+                    playNavigationSound(code);
+                    action.run();
+                }
                 return true;
             }
             if (code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT) return true;
@@ -2152,7 +2189,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 if (event.getAction() == KeyEvent.ACTION_DOWN) {
                     int index = panel.indexOfChild(row);
                     int next = code == KeyEvent.KEYCODE_DPAD_UP ? index - 1 : index + 1;
-                    if (next >= 1 && next < panel.getChildCount()) panel.getChildAt(next).requestFocus();
+                    if (next >= 1 && next < panel.getChildCount()) {
+                        playNavigationSound(code);
+                        panel.getChildAt(next).requestFocus();
+                    }
                 }
                 return true;
             }

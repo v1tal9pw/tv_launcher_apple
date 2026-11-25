@@ -34,7 +34,7 @@ public final class OptimizationActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         navigationSounds = Config.load(this).navigationSounds;
-        if (navigationSounds) NavSound.prepare();
+        if (navigationSounds) NavSound.prepare(this);
         journal = getSharedPreferences("optimization_restore", MODE_PRIVATE);
         ScrollView scroll = new ScrollView(this); scroll.setBackgroundColor(0xFF161A23);
         rows = new LinearLayout(this); rows.setOrientation(LinearLayout.VERTICAL);
@@ -45,7 +45,7 @@ public final class OptimizationActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         navigationSounds = Config.load(this).navigationSounds;
-        if (navigationSounds) NavSound.prepare();
+        if (navigationSounds) NavSound.prepare(this);
         if (remote != null) refresh(); else connect();
     }
     @Override public boolean dispatchKeyEvent(android.view.KeyEvent event) {
