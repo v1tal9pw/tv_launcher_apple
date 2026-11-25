@@ -47,7 +47,7 @@
     <string name="feature_true_color">Full-color wallpapers</string>
     <string name="feature_true_color_help">Smoother gradients with less banding. Uses more memory than standard wallpaper color.</string>
     <string name="feature_dim">Wallpaper dimming</string>
-    <string name="feature_slider_help">Use ◀ and ▶ to adjust in 5% steps. Press OK to reset to default.</string>
+    <string name="feature_slider_help" formatted="false">Use ◀ and ▶ to adjust in 5% steps. Press OK to reset to default.</string>
     <string name="feature_minutes">%1$d minutes</string>
     <string name="feature_glow">App glow</string>
     <string name="feature_glow_help">Choose how the focused app’s color glows on Home: behind the dock, along the screen edges, as a horizon wash, or completely off. Background intensity and tile halo are adjusted separately.</string>

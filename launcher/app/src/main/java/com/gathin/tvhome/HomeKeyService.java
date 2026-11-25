@@ -549,6 +549,7 @@ public class HomeKeyService extends AccessibilityService {
         if (MainActivity.dismissForegroundPanelForHome()) return;
         if (RemoteControlOverlay.dismissForHome(this, this::launchHomeActivity)) return;
         RemoteControlOverlay.closeFor(this);
+        if (MainActivity.returnForegroundHome()) return;
         launchHomeActivity();
     }
 

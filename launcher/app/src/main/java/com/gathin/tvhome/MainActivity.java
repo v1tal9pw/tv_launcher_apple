@@ -139,7 +139,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean libraryFromTopBar;
     private long idleClockMs;
     private ContinueWatchingView continueShelf;
-    private boolean continueEnabled, restoreContinueFocus;
+    private boolean continueEnabled, restoreContinueFocus, continueShelfFits;
+    private ImageView continueBackdrop, continueBackdropPrev;
+    private View continueScrim;
+    private Bitmap continueBackdropBlurred;
+    private String continueBackdropKey;
+    private int continueBackdropRequest;
     private Map<Integer, String> mappedAppKeys = Collections.emptyMap(), mappedAppScancodes = Collections.emptyMap();
     private final Runnable showIdleClock = this::openIdleClock;
     private final BroadcastReceiver timeReceiver = new BroadcastReceiver() {
@@ -400,6 +405,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
         root = findViewById(R.id.root);
         continueEnabled = cfg.continueWatching;
+        continueBackdropPrev = findViewById(R.id.continueBackdropPrev);
+        continueBackdrop = findViewById(R.id.continueBackdrop);
+        continueScrim = findViewById(R.id.continueScrim);
+        continueBackdropPrev.forceHasOverlappingRendering(false);
+        continueBackdrop.forceHasOverlappingRendering(false);
+        continueScrim.setBackground(continueScrimDrawable());
         continueShelf = findViewById(R.id.continueWatching);
         continueShelf.bind(new ContinueWatchingView.Host() {
             @Override public void changed() {
@@ -408,6 +419,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             }
             @Override public void focused() {
                 focusRequest++; requestedFocusKey = null; hideGlass(); hideHero();
+            }
+            @Override public void selectionChanged() {
+                if (paused || homeGrid == null) return;
+                updateContinueBackdrop();
             }
             @Override public void leave(int keyCode) {
                 if (paused || adapter != homeAdapter) return;
@@ -609,7 +624,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         headerGlass = new HeaderGlass(root, findViewById(R.id.topButtons), this::drawHeaderScene);
         wallpaperPlayer.setOnChanged(() -> {
             if (headerGlass != null) headerGlass.schedule();
-            if (cachedQuickPanel != null) cachedQuickPanel.updateBackdrop(wallpaperPlayer.quickBackdrop());
+            syncQuickPanelBackdrop();
         });
 
         // Header and grid directions share the activity key router. Do not send Down through
@@ -1234,6 +1249,17 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             ambient.draw(canvas);
             canvas.restoreToCount(save);
         }
+        if (continueBackdrop != null && continueBackdrop.getVisibility() == View.VISIBLE
+                && continueBackdrop.getDrawable() != null && continueBackdrop.getAlpha() > 0f) {
+            int save = canvas.saveLayerAlpha(0, 0, root.getWidth(), root.getHeight(),
+                    Math.round(255 * continueBackdrop.getAlpha()));
+            continueBackdrop.draw(canvas);
+            if (continueScrim != null && continueScrim.getVisibility() == View.VISIBLE
+                    && continueScrim.getAlpha() > 0f) {
+                continueScrim.draw(canvas);
+            }
+            canvas.restoreToCount(save);
+        }
     }
 
     /**
@@ -1399,7 +1425,186 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             }
         }
         // Focus changes fade in the existing top-shelf space; folders/grid transitions hide it immediately.
+        continueShelfFits = shown;
         continueShelf.present(shown, !paused && adapter == homeAdapter && !expanded);
+        updateContinueBackdrop();
+    }
+
+    /** Apple TV-style top/bottom/left vignette so full-screen Continue Watching art keeps clock & dock legible. */
+    private Drawable continueScrimDrawable() {
+        int w = 480, h = 270;
+        Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bmp);
+        Paint paint = new Paint();
+        paint.setShader(new LinearGradient(0, 0, 0, h,
+                new int[]{0x9E05070B, 0x3A05070B, 0x0005070B, 0x0005070B, 0x7A05070B, 0xDB05070B},
+                new float[]{0f, 0.20f, 0.36f, 0.48f, 0.72f, 1f}, Shader.TileMode.CLAMP));
+        canvas.drawRect(0, 0, w, h, paint);
+        paint.setShader(new LinearGradient(0, 0, w, 0,
+                new int[]{0x6605070B, 0x2205070B, 0x0005070B},
+                new float[]{0f, 0.28f, 0.50f}, Shader.TileMode.CLAMP));
+        canvas.drawRect(0, 0, w, h, paint);
+        BitmapDrawable scrim = new BitmapDrawable(getResources(), bmp);
+        scrim.setGravity(Gravity.FILL);
+        return scrim;
+    }
+
+    private void updateContinueBackdrop() {
+        if (continueBackdrop == null || continueBackdropPrev == null || continueScrim == null) return;
+        boolean show = !paused && hasContinueWatching() && adapter == homeAdapter && !expanded
+                && (continueShelfFits || gridTransition);
+        ContinueWatchingRepository.Item item = show ? continueShelf.currentItem() : null;
+        if (item == null || item.artwork.isEmpty()) {
+            hideContinueBackdrop(!paused && animations && !reducedMotion && adapter == homeAdapter);
+            return;
+        }
+        String key = item.pkg + '\n' + item.artwork;
+        if (key.equals(continueBackdropKey)) {
+            if (continueBackdrop.getDrawable() != null) {
+                revealContinueBackdrop(null, ContinueWatchingArtwork.cachedBlur(item));
+            }
+            return;
+        }
+        continueBackdropKey = key;
+        int request = ++continueBackdropRequest;
+        Bitmap cached = ContinueWatchingArtwork.cachedFull(item);
+        if (cached != null) {
+            revealContinueBackdrop(cached, ContinueWatchingArtwork.cachedBlur(item));
+            return;
+        }
+        ContinueWatchingArtwork.loadFull(this, item, bitmap -> {
+            if (request != continueBackdropRequest || !key.equals(continueBackdropKey)
+                    || paused || isFinishing() || isDestroyed()) return;
+            Bitmap resolved = bitmap != null ? bitmap : ContinueWatchingArtwork.cached(item);
+            if (resolved == null) {
+                hideContinueBackdrop(animations && !reducedMotion);
+                return;
+            }
+            revealContinueBackdrop(resolved, ContinueWatchingArtwork.cachedBlur(item));
+        });
+    }
+
+    private void revealContinueBackdrop(Bitmap next, Bitmap blurred) {
+        int request = ++continueBackdropRequest;
+        if (blurred != null && !blurred.isRecycled()) {
+            continueBackdropBlurred = blurred;
+            syncQuickPanelBackdrop();
+        }
+        continueBackdrop.animate().cancel();
+        continueBackdropPrev.animate().cancel();
+        continueScrim.animate().cancel();
+        boolean animate = animations && !reducedMotion && !paused;
+        long duration = motion(320);
+
+        if (next != null) {
+            Drawable existing = continueBackdrop.getDrawable();
+            boolean sameBitmap = existing instanceof BitmapDrawable
+                    && ((BitmapDrawable) existing).getBitmap() == next;
+            if (!sameBitmap || continueBackdrop.getVisibility() != View.VISIBLE) {
+                boolean crossfade = animate && existing != null
+                        && continueBackdrop.getVisibility() == View.VISIBLE
+                        && continueBackdrop.getAlpha() > 0.01f;
+                if (crossfade) {
+                    continueBackdropPrev.setImageDrawable(existing);
+                    continueBackdropPrev.setAlpha(continueBackdrop.getAlpha());
+                    continueBackdropPrev.setVisibility(View.VISIBLE);
+                } else {
+                    continueBackdropPrev.setImageDrawable(null);
+                    continueBackdropPrev.setAlpha(0f);
+                    continueBackdropPrev.setVisibility(View.GONE);
+                }
+                continueBackdrop.setImageBitmap(next);
+                continueBackdrop.setAlpha(animate ? 0f : 1f);
+                continueBackdrop.setVisibility(View.VISIBLE);
+            }
+        } else if (continueBackdrop.getVisibility() != View.VISIBLE) {
+            continueBackdrop.setVisibility(View.VISIBLE);
+        }
+
+        if (continueScrim.getVisibility() != View.VISIBLE) {
+            continueScrim.setAlpha(animate ? 0f : 1f);
+            continueScrim.setVisibility(View.VISIBLE);
+        }
+
+        if (!animate) {
+            continueBackdrop.setAlpha(1f);
+            continueScrim.setAlpha(1f);
+            continueBackdropPrev.setAlpha(0f);
+            continueBackdropPrev.setVisibility(View.GONE);
+            continueBackdropPrev.setImageDrawable(null);
+            return;
+        }
+
+        android.view.animation.DecelerateInterpolator interp = new android.view.animation.DecelerateInterpolator(1.3f);
+        continueBackdrop.animate()
+                .alpha(1f)
+                .setDuration(duration)
+                .setInterpolator(interp)
+                .withEndAction(() -> {
+                    if (request != continueBackdropRequest) return;
+                    continueBackdropPrev.setAlpha(0f);
+                    continueBackdropPrev.setVisibility(View.GONE);
+                    continueBackdropPrev.setImageDrawable(null);
+                })
+                .start();
+        if (continueScrim.getAlpha() < 0.99f) {
+            continueScrim.animate()
+                    .alpha(1f)
+                    .setDuration(duration)
+                    .setInterpolator(interp)
+                    .start();
+        }
+    }
+
+    private void hideContinueBackdrop(boolean animate) {
+        if (continueBackdrop == null || continueBackdropPrev == null || continueScrim == null) return;
+        int request = ++continueBackdropRequest;
+        continueBackdropKey = null;
+        if (continueBackdropBlurred != null) {
+            continueBackdropBlurred = null;
+            syncQuickPanelBackdrop();
+        }
+        continueBackdrop.animate().cancel();
+        continueBackdropPrev.animate().cancel();
+        continueScrim.animate().cancel();
+        if (!animate || (continueBackdrop.getVisibility() != View.VISIBLE
+                && continueBackdropPrev.getVisibility() != View.VISIBLE
+                && continueScrim.getVisibility() != View.VISIBLE)) {
+            continueBackdrop.setAlpha(0f);
+            continueBackdrop.setVisibility(View.GONE);
+            continueBackdrop.setImageDrawable(null);
+            continueBackdropPrev.setAlpha(0f);
+            continueBackdropPrev.setVisibility(View.GONE);
+            continueBackdropPrev.setImageDrawable(null);
+            continueScrim.setAlpha(0f);
+            continueScrim.setVisibility(View.GONE);
+            return;
+        }
+        long duration = motion(240);
+        android.view.animation.DecelerateInterpolator interp = new android.view.animation.DecelerateInterpolator(1.3f);
+        if (continueBackdrop.getVisibility() == View.VISIBLE) {
+            continueBackdrop.animate().alpha(0f).setDuration(duration).setInterpolator(interp)
+                    .withEndAction(() -> {
+                        if (request != continueBackdropRequest) return;
+                        continueBackdrop.setVisibility(View.GONE);
+                        continueBackdrop.setImageDrawable(null);
+                    }).start();
+        }
+        if (continueBackdropPrev.getVisibility() == View.VISIBLE) {
+            continueBackdropPrev.animate().alpha(0f).setDuration(duration).setInterpolator(interp)
+                    .withEndAction(() -> {
+                        if (request != continueBackdropRequest) return;
+                        continueBackdropPrev.setVisibility(View.GONE);
+                        continueBackdropPrev.setImageDrawable(null);
+                    }).start();
+        }
+        if (continueScrim.getVisibility() == View.VISIBLE) {
+            continueScrim.animate().alpha(0f).setDuration(duration).setInterpolator(interp)
+                    .withEndAction(() -> {
+                        if (request != continueBackdropRequest) return;
+                        continueScrim.setVisibility(View.GONE);
+                    }).start();
+        }
     }
 
     private float collapsedGridOffset() {
@@ -1436,12 +1641,20 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // instead of fading to 0 for 300ms and restarting a second 360ms fade-in when the slide ends.
         hideHero(!value);
         topBar.animate().cancel();
+        if (!value && (topBar.getVisibility() != View.VISIBLE || topBar.getAlpha() < 0.05f)) {
+            topBar.setTranslationY(animations && !reducedMotion ? -dp(18) : 0f);
+        }
         topBar.setVisibility(View.VISIBLE);
         android.view.ViewPropertyAnimator topFade = topBar.animate()
                 .alpha(value ? 0f : 1f)
-                .setDuration(motion(160))
+                .translationY(value && animations && !reducedMotion ? -dp(14) : 0f)
+                .setDuration(motion(value ? 180 : 240))
+                .setInterpolator(new android.view.animation.DecelerateInterpolator(1.5f))
                 .withEndAction(() -> {
-                    if (transitionRequest == gridTransitionRequest && expanded) topBar.setVisibility(View.INVISIBLE);
+                    if (transitionRequest == gridTransitionRequest && expanded) {
+                        topBar.setVisibility(View.INVISIBLE);
+                        topBar.setTranslationY(0f);
+                    }
                 });
         if (topBar.isHardwareAccelerated()) topFade.withLayer();
         topFade.start();
@@ -1450,14 +1663,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // carries the rest of that scroll, so the collapsed dock lands at the top without a jump.
         int scroll = value ? 0 : distanceToFirstRow((GridLayoutManager) grid.getLayoutManager(), null);
         int[] unscrolled = {scroll};
-        final boolean trackContinue = !value && hasContinueWatching();
         gridSlide = ValueAnimator.ofFloat(gridHost.getTranslationY(), target);
-        gridSlide.setDuration(motion(320));
-        gridSlide.setInterpolator(new android.view.animation.DecelerateInterpolator(1.4f));
+        gridSlide.setDuration(motion(360));
+        gridSlide.setInterpolator(new android.view.animation.PathInterpolator(0.22f, 1f, 0.36f, 1f));
         gridSlide.addUpdateListener(animation -> {
             if (transitionRequest != gridTransitionRequest || gridSlide != animation) return;
             gridHost.setTranslationY((Float) animation.getAnimatedValue());
-            if (trackContinue) updateContinuePresentation();
+            if (!value && hasContinueWatching()) updateContinuePresentation();
             if (unscrolled[0] != 0) {
                 int left = Math.round(scroll * (1f - animation.getAnimatedFraction()));
                 grid.scrollBy(0, unscrolled[0] - left);
@@ -1470,6 +1682,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 if (transitionRequest != gridTransitionRequest) return;
                 gridSlide = null;
                 gridTransition = false;
+                updateContinuePresentation();
                 View card = getCurrentFocus();
                 // Only a tile: the App Library pill is in the grid too, but takes no glass or top shelf.
                 RecyclerView.ViewHolder holder = card == null || card.getId() != R.id.card ? null
@@ -1524,6 +1737,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         updateFolderTitle();
         topBar.setVisibility(inFolder || expanded ? View.INVISIBLE : View.VISIBLE);
         topBar.setAlpha(inFolder || expanded ? 0f : 1f);
+        topBar.setTranslationY(0f);
         ((GridLayoutManager) grid.getLayoutManager()).setSpanCount(adapter.columns());
         FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) gridHost.getLayoutParams();
         int sideMargin = inFolder ? dp(180) : getResources().getDimensionPixelSize(R.dimen.home_grid_margin);
@@ -1577,6 +1791,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         topBar.setVisibility(expanded ? View.INVISIBLE : View.VISIBLE);
         topBar.setAlpha(expanded ? 0f : 1f);
+        topBar.setTranslationY(0f);
         animateFolder(false);
         focusKey(focus, 0);
     }
@@ -1647,7 +1862,38 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (!folderMotion.isRunning()) folderTitle.setAlpha(revealed ? 1f : 0f);
     }
 
+    private boolean isTileFocused(int position) {
+        View focused = getCurrentFocus();
+        if (focused == null || focused.getId() != R.id.card) return false;
+        RecyclerView.ViewHolder holder = grid.findContainingViewHolder(focused);
+        return holder != null && holder.getBindingAdapterPosition() == position;
+    }
+
     private void returnHome() {
+        if (!paused && !folderMotion.isRunning() && animations && !reducedMotion) {
+            if (adapter != homeAdapter) {
+                if (expanded) {
+                    expanded = false;
+                    homeGridHost.setTranslationY(collapsedGridOffset());
+                    GridLayoutManager lm = (GridLayoutManager) homeGrid.getLayoutManager();
+                    if (lm != null) lm.scrollToPositionWithOffset(0, 0);
+                }
+                closeFolder(homeAdapter.keyAt(0));
+                return;
+            }
+            if (expanded) {
+                GridLayoutManager lm = (GridLayoutManager) homeGrid.getLayoutManager();
+                if (lm != null && lm.findViewByPosition(0) == null) {
+                    homeGrid.stopScroll();
+                    lm.scrollToPositionWithOffset(0, 0);
+                }
+                setExpanded(false);
+                focusTile(0);
+                return;
+            }
+            if (!isTileFocused(0)) focusTile(0);
+            return;
+        }
         // Older RecyclerView/Android TV focus recovery can pull the viewport back to a recycled
         // bottom-row child while Home is laying out. Release that child before resetting the grid.
         root.requestFocusFromTouch();
@@ -3052,6 +3298,33 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         return true;
     }
 
+    /** Handles Home directly when the launcher is already foreground, avoiding redundant Activity intents. */
+    static boolean returnForegroundHome() {
+        MainActivity current = foregroundInstance;
+        if (current == null || current.paused || current.isFinishing() || current.isDestroyed()) return false;
+        current.handler.post(() -> {
+            if (current.paused || current.isFinishing() || current.isDestroyed()) return;
+            current.handleForegroundHome();
+        });
+        return true;
+    }
+
+    private void handleForegroundHome() {
+        quickSettingsWasOpenOnPause = false;
+        resumeQuickSettings = false;
+        restoreContinueFocus = false;
+        onlyPaused = false;
+        if (appLibrary != null) appLibrary.close();
+        dismissTileMenu(false);
+        if (editDialog != null) editDialog.dismiss();
+        if (movingKey != null && !savingOrderNow) finishMove(false, false);
+        if (quickSettings != null) {
+            handleHomeWithOpenPanel();
+            return;
+        }
+        if (!savingOrderNow) returnHome();
+    }
+
     private void handleHomeWithOpenPanel() {
         quickSettingsWasOpenOnPause = false;
         resumeQuickSettings = false;
@@ -3091,8 +3364,22 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         showQuickSettings();
     }
 
+    private Bitmap activeQuickBackdrop() {
+        if (continueBackdropKey != null && continueBackdropBlurred != null && !continueBackdropBlurred.isRecycled()) {
+            return continueBackdropBlurred;
+        }
+        return wallpaperPlayer != null ? wallpaperPlayer.quickBackdrop() : null;
+    }
+
+    private void syncQuickPanelBackdrop() {
+        Bitmap backdrop = activeQuickBackdrop();
+        if (cachedQuickPanel != null) cachedQuickPanel.updateBackdrop(backdrop);
+        if (quickSettings != null && quickSettings != cachedQuickPanel) quickSettings.updateBackdrop(backdrop);
+        if (headerGlass != null && headerGlass.hasVisibleChild()) headerGlass.schedule();
+    }
+
     private QuickSettingsPanel obtainQuickPanel() {
-        android.graphics.Bitmap prebuiltBackdrop = wallpaperPlayer != null ? wallpaperPlayer.quickBackdrop() : null;
+        android.graphics.Bitmap prebuiltBackdrop = activeQuickBackdrop();
         if (cachedQuickPanel != null && cachedQuickPanel.matchesHost(root)) {
             cachedQuickPanel.updateBackdrop(prebuiltBackdrop);
             return cachedQuickPanel;
@@ -4004,6 +4291,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         if (dockDecoration != null) dockDecoration.releaseCache();
         wallpaperPlayer.releaseMemory();
+        hideContinueBackdrop(false);
         ContinueWatchingArtwork.clearCache();
         if (adapter != homeAdapter) adapter.clear();
         if (preparedFolderAdapter != null) preparedFolderAdapter.clear();

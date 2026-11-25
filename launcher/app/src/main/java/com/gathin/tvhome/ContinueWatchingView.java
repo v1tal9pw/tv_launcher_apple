@@ -40,6 +40,7 @@ public final class ContinueWatchingView extends LinearLayout {
     interface Host {
         void changed();
         void focused();
+        void selectionChanged();
         void leave(int keyCode);
     }
     private final RecyclerView list;
@@ -84,6 +85,10 @@ public final class ContinueWatchingView extends LinearLayout {
     void bind(Host host, Config config) { this.host = host; hidden = config.hiddenApps; sounds = config.navigationSounds; animations = config.animations && !config.reducedMotion; }
     boolean hasItems() { return !items.isEmpty(); }
     List<ContinueWatchingRepository.Item> items() { return items; }
+    ContinueWatchingRepository.Item currentItem() {
+        if (!active || items.isEmpty()) return null;
+        return items.get(Math.max(0, Math.min(selected, items.size() - 1)));
+    }
     String focusedPackage() { return focusedPackage; }
     void setFocusedPackage(String pkg) {
         if (java.util.Objects.equals(focusedPackage, pkg)) return;
@@ -215,6 +220,7 @@ public final class ContinueWatchingView extends LinearLayout {
     private void focus(int index) {
         selected = Math.max(0, Math.min(index, items.size() - 1));
         selectedKey = items.get(selected).key;
+        if (host != null) host.selectionChanged();
         int token = ++focusGeneration;
         list.scrollToPosition(selected); list.post(() -> requestCard(token, 0));
     }
@@ -317,8 +323,15 @@ public final class ContinueWatchingView extends LinearLayout {
             subtitle = text(12, 0xB3FFFFFF); subtitle.setPadding(dp(1), 0, dp(1), 0); card.addView(subtitle, new LayoutParams(-1, dp(19)));
             card.setOnFocusChangeListener((v, focused) -> {
                 if (focused) {
-                    int at = getBindingAdapterPosition(); if (at >= 0 && at < items.size()) { selected = at; selectedKey = items.get(at).key; }
-                    if (host != null) host.focused();
+                    int at = getBindingAdapterPosition();
+                    if (at >= 0 && at < items.size()) {
+                        selected = at;
+                        selectedKey = items.get(at).key;
+                    }
+                    if (host != null) {
+                        host.focused();
+                        host.selectionChanged();
+                    }
                 }
                 title.setTextColor(focused ? Color.WHITE : 0xE6FFFFFF); subtitle.setTextColor(focused ? 0xE6FFFFFF : 0xB3FFFFFF);
                 card.animate().scaleX(focused ? 1.05f : 1f).scaleY(focused ? 1.05f : 1f)

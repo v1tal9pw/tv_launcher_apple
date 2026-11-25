@@ -26,6 +26,24 @@ final class FolderBackdrop {
         return soften(small, radius);
     }
 
+    /** Center-crops and blurs an artwork bitmap to match a full-screen centerCrop backdrop 1:1. */
+    static Bitmap fromBitmapCenterCrop(Bitmap source, int width, int height, int radius) {
+        if (source == null || source.isRecycled() || width <= 0 || height <= 0) return null;
+        int sw = source.getWidth(), sh = source.getHeight();
+        if (sw <= 0 || sh <= 0) return null;
+        Bitmap cropped = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(cropped);
+        float scale = Math.max(width / (float) sw, height / (float) sh);
+        float dx = (width - sw * scale) * 0.5f;
+        float dy = (height - sh * scale) * 0.5f;
+        android.graphics.Matrix m = new android.graphics.Matrix();
+        m.setScale(scale, scale);
+        m.postTranslate(dx, dy);
+        android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG);
+        canvas.drawBitmap(source, m, p);
+        return soften(cropped, radius);
+    }
+
     /** Capture only the material's footprint, so neighbouring app text cannot show through sharply. */
     static Bitmap capture(View home, android.graphics.Rect region, int width, int height, int radius) {
         Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);

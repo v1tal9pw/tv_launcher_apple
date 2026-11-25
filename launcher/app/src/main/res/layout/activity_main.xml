@@ -24,6 +24,35 @@
         android:importantForAccessibility="no"
         android:contentDescription="@null" />
 
+    <!-- Apple TV-style full-screen Continue Watching backdrop with crossfade layer & scrim. -->
+    <ImageView
+        android:id="@+id/continueBackdropPrev"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:alpha="0"
+        android:visibility="gone"
+        android:importantForAccessibility="no"
+        android:contentDescription="@null" />
+
+    <ImageView
+        android:id="@+id/continueBackdrop"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:alpha="0"
+        android:visibility="gone"
+        android:importantForAccessibility="no"
+        android:contentDescription="@null" />
+
+    <View
+        android:id="@+id/continueScrim"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0"
+        android:visibility="gone"
+        android:importantForAccessibility="no" />
+
     <!-- Top shelf: the focused dock app's name, positioned above the dock in code. -->
     <LinearLayout android:id="@+id/hero" android:layout_width="wrap_content" android:layout_height="wrap_content"
         android:layout_marginStart="68dp" android:layout_gravity="left" android:gravity="left"

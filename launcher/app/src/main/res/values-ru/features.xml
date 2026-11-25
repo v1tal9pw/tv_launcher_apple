@@ -47,7 +47,7 @@
     <string name="feature_true_color">Полноцветные обои</string>
     <string name="feature_true_color_help">Более плавные градиенты с меньшим количеством полос. Использует больше памяти, чем обычный режим.</string>
     <string name="feature_dim">Затемнение обоев</string>
-    <string name="feature_slider_help">Используйте ◀ и ▶ для настройки с шагом 5%. Нажмите OK для сброса по умолчанию.</string>
+    <string name="feature_slider_help" formatted="false">Используйте ◀ и ▶ для настройки с шагом 5%. Нажмите OK для сброса по умолчанию.</string>
     <string name="feature_minutes">Минут: %1$d</string>
     <string name="feature_glow">Свечение от приложения</string>
     <string name="feature_glow_help">Настройте цветное свечение выбранного приложения: за доком, по краю экрана, горизонт или полное отключение. Интенсивность фона и ореол вокруг плитки настраиваются отдельно.</string>
