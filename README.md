@@ -66,7 +66,7 @@
 
 **Панель управления поверх сторонних приложений**
 
-![Панель управления поверх Google Play](docs/screenshots/readme/inputs.png)
+![Панель управления поверх Google Play](docs/screenshots/readme/overlay-control-center.png)
 
 **Настройки главного экрана по разделам с живым предпросмотром**
 
