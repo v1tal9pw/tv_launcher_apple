@@ -642,7 +642,10 @@ public final class LauncherSettingsActivity extends Activity {
             checkingUpdate = false;
             refresh();
             if (!checked) {
-                Toast.makeText(this, R.string.update_check_failed, Toast.LENGTH_LONG).show();
+                String detail = ReleaseUpdater.lastError();
+                String msg = getString(R.string.update_check_failed)
+                        + (detail != null && !detail.isEmpty() ? " (" + detail + ")" : "");
+                Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
             } else if (release == null) {
                 AlertDialog dialog = new AlertDialog.Builder(this)
                         .setTitle(R.string.update_current_title)

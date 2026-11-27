@@ -38,6 +38,22 @@ final class ReleaseUpdater {
     private static volatile long lastPowerOnSuccessMs;
     private static volatile long lastPowerOnAttemptMs;
     private static volatile int powerOnFailures;
+    private static volatile String lastError;
+
+    static String lastError() {
+        return lastError;
+    }
+
+    static String describeError(Throwable error) {
+        if (error == null) return "";
+        if (error instanceof java.net.SocketTimeoutException) return "timeout";
+        if (error instanceof java.net.UnknownHostException) return "DNS";
+        if (error instanceof javax.net.ssl.SSLException) return "SSL";
+        String msg = error.getMessage();
+        if (msg == null || msg.trim().isEmpty()) return error.getClass().getSimpleName();
+        msg = msg.trim();
+        return msg.length() <= 60 ? msg : msg.substring(0, 60).trim() + "…";
+    }
 
     static final class Release {
         final int code;
@@ -276,8 +292,10 @@ final class ReleaseUpdater {
                 pendingPowerOnCheck = false;
                 powerOnFailures = 0;
                 lastPowerOnSuccessMs = doneAt;
-            } catch (Exception ignored) {
+                lastError = null;
+            } catch (Exception e) {
                 /* Offline Home remains usable; power-on checks retry as soon as the network returns. */
+                lastError = describeError(e);
                 long failedAt = System.currentTimeMillis();
                 if (powerOn) {
                     powerOnFailures++;

@@ -78,4 +78,11 @@ public class ReleaseUpdaterTest {
         assertFalse(ReleaseUpdater.isAllowedCdnUrl("http://github.com/v1tal9pw/tv_launcher_apple"));
         assertFalse(ReleaseUpdater.isAllowedCdnUrl("https://evil.com/latest.json"));
     }
+
+    @Test public void describeErrorFormatsNetworkFailuresConcisely() {
+        assertEquals("timeout", ReleaseUpdater.describeError(new java.net.SocketTimeoutException("Read timed out")));
+        assertEquals("DNS", ReleaseUpdater.describeError(new java.net.UnknownHostException("github.com")));
+        assertEquals("SSL", ReleaseUpdater.describeError(new javax.net.ssl.SSLHandshakeException("cert")));
+        assertEquals("Release unavailable: 504", ReleaseUpdater.describeError(new java.io.IOException("Release unavailable: 504")));
+    }
 }
