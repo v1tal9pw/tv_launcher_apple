@@ -255,6 +255,9 @@ public final class FeatureSettingsActivity extends Activity {
         slider("wallpaper_dim", R.string.feature_dim, R.drawable.ic_quick_picture, 0xFFBF5AF2, 0xFFBF5AF2,
                 config.wallpaperDim, 0, R.string.feature_slider_help,
                 val -> features.edit().putInt("wallpaper_dim", val).apply());
+        toggle("wallpaper_night_dim", R.string.feature_night_dim,
+                features.getBoolean("wallpaper_night_dim", true),
+                R.drawable.ic_quick_sleep, 0xFF5E5CE6, R.string.feature_night_dim_help);
     }
 
     private String wallpaperLabel(String value) {

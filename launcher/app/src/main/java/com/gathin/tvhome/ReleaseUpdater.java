@@ -1,6 +1,5 @@
 package com.gathin.tvhome;
 
-import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Handler;
@@ -22,13 +21,21 @@ final class ReleaseUpdater {
     private static final String API = "https://api.github.com/repos/" + REPOSITORY + "/releases/latest";
     private static final long AUTO_CHECK_INTERVAL_MS = 3L * 60 * 60 * 1000;
     private static final long FAILURE_RETRY_MS = 15L * 60 * 1000;
+    static final long POWER_ON_DEBOUNCE_MS = 15L * 1000;
+    static final long POWER_ON_RETRY_MS = 10L * 1000;
+    static final int MAX_POWER_ON_RETRIES = 4;
     private static final String LAST_CHECK = "release_last_check";
     private static final String CACHED_CODE = "release_available_code";
     private static final String CACHED_URL = "release_available_url";
     private static final String CACHED_SHA = "release_available_sha256";
     private static final String CACHED_NOTES = "release_available_notes";
+    private static final String NOTIFIED_CODE = "release_notified_code";
     private static volatile long retryAfterMs;
     private static volatile boolean checking;
+    private static volatile boolean pendingPowerOnCheck;
+    private static volatile long lastPowerOnSuccessMs;
+    private static volatile long lastPowerOnAttemptMs;
+    private static volatile int powerOnFailures;
 
     static final class Release {
         final int code;
@@ -83,6 +90,22 @@ final class ReleaseUpdater {
         return cachedUpdate(context) != null;
     }
 
+    static boolean shouldShowUpdateBanner(int availableCode, int lastNotifiedCode) {
+        return availableCode > 0 && availableCode > lastNotifiedCode;
+    }
+
+    static Release pendingBannerRelease(Context context) {
+        Release cached = cachedUpdate(context);
+        if (cached == null) return null;
+        int notified = FeaturePreferences.prefs(context).getInt(NOTIFIED_CODE, 0);
+        return shouldShowUpdateBanner(cached.code, notified) ? cached : null;
+    }
+
+    static void markUpdateNotified(Context context, int code) {
+        if (context == null || code <= 0) return;
+        FeaturePreferences.prefs(context).edit().putInt(NOTIFIED_CODE, code).apply();
+    }
+
     static Release cachedUpdate(Context context) {
         if (context == null) return null;
         SharedPreferences prefs = FeaturePreferences.prefs(context);
@@ -131,54 +154,133 @@ final class ReleaseUpdater {
                 .apply();
     }
 
-    static void check(Activity activity, Consumer<Release> available) {
-        check(activity, false, (release, checked) -> {
-            if (release != null) available.accept(release);
-        });
+    static void check(Context context, Consumer<Release> available) {
+        check(context, false, false, (release, checked) -> {
+            if (release != null && available != null) available.accept(release);
+        }, null);
     }
 
     /** Automatic periodic background check; notifies the caller whenever a check completes. */
-    static void checkAuto(Activity activity, Consumer<Release> completed) {
-        check(activity, false, (release, checked) -> {
+    static void checkAuto(Context context, Consumer<Release> completed) {
+        if (pendingPowerOnCheck) {
+            retryPendingPowerOnCheck(context, completed);
+            return;
+        }
+        check(context, false, false, (release, checked) -> {
             if (checked && completed != null) completed.accept(release);
-        });
+        }, null);
     }
 
-    static void checkNow(Activity activity, BiConsumer<Release, Boolean> completed) {
-        check(activity, true, completed);
+    /** Background check on TV power-on (boot or wake from standby); bypasses the 3-hour cooldown. */
+    static void checkOnPowerOn(Context context, Consumer<Release> completed) {
+        checkOnPowerOn(context, completed, null);
     }
 
-    private static void check(Activity activity, boolean force, BiConsumer<Release, Boolean> completed) {
-        SharedPreferences prefs = FeaturePreferences.prefs(activity);
+    static void checkOnPowerOn(Context context, Consumer<Release> completed, Runnable onFinished) {
+        if (context == null) {
+            if (onFinished != null) onFinished.run();
+            return;
+        }
+        long now = System.currentTimeMillis();
+        if (!shouldRunPowerOnCheck(lastPowerOnSuccessMs, now, checking)) {
+            if (onFinished != null) onFinished.run();
+            return;
+        }
+        pendingPowerOnCheck = true;
+        powerOnFailures = 0;
+        lastPowerOnAttemptMs = now;
+        check(context, true, true, (release, checked) -> {
+            if (checked && completed != null) completed.accept(release);
+        }, onFinished);
+    }
+
+    /** Retries a deferred power-on check as soon as Wi-Fi or Ethernet comes up after TV wake/boot. */
+    static void retryPendingPowerOnCheck(Context context, Consumer<Release> completed) {
+        if (context == null) return;
+        long now = System.currentTimeMillis();
+        if (!shouldRetryPowerOn(pendingPowerOnCheck, powerOnFailures, lastPowerOnAttemptMs, now, checking)) {
+            return;
+        }
+        lastPowerOnAttemptMs = now;
+        check(context, true, true, (release, checked) -> {
+            if (checked && completed != null) completed.accept(release);
+        }, null);
+    }
+
+    static void checkNow(Context context, BiConsumer<Release, Boolean> completed) {
+        check(context, true, false, completed, null);
+    }
+
+    private static void check(Context context, boolean force, boolean powerOn,
+                              BiConsumer<Release, Boolean> completed, Runnable onFinished) {
+        if (context == null) {
+            if (onFinished != null) onFinished.run();
+            return;
+        }
+        Context app = context.getApplicationContext();
+        SharedPreferences prefs = FeaturePreferences.prefs(app);
         long now = System.currentTimeMillis();
         long last = prefs.getLong(LAST_CHECK, 0);
-        if (!shouldCheck(last, now, force)) return;
-        if (!force && (checking || now < retryAfterMs)) return;
+        if (!shouldCheck(last, now, force)) {
+            if (onFinished != null) onFinished.run();
+            return;
+        }
+        if ((!force || powerOn) && checking) {
+            if (onFinished != null) onFinished.run();
+            return;
+        }
+        if (!force && now < retryAfterMs) {
+            if (onFinished != null) onFinished.run();
+            return;
+        }
         checking = true;
-        Context context = activity.getApplicationContext();
         FeatureNetwork.WORKER.execute(() -> {
             Release release = null;
             boolean checked = false;
             try {
-                release = fetch(context);
+                release = fetch(app);
                 checked = true;
-                prefs.edit().putLong(LAST_CHECK, System.currentTimeMillis()).apply();
+                long doneAt = System.currentTimeMillis();
+                prefs.edit().putLong(LAST_CHECK, doneAt).apply();
                 saveCachedUpdate(prefs, release);
                 retryAfterMs = 0;
+                pendingPowerOnCheck = false;
+                powerOnFailures = 0;
+                lastPowerOnSuccessMs = doneAt;
             } catch (Exception ignored) {
-                /* Offline Home remains usable; retry later instead of skipping a full interval. */
-                retryAfterMs = System.currentTimeMillis() + FAILURE_RETRY_MS;
+                /* Offline Home remains usable; power-on checks retry as soon as the network returns. */
+                long failedAt = System.currentTimeMillis();
+                if (powerOn) {
+                    powerOnFailures++;
+                    lastPowerOnAttemptMs = failedAt;
+                    if (powerOnFailures >= MAX_POWER_ON_RETRIES) {
+                        pendingPowerOnCheck = false;
+                    }
+                }
+                retryAfterMs = failedAt + FAILURE_RETRY_MS;
             } finally {
                 checking = false;
+                if (onFinished != null) onFinished.run();
             }
-            Release result = release;
-            boolean succeeded = checked;
-            new Handler(Looper.getMainLooper()).post(() -> completed.accept(result, succeeded));
+            if (completed != null) {
+                Release result = release;
+                boolean succeeded = checked;
+                new Handler(Looper.getMainLooper()).post(() -> completed.accept(result, succeeded));
+            }
         });
     }
 
     static boolean shouldCheck(long last, long now, boolean force) {
         return force || last <= 0 || now < last || now - last >= AUTO_CHECK_INTERVAL_MS;
+    }
+
+    static boolean shouldRunPowerOnCheck(long lastSuccessMs, long nowMs, boolean inFlight) {
+        return !inFlight && (lastSuccessMs <= 0 || nowMs < lastSuccessMs || nowMs - lastSuccessMs >= POWER_ON_DEBOUNCE_MS);
+    }
+
+    static boolean shouldRetryPowerOn(boolean pending, int failures, long lastAttemptMs, long nowMs, boolean inFlight) {
+        if (!pending || inFlight || failures >= MAX_POWER_ON_RETRIES) return false;
+        return lastAttemptMs <= 0 || nowMs < lastAttemptMs || nowMs - lastAttemptMs >= POWER_ON_RETRY_MS;
     }
 
     private static Release fetch(Context context) throws Exception {

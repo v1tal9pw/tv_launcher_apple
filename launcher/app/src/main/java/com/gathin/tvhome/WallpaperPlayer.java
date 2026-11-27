@@ -8,6 +8,8 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.BitmapRegionDecoder;
 import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.PorterDuff;
 import android.graphics.Rect;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -73,6 +75,8 @@ final class WallpaperPlayer {
     private boolean loading;
     private String displayed = "";
     private final int backgroundColor, dimColor;
+    private final boolean nightDimEnabled;
+    private int appliedNightOverlayAlpha = -1;
     private View mirror;
     private Runnable onChanged;
     private final VideoWallpaper video;
@@ -83,6 +87,7 @@ final class WallpaperPlayer {
         android.content.SharedPreferences features=FeaturePreferences.prefs(context);
         latitude=features.getString("latitude",context.getString(R.string.latitude));
         longitude=features.getString("longitude",context.getString(R.string.longitude));
+        nightDimEnabled = features.getBoolean("wallpaper_night_dim", true);
         resources = context.getResources();
         assets = context.getAssets();
         aurora = Config.WALLPAPER_AURORA.equals(config.wallpaperChoice);
@@ -207,6 +212,7 @@ final class WallpaperPlayer {
     }
 
     void update() {
+        applyNightDim();
         if (aurora || !active || closed || loading || first != null || files.isEmpty()) return;
         String previous = preferences.getString("image", "");
         File selected = WallpaperRotation.find(activeFiles(), previous);
@@ -250,11 +256,55 @@ final class WallpaperPlayer {
         // The previous picture is left to the garbage collector: the render thread may still draw it this frame.
         quickBackdrop = decoded.blurred;
         image.setImageBitmap(decoded.full);
+        applyNightDim();
         if (mirror != null) mirror.invalidate();
         if (onChanged != null) onChanged.run();
         // CENTER_CROP covers the whole screen, so the colour under an opaque picture would be one more
         // full-screen pass every frame. A picture with transparency keeps the colour behind it.
         if (!decoded.full.hasAlpha()) root.setBackground(null);
+    }
+
+    static final int NIGHT_DIM_EXTRA_PERCENT = 20;
+
+    /** Extra night dimming percentage (0 during day/disabled, 20 after sunset and before sunrise). */
+    static int nightDimExtraPercent(boolean enabled, int minuteOfDay, int sunriseMin, int sunsetMin) {
+        if (!enabled) return 0;
+        int m = ((minuteOfDay % 1440) + 1440) % 1440;
+        boolean validSun = sunriseMin >= 0 && sunriseMin < 1440 && sunsetMin >= 0 && sunsetMin < 1440 && sunriseMin < sunsetMin;
+        boolean isNight = validSun ? (m < sunriseMin || m >= sunsetMin) : (m >= 21 * 60 || m < 6 * 60);
+        return isNight ? NIGHT_DIM_EXTRA_PERCENT : 0;
+    }
+
+    /** Alpha (0..255) for an additional black SRC_ATOP overlay so total dim never exceeds 85%. */
+    static int effectiveNightOverlayAlpha(int baseDimPercent, int extraPercent) {
+        if (extraPercent <= 0) return 0;
+        int base = Math.max(0, Math.min(85, baseDimPercent));
+        int target = Math.min(85, base + extraPercent);
+        if (target <= base) return 0;
+        double remaining = 1.0 - (base / 100.0);
+        double overlayFraction = remaining <= 0.01 ? 0.0 : (target - base) / 100.0 / remaining;
+        return Math.max(0, Math.min(255, (int) Math.round(overlayFraction * 255.0)));
+    }
+
+    private void applyNightDim() {
+        int extra = 0;
+        if (nightDimEnabled) {
+            java.time.LocalDateTime now = java.time.LocalDateTime.now();
+            int[] sun = WallpaperMood.sun(now.toLocalDate(), latitude, longitude, java.time.ZoneId.systemDefault());
+            extra = nightDimExtraPercent(true, now.getHour() * 60 + now.getMinute(), sun[0], sun[1]);
+        }
+        int baseDim = aurora ? 0 : config.wallpaperDim;
+        int overlayAlpha = effectiveNightOverlayAlpha(baseDim, extra);
+        if (overlayAlpha != appliedNightOverlayAlpha) {
+            appliedNightOverlayAlpha = overlayAlpha;
+            if (overlayAlpha > 0) {
+                image.setColorFilter(Color.argb(overlayAlpha, 0, 0, 0), PorterDuff.Mode.SRC_ATOP);
+            } else {
+                image.clearColorFilter();
+            }
+            if (mirror != null) mirror.invalidate();
+        }
+        if (video != null) video.setExtraDim(extra);
     }
 
     /** Pre-blurred tiny copy of the active wallpaper for zero-stutter Control Center glass. */

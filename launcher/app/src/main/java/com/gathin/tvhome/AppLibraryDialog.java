@@ -289,7 +289,7 @@ final class AppLibraryDialog {
             Drawable loaded;
             try {
                 loaded = AppArtwork.settingsIcon(activity, app);
-                if (loaded == null) loaded = app.loadIcon(pm);
+                if (loaded == null) loaded = AppArtwork.loadHighResIcon(activity, pm, app);
             }
             catch (RuntimeException unavailable) { loaded = null; }
             Drawable result = loaded;

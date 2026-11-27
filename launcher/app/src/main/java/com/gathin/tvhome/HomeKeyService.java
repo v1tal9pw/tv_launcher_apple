@@ -93,6 +93,7 @@ public class HomeKeyService extends AccessibilityService {
     private GamepadPassthrough gamepads;
     /** Screen-off receiver while guard_off_in_standby is set; null otherwise. */
     private BroadcastReceiver standbyExit;
+    private BroadcastReceiver updateScreenOnReceiver;
     /** disableSelf is how this service leaves for standby, not the user turning it off. */
     private boolean steppingOut;
     /** The bound helper, so the opt-in broadcast can arm it without waiting for a new connection. */
@@ -123,6 +124,7 @@ public class HomeKeyService extends AccessibilityService {
         try {
             settingsScancodes = getResources().getIntArray(R.array.settings_key_scancodes);
             loadConfig();
+            armPowerOnUpdateChecks();
             if (UpdateInstallReceiver.isPendingRelaunch(this) && !MainActivity.remotePanelForeground) {
                 handler.postDelayed(this::openHomeAfterUpdate, 150);
             }
@@ -150,6 +152,10 @@ public class HomeKeyService extends AccessibilityService {
         RemoteKeys.frontPackage = "";
         if (running == this) running = null;
         if (screenOnReceiver != null) unregisterReceiver(screenOnReceiver);
+        if (updateScreenOnReceiver != null) {
+            try { unregisterReceiver(updateScreenOnReceiver); } catch (RuntimeException ignored) { }
+            updateScreenOnReceiver = null;
+        }
         if (standbyExit != null) {
             try {
                 unregisterReceiver(standbyExit);
@@ -438,6 +444,21 @@ public class HomeKeyService extends AccessibilityService {
                 openHome();
             }
         }
+    }
+
+    /** Checks for launcher updates in the background whenever the TV wakes up or boots. */
+    private void armPowerOnUpdateChecks() {
+        ReleaseUpdater.checkOnPowerOn(this, null);
+        if (updateScreenOnReceiver != null) return;
+        updateScreenOnReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (Intent.ACTION_SCREEN_ON.equals(intent.getAction())) {
+                    ReleaseUpdater.checkOnPowerOn(HomeKeyService.this, null);
+                }
+            }
+        };
+        registerReceiver(updateScreenOnReceiver, new IntentFilter(Intent.ACTION_SCREEN_ON));
     }
 
     /** How long power_on_home stays armed after the screen turns on without a reboot. */

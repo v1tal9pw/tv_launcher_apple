@@ -12,6 +12,8 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Outline;
+import android.graphics.Paint;
+import android.graphics.PaintFlagsDrawFilter;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
@@ -175,6 +177,13 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private final Map<String, Long> ids = new HashMap<>();
     private String activeFolder;
     private int columns;
+    private final int[] navImpulse = new int[2];
+
+    /** Records the latest D-pad movement direction so the newly focused tile tilts smoothly along it. */
+    void setNavigationDirection(int dx, int dy) {
+        navImpulse[0] = dx;
+        navImpulse[1] = dy;
+    }
 
     HomeLayout snapshotLayout() { return layout.copy(); }
     String activeFolder() { return activeFolder; }
@@ -361,7 +370,9 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         if (banner == null && !"icon".equals(artwork) && !linkedIcon) banner = previousBanners.containsKey(art) ? previousBanners.get(art) : loadBanner(pm, ri);
         // Spotify's custom glyph still needs its icon even if the app supplies a banner.
         Drawable icon = linkedIcon ? AppArtwork.otherAppIcon(ctx, artwork) : null;
-        if (icon == null && (banner == null || "com.spotify.tv.android".equals(pkg) && !appBanners.containsKey(pkg))) icon = ri.loadIcon(pm);
+        if (icon == null && (banner == null || "com.spotify.tv.android".equals(pkg) && !appBanners.containsKey(pkg))) {
+            icon = AppArtwork.loadHighResIcon(ctx, pm, ri);
+        }
         if (artwork == null || "icon".equals(artwork) || "banner_ios_settings".equals(artwork)) {
             Drawable settingsIcon = AppArtwork.settingsIcon(ctx, ri);
             if (settingsIcon != null) { banner = settingsIcon; icon = null; }
@@ -392,19 +403,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     }
 
     private Drawable loadBanner(PackageManager pm, ResolveInfo ri) {
-        int id = ri.activityInfo.banner;
-        if (id == 0) id = ri.activityInfo.applicationInfo.banner;
-        Drawable banner = null;
-        if (id != 0) {
-            try {
-                Resources resources = pm.getResourcesForApplication(ri.activityInfo.applicationInfo);
-                // Keep at least xhdpi detail rather than downsampling artwork before the focus zoom.
-                int density = Math.max(DisplayMetrics.DENSITY_XHIGH, ctx.getResources().getDisplayMetrics().densityDpi);
-                banner = resources.getDrawableForDensity(id, density, null);
-            } catch (PackageManager.NameNotFoundException | Resources.NotFoundException ignored) {
-            }
-        }
-        if (banner == null) banner = ri.activityInfo.loadBanner(pm);
+        Drawable banner = AppArtwork.loadHighResBanner(ctx, pm, ri);
         // A square "banner" counts as none: the tile shows the app's icon and name instead of a blur.
         return banner != null && isBannerShaped(banner.getIntrinsicWidth(), banner.getIntrinsicHeight()) ? banner : null;
     }
@@ -446,7 +445,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         nameLp.width = w;
         nameLp.topMargin = h + Math.round(6 * density);
         name.setLayoutParams(nameLp);
-        return new Holder(v, listener, this::launch, animations, advancedEffects, reducedMotion, focusOvershoot, restNameAlpha);
+        return new Holder(v, listener, this::launch, animations, advancedEffects, reducedMotion, focusOvershoot, restNameAlpha, navImpulse);
     }
 
     @Override public void onViewAttachedToWindow(@NonNull RecyclerView.ViewHolder holder) {
@@ -544,7 +543,10 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 ? ctx.getString(R.string.unnamed_folder) : ctx.getString(R.string.folder_description, e.label) : e.label);
         boolean moving = e.key.equals(movingKey);
         h.card.setElevation((moving ? 9 : 3) * d);
-        h.card.setForeground(null);
+        h.card.setRotationX(0f);
+        h.card.setRotationY(0f);
+        h.sheen.cancel();
+        h.card.setForeground(focused && advancedEffects ? h.sheen : null);
     }
 
     List<String> keys() {
@@ -711,10 +713,12 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         Drawable source = original.getConstantState() != null
                 ? original.getConstantState().newDrawable().mutate() : original;
         Rect bounds = new Rect(source.getBounds());
-        int size = 192;
+        int size = 320;
         Bitmap bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        canvas.setDrawFilter(new PaintFlagsDrawFilter(0, Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG));
         source.setBounds(0, 0, size, size);
-        source.draw(new Canvas(bitmap));
+        source.draw(canvas);
         source.setBounds(bounds);
         int[] pixels = new int[size * size];
         bitmap.getPixels(pixels, 0, size, 0, 0, size, size);
@@ -738,7 +742,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         bitmap.setPixels(pixels, 0, size, 0, 0, size, size);
         Bitmap glyph = Bitmap.createBitmap(bitmap, left, top, right - left + 1, bottom - top + 1);
         if (glyph != bitmap) bitmap.recycle();
-        return new android.graphics.drawable.BitmapDrawable(ctx.getResources(), glyph);
+        return AppArtwork.enhanceDrawable(new android.graphics.drawable.BitmapDrawable(ctx.getResources(), glyph));
     }
 
     /** A vivid colour sampled from the app's banner (or icon), cached per entry; a card's accent when it set one. */
@@ -815,11 +819,13 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         final TextView name;
         final boolean animations, advancedEffects, reducedMotion, focusOvershoot;
         final float restNameAlpha;
+        final int[] navImpulse;
+        final TileSheenDrawable sheen;
         boolean suppressConfirmRelease;
 
         Holder(View v, TileListener listener, java.util.function.Consumer<Entry> launcher,
                boolean animations, boolean advancedEffects, boolean reducedMotion,
-               boolean focusOvershoot, float restNameAlpha) {
+               boolean focusOvershoot, float restNameAlpha, int[] navImpulse) {
             super(v);
             card = v.findViewById(R.id.card);
             // The launcher draws its own app-colour focus light; avoid a platform fill behind glass.
@@ -833,8 +839,11 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             this.reducedMotion = reducedMotion;
             this.focusOvershoot = focusOvershoot;
             this.restNameAlpha = restNameAlpha;
+            this.navImpulse = navImpulse;
 
             final float density = v.getResources().getDisplayMetrics().density;
+            this.sheen = new TileSheenDrawable(density);
+            if (advancedEffects) card.setCameraDistance(density * 9000f);
             card.setOutlineProvider(new ViewOutlineProvider() {
                 @Override
                 public void getOutline(View view, Outline outline) {
@@ -899,20 +908,35 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 view.animate().cancel();
                 banner.animate().cancel();
                 name.animate().cancel();
+                if (highlighted && advancedEffects) {
+                    view.setForeground(sheen);
+                    sheen.playSweep(animations && !reducedMotion);
+                } else {
+                    sheen.cancel();
+                    view.setForeground(null);
+                }
                 if (!animations) {
                     // Animations off (launcher settings): the focused look without the motion.
                     view.setScaleX(s);
                     view.setScaleY(s);
                     view.setTranslationY(lift);
                     view.setTranslationZ(depth);
+                    view.setRotationX(0f);
+                    view.setRotationY(0f);
                     banner.setScaleX(zoomArt);
                     banner.setScaleY(zoomArt);
                     name.setAlpha(focused ? 1f : restNameAlpha);
                     name.setTranslationY(focused ? density * 4f : -density * 6f);
                     if (listener != null && view.isFocused()) listener.onTileFocusFrame(view);
                 } else {
+                    if (focused && advancedEffects && !reducedMotion) {
+                        int dx = navImpulse[0], dy = navImpulse[1];
+                        view.setRotationY(dx != 0 ? dx * 4.5f : 0f);
+                        view.setRotationX(dy != 0 ? -dy * 4.0f : 0f);
+                    }
                     ViewPropertyAnimator zoom = view.animate().scaleX(s).scaleY(s)
                             .translationY(lift).translationZ(depth)
+                            .rotationX(0f).rotationY(0f)
                             .setUpdateListener(animation -> {
                                 if (listener != null && view.isFocused()) listener.onTileFocusFrame(view);
                             });
@@ -950,7 +974,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private Drawable bundledBanner(String name) {
         if (name == null || !name.startsWith("banner_")) return null;
         int id = ctx.getResources().getIdentifier(name, "drawable", ctx.getPackageName());
-        return id != 0 ? ctx.getDrawable(id) : null;
+        return id != 0 ? AppArtwork.enhanceDrawable(ctx.getDrawable(id)) : null;
     }
 
 

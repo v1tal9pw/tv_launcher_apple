@@ -276,6 +276,8 @@
                     <com.gathin.tvhome.SettingsRowView android:id="@+id/tvSettingsChoice" style="@style/SettingsRow" android:text="@string/tv_settings" />
                     <View style="@style/SettingsDivider" />
                     <com.gathin.tvhome.SettingsRowView android:id="@+id/optimizationChoice" style="@style/SettingsRow" android:text="@string/optimize_title" />
+                    <View style="@style/SettingsDivider" />
+                    <com.gathin.tvhome.SettingsRowView android:id="@+id/backupChoice" style="@style/SettingsRow" android:text="@string/settings_backup_title" />
                     <com.gathin.tvhome.SettingsRowView android:id="@+id/followThemeChoice" style="@style/SettingsRow" android:text="@string/settings_follow_theme" android:visibility="gone" />
                 </LinearLayout>
             </LinearLayout>

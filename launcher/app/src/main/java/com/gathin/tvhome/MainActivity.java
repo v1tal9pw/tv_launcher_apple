@@ -311,12 +311,26 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
     };
 
+    private final BroadcastReceiver screenOnReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (Intent.ACTION_SCREEN_ON.equals(intent.getAction())) {
+                checkUpdatesOnPowerOn();
+            }
+        }
+    };
+
     private final Handler handler = new Handler(Looper.getMainLooper());
     /** Refreshes the network pill when the connection changes: at boot Wi-Fi often connects after Home is shown. */
     private final ConnectivityManager.NetworkCallback networkCallback = new ConnectivityManager.NetworkCallback() {
         @Override
         public void onAvailable(@NonNull Network network) {
-            handler.post(()->{updateWifiLabel();if(integration!=null)integration.refreshHeader();if(weatherFetcher!=null)weatherFetcher.networkAvailable();});
+            handler.post(() -> {
+                updateWifiLabel();
+                if (integration != null) integration.refreshHeader();
+                if (weatherFetcher != null) weatherFetcher.networkAvailable();
+                retryPendingPowerOnUpdates();
+            });
         }
 
         @Override
@@ -325,7 +339,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         @Override public void onCapabilitiesChanged(@NonNull Network network,@NonNull NetworkCapabilities caps) {
             if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED))
-                handler.post(() -> { if (weatherFetcher != null) weatherFetcher.networkAvailable(); });
+                handler.post(() -> {
+                    if (weatherFetcher != null) weatherFetcher.networkAvailable();
+                    retryPendingPowerOnUpdates();
+                });
             if(integrationConfig!=null && integrationConfig.wifiStatusWarnings)
                 handler.post(()->{updateWifiLabel();if(integration!=null)integration.refreshHeader();});
         }
@@ -564,6 +581,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         storage.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_AVAILABLE);
         storage.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_UNAVAILABLE);
         registerReceiver(packageChanges, storage);
+        registerReceiver(screenOnReceiver, new IntentFilter(Intent.ACTION_SCREEN_ON));
+        checkUpdatesOnPowerOn();
 
         // tvOS layout: push the dock row towards the bottom of the screen, leaving room for
         // rows_below_dock grid rows under it; the rest of the grid stays below until you press Down.
@@ -765,10 +784,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         restartIdleClock();
         if (showStats) startStats();
         weatherFetcher.refresh();
-        ReleaseUpdater.checkAuto(this, release -> {
-            if (isFinishing() || isDestroyed()) return;
-            if (quickSettings != null) quickSettings.refreshUpdateBadge();
-        });
+        ReleaseUpdater.checkAuto(this, release -> refreshUpdateBadges());
+        showUpdateBannerIfNeeded();
         handler.postDelayed(minuteTick, MINUTE_MS);
         if (festive && diya != null) {
             diya.start();
@@ -874,6 +891,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         remotePanelForeground = false;
         if (foregroundInstance == this) foregroundInstance = null;
         paused = true;
+        dismissUpdateBanner();
         if (headerGlass != null) headerGlass.setActive(false);
         if (integration != null) integration.pause();
         restoreContinueFocus = continueShelf.hasFocus();
@@ -960,6 +978,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (headerGlass != null) headerGlass.setActive(false);
         continueShelf.close();
         unregisterReceiver(packageChanges);
+        try { unregisterReceiver(screenOnReceiver); } catch (RuntimeException ignored) { }
         ConnectivityManager cm = getSystemService(ConnectivityManager.class);
         if (cm != null) {
             cm.unregisterNetworkCallback(networkCallback);
@@ -2092,6 +2111,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 dismissTileMenu(false);
                 adapter.openAppSettings(key);
             });
+            String targetPkg = adapter.packageAt(position);
+            String targetLabel = adapter.labelAt(position);
+            if (QuickSettingsActions.canForceStopApp(targetPkg, getPackageName())) {
+                addAppAction(panel, R.string.tile_force_stop, R.drawable.ic_force_stop, () -> {
+                    dismissTileMenu(false);
+                    QuickSettingsActions.forceStopApp(this, targetPkg, targetLabel);
+                });
+            }
             if (appLibraryEnabled) addAppAction(panel, R.string.library_remove_shortcut, R.drawable.ic_quick_close, () -> {
                 dismissTileMenu(false);
                 removeFromHome(key);
@@ -2547,7 +2574,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                         position = adapter.positionOf(lastFocusedKey);
                 }
                 if (position >= 0) {
-                    if (event.getAction() == KeyEvent.ACTION_DOWN) onTileVerticalKey(position, code);
+                    if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                        int dx = code == KeyEvent.KEYCODE_DPAD_RIGHT ? 1 : (code == KeyEvent.KEYCODE_DPAD_LEFT ? -1 : 0);
+                        int dy = code == KeyEvent.KEYCODE_DPAD_DOWN ? 1 : (code == KeyEvent.KEYCODE_DPAD_UP ? -1 : 0);
+                        adapter.setNavigationDirection(dx, dy);
+                        onTileVerticalKey(position, code);
+                    }
                     return true;
                 }
             }
@@ -3371,6 +3403,95 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         return wallpaperPlayer != null ? wallpaperPlayer.quickBackdrop() : null;
     }
 
+    private void checkUpdatesOnPowerOn() {
+        ReleaseUpdater.checkOnPowerOn(this, release -> refreshUpdateBadges());
+    }
+
+    private void retryPendingPowerOnUpdates() {
+        ReleaseUpdater.retryPendingPowerOnCheck(this, release -> refreshUpdateBadges());
+    }
+
+    private View updateBannerPill;
+    private final Runnable hideUpdateBanner = this::dismissUpdateBanner;
+
+    private void refreshUpdateBadges() {
+        if (isFinishing() || isDestroyed()) return;
+        if (quickSettings != null) quickSettings.refreshUpdateBadge();
+        if (cachedQuickPanel != null && cachedQuickPanel != quickSettings) {
+            cachedQuickPanel.refreshUpdateBadge();
+        }
+        showUpdateBannerIfNeeded();
+    }
+
+    private void showUpdateBannerIfNeeded() {
+        if (paused || isFinishing() || isDestroyed() || root == null) return;
+        ReleaseUpdater.Release pending = ReleaseUpdater.pendingBannerRelease(this);
+        if (pending == null) return;
+        ReleaseUpdater.markUpdateNotified(this, pending.code);
+        dismissUpdateBanner();
+
+        LinearLayout pill = new LinearLayout(this);
+        pill.setOrientation(LinearLayout.HORIZONTAL);
+        pill.setGravity(Gravity.CENTER_VERTICAL);
+        pill.setFocusable(false);
+        pill.setClickable(false);
+        pill.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+        pill.setPadding(dp(16), dp(10), dp(18), dp(10));
+        pill.setElevation(dp(12));
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setCornerRadius(dp(999));
+        bg.setColor(0xD91A1D24);
+        bg.setStroke(Math.max(1, Math.round(density)), 0x44FFFFFF);
+        pill.setBackground(bg);
+
+        View dot = new View(this);
+        android.graphics.drawable.GradientDrawable dotBg = new android.graphics.drawable.GradientDrawable();
+        dotBg.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        dotBg.setColor(0xFF30D158);
+        dot.setBackground(dotBg);
+        LinearLayout.LayoutParams dotLp = new LinearLayout.LayoutParams(dp(9), dp(9));
+        dotLp.setMarginEnd(dp(10));
+        pill.addView(dot, dotLp);
+
+        TextView text = new TextView(this);
+        text.setText(getString(R.string.update_banner_pill, pending.code));
+        text.setTextColor(Color.WHITE);
+        text.setTextSize(14);
+        text.setTypeface(UiFont.get(this, R.string.font_medium));
+        text.setSingleLine(true);
+        pill.addView(text);
+
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP | Gravity.END);
+        lp.topMargin = dp(26);
+        lp.setMarginEnd(dp(34));
+        root.addView(pill, lp);
+        updateBannerPill = pill;
+
+        if (animations && !reducedMotion) {
+            pill.setAlpha(0f);
+            pill.setTranslationY(-dp(14));
+            pill.animate().alpha(1f).translationY(0f).setDuration(260)
+                    .setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
+        }
+        handler.removeCallbacks(hideUpdateBanner);
+        handler.postDelayed(hideUpdateBanner, 6500L);
+    }
+
+    private void dismissUpdateBanner() {
+        handler.removeCallbacks(hideUpdateBanner);
+        View pill = updateBannerPill;
+        if (pill == null) return;
+        updateBannerPill = null;
+        if (animations && !reducedMotion && pill.getParent() == root) {
+            pill.animate().alpha(0f).translationY(-dp(10)).setDuration(220)
+                    .withEndAction(() -> { if (pill.getParent() == root) root.removeView(pill); }).start();
+        } else if (pill.getParent() == root) {
+            root.removeView(pill);
+        }
+    }
+
     private void syncQuickPanelBackdrop() {
         Bitmap backdrop = activeQuickBackdrop();
         if (cachedQuickPanel != null) cachedQuickPanel.updateBackdrop(backdrop);
@@ -3452,14 +3573,31 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     private void openQuickControl(int control) {
         if (control == R.id.quickInputs) { showInputs(); return; }
+        if (control == R.id.quickSleepTimer) {
+            quickSettingsFocus = control;
+            int mins = SleepTimer.cycle(this);
+            String msg = mins > 0
+                    ? getString(R.string.quick_sleep_set, mins)
+                    : getString(R.string.quick_sleep_cancelled);
+            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+            if (quickSettings != null) quickSettings.refreshLiveStatus();
+            return;
+        }
         if (control == R.id.quickClearAll) {
             quickSettingsFocus = control;
-            QuickSettingsActions.clearBackground(this, null, () -> {
-                if (paused || isFinishing() || isDestroyed()) return;
-                Intent setup = new Intent(this, OptimizationActivity.class);
-                Runnable openSetup = () -> launchQuickIntent(control, setup, false);
-                if (quickSettings != null) quickSettings.closeForAction(openSetup);
-                else openSetup.run();
+            QuickSettingsActions.clearBackground(this, null, new QuickSettingsActions.CleanupFeedback() {
+                @Override public void onStatus(String message, boolean finished) {
+                    Toast.makeText(MainActivity.this, message, finished ? Toast.LENGTH_LONG : Toast.LENGTH_SHORT).show();
+                    if (finished && quickSettings != null) quickSettings.refreshLiveStatus();
+                }
+
+                @Override public void onNeedAdbSetup() {
+                    if (paused || isFinishing() || isDestroyed()) return;
+                    Intent setup = new Intent(MainActivity.this, OptimizationActivity.class);
+                    Runnable openSetup = () -> launchQuickIntent(control, setup, false);
+                    if (quickSettings != null) quickSettings.closeForAction(openSetup);
+                    else openSetup.run();
+                }
             });
             return;
         }

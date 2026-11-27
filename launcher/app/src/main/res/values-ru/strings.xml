@@ -255,4 +255,20 @@
     <string name="settings_columns_hint">Выберите количество приложений в ряду. Настройка применяется к доку и сетке приложений.</string>
     <string name="settings_stats_hint">Под часами отображаются загрузка процессора, свободная оперативная память и место в хранилище. Данные обновляются каждые 10 секунд.</string>
     <string name="settings_app_library_hint">Кнопка после последнего ряда открывает список всех установленных приложений, включая мобильные. Оттуда их можно добавить на главный экран. Чтобы убрать приложение с главного экрана, удерживайте OK на его плитке.</string>
+    <string name="tile_force_stop">Остановить приложение</string>
+    <string name="tile_force_stop_done">Приложение «%1$s» остановлено</string>
+    <string name="tile_force_stop_failed">Не удалось остановить «%1$s»</string>
+    <string name="update_banner_pill">Доступно обновление v%1$d</string>
+    <string name="settings_backup_title">Резервная копия настроек</string>
+    <string name="settings_backup_hint">Сохраните все настройки лаунчера, порядок плиток, папки, кастомные иконки и кнопки пульта в JSON-файл или восстановите их позже.</string>
+    <string name="settings_backup_saved_badge">Есть копия</string>
+    <string name="settings_backup_export_tv">Сохранить копию на ТВ</string>
+    <string name="settings_backup_export_file">Экспорт в файл / USB…</string>
+    <string name="settings_backup_restore_tv">Восстановить с ТВ</string>
+    <string name="settings_backup_restore_file">Импорт из файла / USB…</string>
+    <string name="settings_backup_export_ok">Копия сохранена: %1$s</string>
+    <string name="settings_backup_export_uri_ok">Резервная копия экспортирована</string>
+    <string name="settings_backup_restore_ok">Настройки восстановлены</string>
+    <string name="settings_backup_failed">Ошибка резервной копии: %1$s</string>
+    <string name="settings_backup_no_picker">На ТВ нет файлового менеджера для выбора файла. Используйте «Сохранить копию на ТВ».</string>
 </resources>

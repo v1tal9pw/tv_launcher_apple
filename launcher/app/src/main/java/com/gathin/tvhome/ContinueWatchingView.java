@@ -58,6 +58,7 @@ public final class ContinueWatchingView extends LinearLayout {
     private List<ContinueWatchingRepository.Item> allItems = Collections.emptyList();
     private String focusedPackage;
     private final java.util.Map<String, String> appSelections = new java.util.HashMap<>();
+    private final java.util.Map<String, android.graphics.drawable.Drawable> appIcons = new java.util.HashMap<>();
     private List<String> hidden = Collections.emptyList();
     private Host host;
     private boolean active, observing, sounds, animations;
@@ -113,7 +114,7 @@ public final class ContinueWatchingView extends LinearLayout {
         if (observing) { getContext().getContentResolver().unregisterContentObserver(observer); observing = false; }
         present(false, false);
     }
-    void close() { stop(); worker.shutdownNow(); }
+    void close() { stop(); appIcons.clear(); worker.shutdownNow(); }
     private void load() {
         if (!active) return;
         int token = ++generation; if (cancellation != null) cancellation.cancel();
@@ -266,9 +267,13 @@ public final class ContinueWatchingView extends LinearLayout {
             card.remaining.setText(getContext().getString(R.string.continue_remaining, Math.max(1, (item.duration - item.position) / 60_000)));
             card.resize();
             card.progress.setProgress(item.progress()); card.art.setImageDrawable(null); card.art.setScaleType(ImageView.ScaleType.CENTER_CROP);
-            try { card.art.setImageDrawable(getContext().getPackageManager().getApplicationIcon(item.pkg)); card.art.setScaleType(ImageView.ScaleType.FIT_CENTER); card.art.setPadding(dp(28), dp(12), dp(28), dp(12)); }
-            catch (Exception ignored) { }
-            try { card.badge.setImageDrawable(getContext().getPackageManager().getApplicationIcon(item.pkg)); } catch (Exception ignored) { card.badge.setImageDrawable(null); }
+            android.graphics.drawable.Drawable appIcon = loadAppIcon(item.pkg);
+            if (appIcon != null) {
+                card.art.setImageDrawable(appIcon);
+                card.art.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                card.art.setPadding(dp(28), dp(12), dp(28), dp(12));
+            }
+            card.badge.setImageDrawable(appIcon);
             card.itemView.setContentDescription(item.title + ", " + item.appName + ", " + getContext().getString(R.string.continue_remaining, Math.max(1, (item.duration - item.position) / 60_000)));
             card.itemView.setOnClickListener(v -> launch(item)); card.itemView.setSoundEffectsEnabled(sounds);
             ContinueWatchingArtwork.load(getContext(), item, bitmap -> {
@@ -351,6 +356,14 @@ public final class ContinueWatchingView extends LinearLayout {
     private TextView text(int size, int color) {
         TextView text = new TextView(getContext()); text.setTextSize(size); text.setTextColor(color); text.setSingleLine();
         text.setEllipsize(TextUtils.TruncateAt.END); text.setTypeface(getResources().getFont(R.font.outfit_regular)); return text;
+    }
+    private android.graphics.drawable.Drawable loadAppIcon(String pkg) {
+        if (pkg == null || pkg.isEmpty()) return null;
+        if (appIcons.containsKey(pkg)) return appIcons.get(pkg);
+        android.graphics.drawable.Drawable icon = AppArtwork.loadHighResIcon(
+                getContext(), getContext().getPackageManager(), pkg);
+        appIcons.put(pkg, icon);
+        return icon;
     }
     private int dp(float value) { return Math.round(value * getResources().getDisplayMetrics().density); }
 }

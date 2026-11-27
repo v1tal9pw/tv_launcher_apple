@@ -21,6 +21,7 @@ final class VideoWallpaper implements TextureView.SurfaceTextureListener {
     private final Context context;
     private final File file;
     private final int dim;
+    private int extraDim;
     private final Consumer<Boolean> onVisible;
     private final TextureView texture;
     private final View dimmer;
@@ -44,6 +45,16 @@ final class VideoWallpaper implements TextureView.SurfaceTextureListener {
         dimmer.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         root.addView(dimmer, 2, new FrameLayout.LayoutParams(-1, -1));
         dimmer.setVisibility(View.GONE);
+    }
+
+    void setExtraDim(int extraPercent) {
+        int clamped = Math.max(0, Math.min(85, dim + Math.max(0, extraPercent)));
+        if (clamped == extraDim) return;
+        extraDim = clamped;
+        dimmer.setBackgroundColor((clamped * 255 / 100) << 24);
+        if (texture.getVisibility() == View.VISIBLE) {
+            dimmer.setVisibility(clamped > 0 ? View.VISIBLE : View.GONE);
+        }
     }
 
     void start() {

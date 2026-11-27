@@ -209,6 +209,39 @@ final class QuickSettingsActions {
         });
     }
 
+    static boolean canForceStopApp(String pkg, String selfPackage) {
+        if (pkg == null || pkg.isEmpty() || !SAFE_PACKAGE.matcher(pkg).matches()) return false;
+        if (pkg.equals(selfPackage)) return false;
+        return !CORE_SYSTEM_PACKAGES.contains(pkg);
+    }
+
+    static void forceStopApp(Context context, String pkg, String label) {
+        if (context == null || !canForceStopApp(pkg, context.getPackageName())) return;
+        Context app = context.getApplicationContext();
+        Context localized = LauncherLocale.wrap(context);
+        String name = (label == null || label.trim().isEmpty()) ? pkg : label.trim();
+        Handler main = new Handler(Looper.getMainLooper());
+        FeatureNetwork.WORKER.execute(() -> {
+            try {
+                LocalAdbClient.run(app, "am force-stop " + pkg);
+                main.post(() -> Toast.makeText(localized,
+                        localized.getString(R.string.tile_force_stop_done, name), Toast.LENGTH_SHORT).show());
+            } catch (Exception error) {
+                String reason = error.getMessage() == null ? "" : error.getMessage();
+                main.post(() -> {
+                    if (reason.contains("ADB_PORT_5555_CLOSED")) {
+                        Toast.makeText(localized, R.string.quick_cleanup_adb_closed, Toast.LENGTH_LONG).show();
+                    } else if (reason.contains("ADB_NOT_AUTHORIZED") || reason.contains("ADB_AUTH_FAILED")) {
+                        Toast.makeText(localized, R.string.quick_cleanup_adb_auth, Toast.LENGTH_LONG).show();
+                    } else {
+                        Toast.makeText(localized,
+                                localized.getString(R.string.tile_force_stop_failed, name), Toast.LENGTH_LONG).show();
+                    }
+                });
+            }
+        });
+    }
+
     static boolean isVpnConnected(Context context) {
         try {
             ConnectivityManager cm = context.getSystemService(ConnectivityManager.class);

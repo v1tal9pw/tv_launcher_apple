@@ -255,4 +255,20 @@
     <string name="feature_clock_wallpaper">Use Home wallpaper behind the clock</string>
     <string name="feature_clock_glow">Clock ambient glow</string>
     <string name="feature_startup_wait">Wait for network before opening</string>
+    <string name="tile_force_stop">Force stop</string>
+    <string name="tile_force_stop_done">%1$s stopped</string>
+    <string name="tile_force_stop_failed">Could not stop %1$s</string>
+    <string name="update_banner_pill">Update v%1$d available</string>
+    <string name="settings_backup_title">Backup &amp; restore</string>
+    <string name="settings_backup_hint">Save all launcher settings, grid order, folders, app customizations and remote buttons to a JSON file, or restore them later.</string>
+    <string name="settings_backup_saved_badge">Saved</string>
+    <string name="settings_backup_export_tv">Save backup on TV</string>
+    <string name="settings_backup_export_file">Export to file / USB…</string>
+    <string name="settings_backup_restore_tv">Restore from TV backup</string>
+    <string name="settings_backup_restore_file">Import from file / USB…</string>
+    <string name="settings_backup_export_ok">Backup saved: %1$s</string>
+    <string name="settings_backup_export_uri_ok">Backup exported</string>
+    <string name="settings_backup_restore_ok">Settings restored</string>
+    <string name="settings_backup_failed">Backup error: %1$s</string>
+    <string name="settings_backup_no_picker">No file manager available for export/import. Use “Save backup on TV” instead.</string>
 </resources>

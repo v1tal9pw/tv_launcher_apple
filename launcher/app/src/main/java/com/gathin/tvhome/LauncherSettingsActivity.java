@@ -27,6 +27,8 @@ public final class LauncherSettingsActivity extends Activity {
 
     private static final String STATE_SECTION = "current_section";
     private static final String STATE_LAST_CATEGORY = "last_category";
+    private static final int BACKUP_EXPORT_REQUEST = 77;
+    private static final int BACKUP_IMPORT_REQUEST = 78;
     private static final int[] SECTION_IDS = {
             R.id.sectionHome, R.id.sectionAppearance, R.id.sectionWidgets,
             R.id.sectionSoundRemote, R.id.sectionSystem, R.id.sectionAbout
@@ -60,6 +62,7 @@ public final class LauncherSettingsActivity extends Activity {
     private boolean continueWatching;
     private SettingsRowView followThemeChoice;
     private SettingsRowView checkUpdatesChoice;
+    private SettingsRowView backupChoice;
     private SettingsRowView glowChoice;
     private boolean checkingUpdate;
     private int columns;
@@ -227,6 +230,9 @@ public final class LauncherSettingsActivity extends Activity {
         optimization.setIcon(R.drawable.ic_settings_stats, 0xFF30D158);
         optimization.setValue("", true);
         optimization.setOnClickListener(v -> startActivity(new Intent(this, OptimizationActivity.class)));
+        backupChoice = findViewById(R.id.backupChoice);
+        backupChoice.setIcon(R.drawable.ic_settings_backup, 0xFF0A84FF);
+        backupChoice.setOnClickListener(v -> showBackupDialog());
         tvSettings.setIcon(R.drawable.ic_settings, 0xFF737989);
         tvSettings.setValue("", true);
         ((TextView) findViewById(R.id.aboutVersionText)).setText(
@@ -265,7 +271,7 @@ public final class LauncherSettingsActivity extends Activity {
                 R.id.wallpaperChoice, R.id.rowsChoice, R.id.glowChoice, R.id.weatherChoice, R.id.idleClockChoice,
                 R.id.appCustomizationChoice, R.id.remoteButtonsChoice, R.id.followThemeChoice,
                 R.id.defaultHomeChoice, R.id.tvSettingsChoice,
-                R.id.checkUpdatesChoice, R.id.githubChoice, R.id.optimizationChoice}) {
+                R.id.checkUpdatesChoice, R.id.githubChoice, R.id.optimizationChoice, R.id.backupChoice}) {
             findViewById(id).setOnFocusChangeListener((v, focused) -> {
                 v.animate().translationZ(focused ? 6 * getResources().getDisplayMetrics().density : 0)
                         .setDuration(animations ? 130 : 0).start();
@@ -486,6 +492,10 @@ public final class LauncherSettingsActivity extends Activity {
                 : (idleClockMinutes > 0 ? clockSummary : ""), true);
         categorySoundRemote.setValue(navigationSounds ? navigationSoundVolume + "%" : getString(R.string.off), true);
         categorySystem.setValue("", true);
+        if (backupChoice != null) {
+            backupChoice.setValue(SettingsBackup.hasLocalBackup(this)
+                    ? getString(R.string.settings_backup_saved_badge) : "", true);
+        }
         ReleaseUpdater.Release pendingUpdate = ReleaseUpdater.cachedUpdate(this);
         boolean hasUpdate = pendingUpdate != null;
         categoryAbout.setValue(installedVersion(), true);
@@ -538,6 +548,8 @@ public final class LauncherSettingsActivity extends Activity {
             title = R.string.settings_cat_about; hint = R.string.settings_cat_about_hint;
         } else if (id == R.id.optimizationChoice) {
             title = R.string.optimize_title; hint = R.string.optimize_help;
+        } else if (id == R.id.backupChoice) {
+            title = R.string.settings_backup_title; hint = R.string.settings_backup_hint;
         } else if (id == R.id.wallpaperChoice) {
             title = R.string.settings_wallpaper; hint = R.string.wallpaper_hint;
         } else if (id == R.id.rowsChoice) {
@@ -675,6 +687,76 @@ public final class LauncherSettingsActivity extends Activity {
         }
     }
 
+    private void showBackupDialog() {
+        boolean hasLocal = SettingsBackup.hasLocalBackup(this);
+        java.util.ArrayList<String> labels = new java.util.ArrayList<>();
+        java.util.ArrayList<Runnable> actions = new java.util.ArrayList<>();
+        labels.add(getString(R.string.settings_backup_export_tv));
+        actions.add(this::exportBackupLocal);
+        labels.add(getString(R.string.settings_backup_export_file));
+        actions.add(this::exportBackupPicker);
+        if (hasLocal) {
+            labels.add(getString(R.string.settings_backup_restore_tv));
+            actions.add(this::restoreBackupLocal);
+        }
+        labels.add(getString(R.string.settings_backup_restore_file));
+        actions.add(this::restoreBackupPicker);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle(R.string.settings_backup_title)
+                .setItems(labels.toArray(new String[0]), (d, which) -> actions.get(which).run())
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+        glass(dialog);
+    }
+
+    private void exportBackupLocal() {
+        try {
+            java.io.File saved = SettingsBackup.exportToLocalFile(this);
+            Toast.makeText(this, getString(R.string.settings_backup_export_ok, saved.getName()), Toast.LENGTH_LONG).show();
+            refresh();
+        } catch (Exception e) {
+            Toast.makeText(this, getString(R.string.settings_backup_failed,
+                    e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void exportBackupPicker() {
+        Intent create = new Intent(Intent.ACTION_CREATE_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE)
+                .setType("application/json")
+                .putExtra(Intent.EXTRA_TITLE, SettingsBackup.DEFAULT_FILE_NAME);
+        try {
+            startActivityForResult(create, BACKUP_EXPORT_REQUEST);
+        } catch (ActivityNotFoundException | SecurityException ignored) {
+            Toast.makeText(this, R.string.settings_backup_no_picker, Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void restoreBackupLocal() {
+        try {
+            SettingsBackup.restoreFromLocalFile(this);
+            loadConfigState();
+            setResult(RESULT_OK);
+            refresh();
+            Toast.makeText(this, R.string.settings_backup_restore_ok, Toast.LENGTH_LONG).show();
+        } catch (Exception e) {
+            Toast.makeText(this, getString(R.string.settings_backup_failed,
+                    e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void restoreBackupPicker() {
+        Intent open = new Intent(Intent.ACTION_OPEN_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE)
+                .setType("*/*");
+        try {
+            startActivityForResult(open, BACKUP_IMPORT_REQUEST);
+        } catch (ActivityNotFoundException | SecurityException ignored) {
+            Toast.makeText(this, R.string.settings_backup_no_picker, Toast.LENGTH_LONG).show();
+        }
+    }
+
     @Override protected void onResume() {
         super.onResume();
         loadConfigState();
@@ -777,6 +859,29 @@ public final class LauncherSettingsActivity extends Activity {
         if (requestCode == 43 && resultCode == RESULT_OK) {
             loadConfigState();
             Config.markSettingsChanged(LauncherSettingsActivity.this); setResult(RESULT_OK); refresh();
+            return;
+        }
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        Uri uri = data.getData();
+        if (requestCode == BACKUP_EXPORT_REQUEST) {
+            try {
+                SettingsBackup.exportToUri(this, uri);
+                Toast.makeText(this, R.string.settings_backup_export_uri_ok, Toast.LENGTH_LONG).show();
+            } catch (Exception e) {
+                Toast.makeText(this, getString(R.string.settings_backup_failed,
+                        e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()), Toast.LENGTH_LONG).show();
+            }
+        } else if (requestCode == BACKUP_IMPORT_REQUEST) {
+            try {
+                SettingsBackup.restoreFromUri(this, uri);
+                loadConfigState();
+                setResult(RESULT_OK);
+                refresh();
+                Toast.makeText(this, R.string.settings_backup_restore_ok, Toast.LENGTH_LONG).show();
+            } catch (Exception e) {
+                Toast.makeText(this, getString(R.string.settings_backup_failed,
+                        e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()), Toast.LENGTH_LONG).show();
+            }
         }
     }
 }

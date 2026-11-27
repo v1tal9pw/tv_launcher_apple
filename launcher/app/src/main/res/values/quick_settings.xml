@@ -27,4 +27,17 @@
     <string name="quick_cleanup_adb_closed">Local ADB (port 5555) is off. Enable ADB debugging or connect in TV Optimization.</string>
     <string name="quick_cleanup_adb_auth">Approve the ADB debugging prompt on the TV screen and try again.</string>
     <string name="quick_cleanup_adb_error">ADB cleanup failed: %1$s</string>
+    <string name="quick_sleep_timer">Sleep timer</string>
+    <string name="quick_sleep_in">In %1$d min</string>
+    <string name="quick_sleep_set">Sleep timer set for %1$d min</string>
+    <string name="quick_sleep_cancelled">Sleep timer off</string>
+    <string name="quick_sleep_warning">TV will go to sleep in 1 minute</string>
+    <string name="quick_sleep_adb_hint">Sleep timer needs local ADB (port 5555) to put the TV to sleep.</string>
+    <string name="quick_wifi_connected">Connected</string>
+    <string name="quick_wifi_ethernet">Ethernet</string>
+    <string name="quick_wifi_offline">Offline</string>
+    <string name="quick_ram_free">%1$s free</string>
+    <string name="quick_media_prev">Previous track</string>
+    <string name="quick_media_play">Play or pause</string>
+    <string name="quick_media_next">Next track</string>
 </resources>

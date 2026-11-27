@@ -24,4 +24,20 @@ public class BannerShapeTest {
         assertTrue(AppAdapter.isBannerShaped(-1, -1));
         assertTrue(AppAdapter.isBannerShaped(0, 0));
     }
+
+    @Test
+    public void artworkDensityTargetsAtLeastXxxhdpi() {
+        assertTrue(AppArtwork.targetArtworkDensity(213) >= 640);
+        assertTrue(AppArtwork.targetArtworkDensity(320) >= 640);
+        assertTrue(AppArtwork.targetArtworkDensity(640) >= 640);
+        assertTrue(AppArtwork.targetArtworkDensity(800) == 800);
+    }
+
+    @Test
+    public void customBannerSampleSizeKeepsHighResolutionUpTo1024Px() {
+        assertTrue(AppArtwork.customBannerSampleSize(640, 360) == 1);
+        assertTrue(AppArtwork.customBannerSampleSize(1024, 576) == 1);
+        assertTrue(AppArtwork.customBannerSampleSize(1920, 1080) == 2);
+        assertTrue(AppArtwork.customBannerSampleSize(3840, 2160) == 4);
+    }
 }

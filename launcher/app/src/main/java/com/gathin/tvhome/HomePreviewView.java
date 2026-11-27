@@ -56,9 +56,12 @@ public final class HomePreviewView extends View {
             Drawable source = banner ? entry.banner : entry.icon;
             if (source == null) { image = null; return; }
             image = Bitmap.createBitmap(size, banner ? size * 3 / 5 : size, Bitmap.Config.ARGB_8888);
+            image.setHasMipMap(true);
             Drawable drawable = source.getConstantState() == null ? source : source.getConstantState().newDrawable().mutate();
             android.graphics.Rect previous = new android.graphics.Rect(drawable.getBounds());
-            drawable.setBounds(0, 0, image.getWidth(), image.getHeight()); drawable.draw(new Canvas(image)); drawable.setBounds(previous);
+            Canvas canvas = new Canvas(image);
+            canvas.setDrawFilter(new android.graphics.PaintFlagsDrawFilter(0, Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG));
+            drawable.setBounds(0, 0, image.getWidth(), image.getHeight()); drawable.draw(canvas); drawable.setBounds(previous);
         }
     }
 
@@ -125,9 +128,9 @@ public final class HomePreviewView extends View {
                     adapter.reload(CardFeature.run(() -> Cards.shown(cards), none), leanback);
                     List<AppAdapter.Entry> entries = adapter.previewEntries();
                     int firstColor = entries.isEmpty() ? 0xFF0A84FF : adapter.ambientColorAt(0);
-                    for (int i = 0; i < Math.min(35, entries.size()); i++) loaded.add(new Tile(entries.get(i), 128));
+                    for (int i = 0; i < Math.min(35, entries.size()); i++) loaded.add(new Tile(entries.get(i), 224));
                     AppAdapter.Entry target = selectedApp == null ? null : adapter.previewApp(selectedApp);
-                    if (target != null) selected = new Tile(target, 256);
+                    if (target != null) selected = new Tile(target, 384);
                     int resolvedColor = firstColor;
                     Tile result = selected;
                     post(() -> { if (token == artworkRequest) { tiles = loaded; app = result; previewGlowColor = resolvedColor; invalidate(); } });

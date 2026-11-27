@@ -1,22 +1,39 @@
 package com.gathin.tvhome;
 
+import android.Manifest;
 import android.app.Activity;
+import android.app.ActivityManager;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothManager;
+import android.bluetooth.BluetoothProfile;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.graphics.Outline;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
+import android.os.Build;
 import android.text.TextUtils;
+import android.text.format.Formatter;
+import android.util.SparseArray;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewOutlineProvider;
 import android.view.ViewTreeObserver;
 import android.view.animation.PathInterpolator;
 import android.widget.FrameLayout;
@@ -26,7 +43,10 @@ import android.widget.ScrollView;
 import android.widget.TextClock;
 import android.widget.TextView;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 
 /** Remote-friendly glass shortcuts to the TV's own settings pages. */
 final class QuickSettingsPanel extends FrameLayout {
@@ -70,6 +90,13 @@ final class QuickSettingsPanel extends FrameLayout {
     private TextView launcherSettingsLabel, allSettingsLabel, closeLabel;
     private ImageView launcherSettingsButton;
     private boolean updateBadgeVisible;
+    private final SparseArray<TextView> tileSubtitles = new SparseArray<>();
+    private final SparseArray<String> tileTitles = new SparseArray<>();
+    private LinearLayout mediaCard;
+    private ImageView mediaArt;
+    private TextView mediaTitle, mediaArtist;
+    private ImageView mediaPlayButton;
+    private NowPlayingController.Snapshot currentMedia;
     private ValueAnimator transition;
     private ViewTreeObserver.OnPreDrawListener entryDraw;
     private Runnable pendingEntryAnimation;
@@ -196,6 +223,8 @@ final class QuickSettingsPanel extends FrameLayout {
         removeEntryListener();
         cancelTransition();
         refreshUpdateBadge();
+        refreshLiveStatus();
+        refreshNowPlaying();
         showing = true;
         closing = false;
         restoreFocus = true;
@@ -563,6 +592,7 @@ final class QuickSettingsPanel extends FrameLayout {
         closeParams.leftMargin = px(8);
         header.addView(close, closeParams);
         add(header, 0);
+        add(buildMediaCard(), 8);
 
         int[][] tiles = {
                 {R.id.quickScreensaver, R.drawable.ic_quick_screensaver, R.string.quick_screensaver},
@@ -573,7 +603,8 @@ final class QuickSettingsPanel extends FrameLayout {
                 {R.id.quickApps, R.drawable.ic_quick_apps, R.string.quick_apps},
                 {R.id.quickPicture, R.drawable.ic_quick_picture, R.string.quick_picture},
                 {R.id.quickSound, R.drawable.ic_quick_sound, R.string.quick_sound},
-                {R.id.quickClearAll, R.drawable.ic_quick_apps, R.string.quick_clear_background}
+                {R.id.quickClearAll, R.drawable.ic_quick_apps, R.string.quick_clear_background},
+                {R.id.quickSleepTimer, R.drawable.ic_quick_sleep, R.string.quick_sleep_timer}
         };
         for (int i = 0; i < tiles.length; i += 2) {
             LinearLayout line = row();
@@ -582,7 +613,8 @@ final class QuickSettingsPanel extends FrameLayout {
             for (int column = 0; column < count; column++) {
                 int[] tile = tiles[i + column];
                 String subtitle = tile[0] == R.id.quickScreensaver ? activity.getString(R.string.quick_start_now)
-                        : tile[0] == R.id.quickBluetooth ? activity.getString(R.string.quick_accessories) : null;
+                        : tile[0] == R.id.quickBluetooth ? activity.getString(R.string.quick_accessories)
+                        : tile[0] == R.id.quickSleepTimer ? activity.getString(R.string.quick_off) : null;
                 LinearLayout.LayoutParams lp = single
                         ? new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT)
@@ -591,11 +623,6 @@ final class QuickSettingsPanel extends FrameLayout {
             }
             add(line, i == 0 ? 8 : 10);
         }
-        connect(R.id.quickLauncherSettings, R.id.quickLauncherSettings, R.id.quickAllSettings,
-                R.id.quickLauncherSettings, R.id.quickScreensaver);
-        connect(R.id.quickAllSettings, R.id.quickLauncherSettings, R.id.quickClose,
-                R.id.quickAllSettings, R.id.quickScreensaver);
-        connect(R.id.quickClose, R.id.quickAllSettings, R.id.quickClose, R.id.quickClose, R.id.quickNetwork);
         for (int i = 0; i < tiles.length; i++) {
             boolean single = (i % 2 == 0) && (i + 1 >= tiles.length);
             int column = single ? 0 : i % 2;
@@ -605,6 +632,262 @@ final class QuickSettingsPanel extends FrameLayout {
             int down = i + 2 < tiles.length ? tiles[i + 2][0]
                     : (!single && column == 1 && i + 1 < tiles.length ? tiles[i + 1][0] : tiles[i][0]);
             connect(tiles[i][0], left, right, up, down);
+        }
+        wireTopFocus(false);
+    }
+
+    private View buildMediaCard() {
+        mediaCard = row();
+        mediaCard.setId(R.id.quickMediaCard);
+        mediaCard.setMinimumHeight(px(60));
+        mediaCard.setPadding(px(12), px(9), px(10), px(9));
+        mediaCard.setVisibility(View.GONE);
+        glass(mediaCard);
+
+        mediaArt = new ImageView(activity);
+        mediaArt.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        mediaArt.setBackgroundColor(0x33FFFFFF);
+        mediaArt.setOutlineProvider(new ViewOutlineProvider() {
+            @Override public void getOutline(View view, Outline outline) {
+                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), px(9));
+            }
+        });
+        mediaArt.setClipToOutline(true);
+        mediaCard.addView(mediaArt, new LinearLayout.LayoutParams(px(40), px(40)));
+
+        LinearLayout info = column();
+        mediaTitle = text("", 13, 600, Color.WHITE);
+        mediaTitle.setSingleLine(true);
+        mediaTitle.setEllipsize(TextUtils.TruncateAt.END);
+        info.addView(mediaTitle);
+        mediaArtist = text("", 11, 500, 0xCCFFFFFF);
+        mediaArtist.setSingleLine(true);
+        mediaArtist.setEllipsize(TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams artistLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        artistLp.topMargin = px(2);
+        info.addView(mediaArtist, artistLp);
+        LinearLayout.LayoutParams infoLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
+        infoLp.leftMargin = px(10);
+        infoLp.rightMargin = px(6);
+        mediaCard.addView(info, infoLp);
+
+        ImageView prev = mediaButton(R.id.quickMediaPrev, R.drawable.ic_media_prev, R.string.quick_media_prev, () -> {
+            if (NowPlayingController.skipPrevious(currentMedia)) postDelayed(this::refreshNowPlaying, 300);
+        });
+        mediaPlayButton = mediaButton(R.id.quickMediaPlay, R.drawable.ic_media_pause, R.string.quick_media_play, () -> {
+            if (NowPlayingController.togglePlayPause(currentMedia)) postDelayed(this::refreshNowPlaying, 220);
+        });
+        ImageView next = mediaButton(R.id.quickMediaNext, R.drawable.ic_media_next, R.string.quick_media_next, () -> {
+            if (NowPlayingController.skipNext(currentMedia)) postDelayed(this::refreshNowPlaying, 300);
+        });
+        mediaCard.addView(prev);
+        LinearLayout.LayoutParams playLp = new LinearLayout.LayoutParams(px(32), px(32));
+        playLp.leftMargin = px(5);
+        mediaCard.addView(mediaPlayButton, playLp);
+        LinearLayout.LayoutParams nextLp = new LinearLayout.LayoutParams(px(32), px(32));
+        nextLp.leftMargin = px(5);
+        mediaCard.addView(next, nextLp);
+        return mediaCard;
+    }
+
+    private ImageView mediaButton(int id, int iconRes, int descRes, Runnable action) {
+        ImageView btn = new ImageView(activity);
+        btn.setId(id);
+        btn.setImageResource(iconRes);
+        btn.setColorFilter(Color.WHITE);
+        btn.setContentDescription(activity.getString(descRes));
+        btn.setPadding(px(7), px(7), px(7), px(7));
+        btn.setLayoutParams(new LinearLayout.LayoutParams(px(32), px(32)));
+        glass(btn);
+        makeButton(btn, action);
+        return btn;
+    }
+
+    private void wireTopFocus(boolean mediaVisible) {
+        if (mediaVisible) {
+            connect(R.id.quickLauncherSettings, R.id.quickLauncherSettings, R.id.quickAllSettings,
+                    R.id.quickLauncherSettings, R.id.quickMediaPrev);
+            connect(R.id.quickAllSettings, R.id.quickLauncherSettings, R.id.quickClose,
+                    R.id.quickAllSettings, R.id.quickMediaPlay);
+            connect(R.id.quickClose, R.id.quickAllSettings, R.id.quickClose,
+                    R.id.quickClose, R.id.quickMediaNext);
+            connect(R.id.quickMediaPrev, R.id.quickMediaPrev, R.id.quickMediaPlay,
+                    R.id.quickLauncherSettings, R.id.quickScreensaver);
+            connect(R.id.quickMediaPlay, R.id.quickMediaPrev, R.id.quickMediaNext,
+                    R.id.quickAllSettings, R.id.quickScreensaver);
+            connect(R.id.quickMediaNext, R.id.quickMediaPlay, R.id.quickMediaNext,
+                    R.id.quickClose, R.id.quickNetwork);
+            View screensaver = content.findViewById(R.id.quickScreensaver);
+            if (screensaver != null) screensaver.setNextFocusUpId(R.id.quickMediaPrev);
+            View network = content.findViewById(R.id.quickNetwork);
+            if (network != null) network.setNextFocusUpId(R.id.quickMediaNext);
+        } else {
+            connect(R.id.quickLauncherSettings, R.id.quickLauncherSettings, R.id.quickAllSettings,
+                    R.id.quickLauncherSettings, R.id.quickScreensaver);
+            connect(R.id.quickAllSettings, R.id.quickLauncherSettings, R.id.quickClose,
+                    R.id.quickAllSettings, R.id.quickScreensaver);
+            connect(R.id.quickClose, R.id.quickAllSettings, R.id.quickClose,
+                    R.id.quickClose, R.id.quickNetwork);
+            View screensaver = content.findViewById(R.id.quickScreensaver);
+            if (screensaver != null) screensaver.setNextFocusUpId(R.id.quickAllSettings);
+            View network = content.findViewById(R.id.quickNetwork);
+            if (network != null) network.setNextFocusUpId(R.id.quickClose);
+        }
+    }
+
+    void refreshNowPlaying() {
+        if (mediaCard == null) return;
+        NowPlayingController.Snapshot snap = NowPlayingController.current(activity);
+        currentMedia = snap;
+        boolean wasVisible = mediaCard.getVisibility() == View.VISIBLE;
+        if (snap == null) {
+            mediaCard.setVisibility(View.GONE);
+            wireTopFocus(false);
+            if (wasVisible && content.getWidth() > 0) content.post(this::updateGlassRegions);
+            return;
+        }
+        mediaTitle.setText(snap.title);
+        mediaArtist.setText(snap.artist);
+        mediaArtist.setVisibility(snap.artist.isEmpty() ? View.GONE : View.VISIBLE);
+        mediaPlayButton.setImageResource(snap.playing ? R.drawable.ic_media_pause : R.drawable.ic_media_play);
+        if (snap.art != null) {
+            mediaArt.setColorFilter(null);
+            mediaArt.setPadding(0, 0, 0, 0);
+            mediaArt.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            mediaArt.setImageBitmap(snap.art);
+        } else {
+            int pad = px(9);
+            mediaArt.setPadding(pad, pad, pad, pad);
+            mediaArt.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            mediaArt.setImageResource(R.drawable.ic_quick_sound);
+            mediaArt.setColorFilter(Color.WHITE);
+        }
+        mediaCard.setVisibility(View.VISIBLE);
+        wireTopFocus(true);
+        if (!wasVisible && content.getWidth() > 0) content.post(this::updateGlassRegions);
+    }
+
+    void refreshLiveStatus() {
+        setTileSubtitle(R.id.quickNetwork, resolveNetworkSummary());
+        setTileSubtitle(R.id.quickBluetooth, resolveBluetoothSummary());
+        setTileSubtitle(R.id.quickClearAll, resolveRamSummary());
+        int sleepMins = SleepTimer.remainingMinutes();
+        setTileSubtitle(R.id.quickSleepTimer, sleepMins > 0
+                ? activity.getString(R.string.quick_sleep_in, sleepMins)
+                : activity.getString(R.string.quick_off));
+    }
+
+    private void setTileSubtitle(int id, String value) {
+        TextView sub = tileSubtitles.get(id);
+        if (sub == null) return;
+        boolean hasText = value != null && !value.trim().isEmpty();
+        sub.setText(hasText ? value : "");
+        sub.setVisibility(hasText ? View.VISIBLE : View.GONE);
+        View tile = content.findViewById(id);
+        String title = tileTitles.get(id);
+        if (tile != null && title != null) {
+            tile.setContentDescription(hasText ? title + ", " + value : title);
+        }
+    }
+
+    private String resolveNetworkSummary() {
+        try {
+            ConnectivityManager cm = activity.getSystemService(ConnectivityManager.class);
+            if (cm == null) return activity.getString(R.string.quick_wifi_offline);
+            Network active = cm.getActiveNetwork();
+            if (active == null) return activity.getString(R.string.quick_wifi_offline);
+            NetworkCapabilities caps = cm.getNetworkCapabilities(active);
+            if (caps == null) return activity.getString(R.string.quick_wifi_offline);
+            if (caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) {
+                return activity.getString(R.string.quick_wifi_ethernet);
+            }
+            if (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+                try {
+                    WifiManager wm = activity.getApplicationContext().getSystemService(WifiManager.class);
+                    WifiInfo info = wm != null ? wm.getConnectionInfo() : null;
+                    String ssid = info != null ? info.getSSID() : null;
+                    if (ssid != null) {
+                        ssid = ssid.replace("\"", "").trim();
+                        if (!ssid.isEmpty() && !"<unknown ssid>".equalsIgnoreCase(ssid)
+                                && !"0x".equalsIgnoreCase(ssid)) {
+                            return ssid;
+                        }
+                    }
+                } catch (RuntimeException ignored) { }
+                return activity.getString(R.string.quick_wifi_connected);
+            }
+            if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) {
+                return activity.getString(R.string.quick_wifi_connected);
+            }
+        } catch (RuntimeException ignored) { }
+        return activity.getString(R.string.quick_wifi_offline);
+    }
+
+    private String resolveBluetoothSummary() {
+        String fallback = activity.getString(R.string.quick_accessories);
+        try {
+            if (Build.VERSION.SDK_INT >= 31
+                    && activity.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)
+                    != PackageManager.PERMISSION_GRANTED) {
+                return fallback;
+            }
+            BluetoothManager bm = activity.getSystemService(BluetoothManager.class);
+            BluetoothAdapter adapter = bm != null ? bm.getAdapter() : BluetoothAdapter.getDefaultAdapter();
+            if (adapter == null || !adapter.isEnabled()) return fallback;
+            BluetoothDevice connected = findConnectedBluetoothDevice(bm, adapter);
+            if (connected == null) return fallback;
+            String name = connected.getName();
+            if (name == null || name.trim().isEmpty()) return fallback;
+            int battery = readBluetoothBattery(connected);
+            return battery >= 0 && battery <= 100 ? name.trim() + " · " + battery + "%" : name.trim();
+        } catch (RuntimeException ignored) {
+            return fallback;
+        }
+    }
+
+    private static BluetoothDevice findConnectedBluetoothDevice(BluetoothManager bm, BluetoothAdapter adapter) {
+        try {
+            Set<BluetoothDevice> bonded = adapter.getBondedDevices();
+            if (bonded != null) {
+                Method isConnected = BluetoothDevice.class.getMethod("isConnected");
+                for (BluetoothDevice d : bonded) {
+                    if (d != null && Boolean.TRUE.equals(isConnected.invoke(d))) return d;
+                }
+            }
+        } catch (SecurityException ignored) {
+        } catch (Exception ignored) { }
+        try {
+            if (bm != null) {
+                List<BluetoothDevice> gatt = bm.getConnectedDevices(BluetoothProfile.GATT);
+                if (gatt != null && !gatt.isEmpty()) return gatt.get(0);
+            }
+        } catch (SecurityException ignored) {
+        } catch (RuntimeException ignored) { }
+        return null;
+    }
+
+    private static int readBluetoothBattery(BluetoothDevice device) {
+        try {
+            Method m = BluetoothDevice.class.getMethod("getBatteryLevel");
+            Object result = m.invoke(device);
+            return result instanceof Integer ? (Integer) result : -1;
+        } catch (Exception ignored) {
+            return -1;
+        }
+    }
+
+    private String resolveRamSummary() {
+        try {
+            ActivityManager am = activity.getSystemService(ActivityManager.class);
+            if (am == null) return null;
+            ActivityManager.MemoryInfo info = new ActivityManager.MemoryInfo();
+            am.getMemoryInfo(info);
+            if (info.availMem <= 0) return null;
+            return activity.getString(R.string.quick_ram_free,
+                    Formatter.formatShortFileSize(activity, info.availMem));
+        } catch (RuntimeException ignored) {
+            return null;
         }
     }
 
@@ -638,23 +921,25 @@ final class QuickSettingsPanel extends FrameLayout {
         symbol.addView(image, new FrameLayout.LayoutParams(size, size, Gravity.CENTER));
         button.addView(symbol, new LinearLayout.LayoutParams(px(38), px(38)));
         LinearLayout copy = column();
-        TextView title = text(activity.getString(label), 14, 600, Color.WHITE);
+        String titleText = activity.getString(label);
+        TextView title = text(titleText, 14, 600, Color.WHITE);
         title.setMaxLines(2);
         title.setEllipsize(TextUtils.TruncateAt.END);
         copy.addView(title);
-        if (summary != null) {
-            TextView subtitle = text(summary, 11, 500, 0xDBFFFFFF);
-            subtitle.setMaxLines(2);
-            subtitle.setEllipsize(TextUtils.TruncateAt.END);
-            LinearLayout.LayoutParams subtitleParams = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            subtitleParams.topMargin = px(3);
-            copy.addView(subtitle, subtitleParams);
-        }
+        TextView subtitle = text(summary != null ? summary : "", 11, 500, 0xDBFFFFFF);
+        subtitle.setMaxLines(1);
+        subtitle.setEllipsize(TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams subtitleParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        subtitleParams.topMargin = px(3);
+        subtitle.setVisibility(summary != null && !summary.isEmpty() ? View.VISIBLE : View.GONE);
+        copy.addView(subtitle, subtitleParams);
+        tileSubtitles.put(id, subtitle);
+        tileTitles.put(id, titleText);
         LinearLayout.LayoutParams copyParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
         copyParams.leftMargin = px(9);
         button.addView(copy, copyParams);
-        button.setContentDescription(activity.getString(label) + (summary != null ? ", " + summary : ""));
+        button.setContentDescription(titleText + (summary != null ? ", " + summary : ""));
         makeButton(button, () -> listener.onAction(id));
         return button;
     }
@@ -792,6 +1077,7 @@ final class QuickSettingsPanel extends FrameLayout {
         for (int label : new int[]{R.string.quick_bluetooth,
                 R.string.quick_picture, R.string.quick_sound, R.string.quick_screensaver,
                 R.string.quick_apps, R.string.inputs, R.string.wifi, R.string.quick_accessibility, R.string.quick_accessories,
+                R.string.quick_clear_background, R.string.quick_sleep_timer,
                 R.string.settings, R.string.quick_start_now}) {
             widest = Math.max(widest, paint.measureText(activity.getString(label)));
         }

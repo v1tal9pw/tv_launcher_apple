@@ -19,4 +19,9 @@
     <item name="quickInputs" type="id" />
     <item name="quickNetwork" type="id" />
     <item name="quickClearAll" type="id" />
+    <item name="quickSleepTimer" type="id" />
+    <item name="quickMediaCard" type="id" />
+    <item name="quickMediaPrev" type="id" />
+    <item name="quickMediaPlay" type="id" />
+    <item name="quickMediaNext" type="id" />
 </resources>

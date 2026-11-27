@@ -15,7 +15,7 @@ final class FeaturePreferences {
     static final String SCENES = "scenes";
     static final String SCENE_PREFIX = "scene:";
     static final String[] APPEARANCE = {"wallpaper_rotation_minutes", "wallpaper_order", "wallpaper_true_color",
-            "wallpaper_dim", "dock_opacity", "clock_wallpaper", "clock_glow", "clock_wallpaper_dim", "open_on_start_network_wait",
+            "wallpaper_dim", "wallpaper_night_dim", "dock_opacity", "clock_wallpaper", "clock_glow", "clock_wallpaper_dim", "open_on_start_network_wait",
             "sky_intensity", "glow_style", "glow_intensity", "tile_glow", "tile_glow_intensity", "home_idle_clock_minutes", "races_enabled", "continue_watching", "weather_enabled", "city", "latitude", "longitude"};
 
     static SharedPreferences prefs(Context context) { return context.getSharedPreferences(NAME, 0); }
@@ -91,7 +91,7 @@ final class FeaturePreferences {
                 continue;
             }
             if (!java.util.Arrays.asList(APPEARANCE).contains(key)) throw new IllegalArgumentException(key);
-            if (key.equals("races_enabled") || key.equals("wallpaper_true_color") || key.equals("continue_watching") || key.equals("weather_enabled") || key.equals("clock_wallpaper") || key.equals("clock_glow") || key.equals("tile_glow")) {
+            if (key.equals("races_enabled") || key.equals("wallpaper_true_color") || key.equals("wallpaper_night_dim") || key.equals("continue_watching") || key.equals("weather_enabled") || key.equals("clock_wallpaper") || key.equals("clock_glow") || key.equals("tile_glow")) {
                 if (!(value instanceof Boolean)) throw new IllegalArgumentException(key);
                 edit.putBoolean(key, (Boolean) value);
             } else if (key.equals("wallpaper_rotation_minutes") || key.equals("home_idle_clock_minutes")

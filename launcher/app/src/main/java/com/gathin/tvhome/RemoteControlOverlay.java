@@ -276,6 +276,16 @@ final class RemoteControlOverlay {
                                 null, config.reducedMotion, config.animations, config.navigationSounds,
                                 new QuickSettingsPanel.Listener() {
                                     public void onAction(int control) {
+                                        if (control == R.id.quickSleepTimer) {
+                                            int mins = SleepTimer.cycle(service);
+                                            Context localized = LauncherLocale.wrap(service);
+                                            String msg = mins > 0
+                                                    ? localized.getString(R.string.quick_sleep_set, mins)
+                                                    : localized.getString(R.string.quick_sleep_cancelled);
+                                            showStatusBanner(service, msg, 2800L);
+                                            if (root == panelRoot && activePanel != null) activePanel.refreshLiveStatus();
+                                            return;
+                                        }
                                         if (control == R.id.quickClearAll) {
                                             QuickSettingsActions.clearBackground(service, host,
                                                     new QuickSettingsActions.CleanupFeedback() {
@@ -283,6 +293,7 @@ final class RemoteControlOverlay {
                                                             showStatusBanner(service, message, finished ? 3600L : 25000L);
                                                             if (finished && root == panelRoot
                                                                     && activePanel != null && activePanel.isShowing()) {
+                                                                activePanel.refreshLiveStatus();
                                                                 activePanel.dismiss();
                                                             }
                                                         }
