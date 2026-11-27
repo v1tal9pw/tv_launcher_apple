@@ -63,7 +63,7 @@
     <string name="feature_glow_tile">Focused tile halo</string>
     <string name="feature_glow_tile_short">Tile · %1$d%%</string>
     <string name="feature_glow_tile_help" formatted="false">Intensity of the colored halo around the focused app tile (◀ / ▶ in 5% steps, OK to reset to 100%). Adjusted independently of background glow.</string>
-    <string name="installed_changes" formatted="false">Test build 3.74-test (v77) for TCL C6K. Higher-resolution icons &amp; banners (xxxhdpi/640 dpi, mipmaps, 1024 px custom banners), background update checks on every TV power-on with a subtle Home pill banner, 3D tile tilt &amp; specular sheen, Night auto-dimming (+20% after sunset), Now Playing card, live Control Center subtitles (Wi-Fi, Bluetooth, free RAM), Sleep timer (15–90 min), Force stop in tile menu, and JSON settings backup/restore.</string>
+    <string name="installed_changes" formatted="false">Test build 3.74-test.1 (v78) for TCL C6K. Rate-limit-free update checks via GitHub Releases CDN (latest.json) with ETag API fallback, plus all v77 features: high-res icons &amp; banners, power-on update checks with Home pill banner, 3D tile tilt &amp; sheen, Night auto-dimming, Now Playing card, live Control Center subtitles, Sleep timer, Force stop in tile menu, and JSON settings backup/restore.</string>
     <string name="update_check_button">Check for updates</string>
     <string name="weather_show_city">Show city name</string>
     <string name="weather_show_details">Show feels-like temperature and wind</string>
